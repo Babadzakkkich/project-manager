@@ -7,8 +7,8 @@ class RunConfig(BaseModel):
     port: int = 8000
 
 class ApiPrefix(BaseModel):
-    auth_prefix: str = "/auth"
-    tasks_prefix: str = "/tasks"
+    auth: str = "/auth"
+    tasks: str = "/tasks"
 
 class DatabaseConfig(BaseModel):
     url: PostgresDsn
