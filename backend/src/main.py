@@ -14,7 +14,7 @@ from modules.tasks import router as tasks_router
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # startup
     async with db_session.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
     yield
     # shutdown
     print("dispose engine")
