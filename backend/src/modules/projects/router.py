@@ -1,0 +1,50 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.database import db_session
+
+from .schemas import ProjectCreate, ProjectRead, ProjectUpdate
+from . import service as projects_service
+
+router = APIRouter()
+
+@router.get("/", response_model=list[ProjectRead])
+async def get_projects(session: AsyncSession = Depends(db_session.session_getter)):
+    return await projects_service.get_all_projects(session)
+
+
+@router.get("/{project_id}", response_model=ProjectRead)
+async def get_project(project_id: int, session: AsyncSession = Depends(db_session.session_getter)):
+    project = await projects_service.get_project_by_id(session, project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден")
+    return project
+
+
+@router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
+async def create_new_project(
+    project_data: ProjectCreate,
+    session: AsyncSession = Depends(db_session.session_getter),
+):
+    return await projects_service.create_project(session, project_data)
+
+
+@router.put("/{project_id}", response_model=ProjectRead)
+async def update_project_by_id(
+    project_id: int,
+    project_data: ProjectUpdate,
+    session: AsyncSession = Depends(db_session.session_getter),
+):
+    db_project = await projects_service.get_project_by_id(session, project_id)
+    if not db_project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден")
+
+    return await projects_service.update_project(session, db_project, project_data)
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_200_OK)
+async def delete_project_by_id(project_id: int, session: AsyncSession = Depends(db_session.session_getter)):
+    deleted = await projects_service.delete_project(session, project_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден")
+    return {"detail": "Проект успешно удалён"}
