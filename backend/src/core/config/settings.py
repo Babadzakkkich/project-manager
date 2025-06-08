@@ -8,6 +8,9 @@ class RunConfig(BaseModel):
 
 class ApiPrefix(BaseModel):
     auth: str = "/auth"
+    users: str = "/users"
+    groups: str = "/groups"
+    projects: str = "/projects"
     tasks: str = "/tasks"
 
 class DatabaseConfig(BaseModel):
