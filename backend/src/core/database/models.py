@@ -1,5 +1,6 @@
+from datetime import datetime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, String, DateTime, Text
+from sqlalchemy import ForeignKey, String, DateTime, Text, func
 
 class Base(DeclarativeBase):
     __abstract__ = True
@@ -12,7 +13,10 @@ class User(Base):
     login: Mapped[str] = mapped_column(String, unique=True)
     password_hash: Mapped[str] = mapped_column(Text)
     name: Mapped[str] = mapped_column(String)
-    created_at: Mapped[DateTime] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.now()
+    )
 
     groups: Mapped[list["Group"]] = relationship(
         "Group", secondary="group_user_association", back_populates="users"
@@ -26,7 +30,10 @@ class Group(Base):
     
     name: Mapped[str] = mapped_column(String, unique=True)
     description: Mapped[str] = mapped_column(String, nullable=True)
-    created_at: Mapped[DateTime] = mapped_column(DateTime)
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime, 
+        server_default=func.now()
+    )
 
     users: Mapped[list["User"]] = relationship(
         "User", secondary="group_user_association", back_populates="groups"
@@ -40,8 +47,8 @@ class Project(Base):
     
     title: Mapped[str] = mapped_column(String)
     description: Mapped[str] = mapped_column(String, nullable=True)
-    start_date: Mapped[DateTime] = mapped_column(DateTime)
-    end_date: Mapped[DateTime] = mapped_column(DateTime)
+    start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String)
 
     group_id: Mapped[int] = mapped_column(ForeignKey("groups.id"))
@@ -55,7 +62,10 @@ class Task(Base):
     description: Mapped[str] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String)
     deadline: Mapped[DateTime] = mapped_column(DateTime)
-    created_at: Mapped[DateTime] = mapped_column(DateTime)
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime, 
+        server_default=func.now()
+    )
 
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
     project: Mapped["Project"] = relationship("Project", back_populates="tasks")
