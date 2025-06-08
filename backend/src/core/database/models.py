@@ -61,12 +61,11 @@ class Task(Base):
     title: Mapped[str] = mapped_column(String)
     description: Mapped[str] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String)
-    deadline: Mapped[DateTime] = mapped_column(DateTime)
     created_at: Mapped[DateTime] = mapped_column(
         DateTime, 
         server_default=func.now()
     )
-
+    deadline: Mapped[DateTime] = mapped_column(DateTime(timezone=True))
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
     project: Mapped["Project"] = relationship("Project", back_populates="tasks")
     assignees: Mapped[list["User"]] = relationship(
