@@ -1,12 +1,33 @@
+from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.database.models import User
+from core.config import settings
 from core.database import db_session
-
+from core.security.dependencies import get_current_user
+from core.security.jwt import create_access_token, authenticate_user
 from . import service as users_service
-from .schemas import UserRead, UserCreate, UserUpdate
+from .schemas import UserLogin, UserRead, UserCreate, UserUpdate, Token
 
 router = APIRouter()
+
+@router.post("/login", response_model=Token)
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    session: AsyncSession = Depends(db_session.session_getter),
+):
+    user = await authenticate_user(session, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(status_code=400, detail="Неверный логин или пароль")
+
+    access_token_expires = timedelta(minutes=settings.security.token_expire_minutes)
+    access_token = create_access_token(
+        data={"sub": user.login},
+        expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/", response_model=list[UserRead])
 async def get_users(session: AsyncSession = Depends(db_session.session_getter)):
@@ -15,7 +36,9 @@ async def get_users(session: AsyncSession = Depends(db_session.session_getter)):
 
 
 @router.get("/{user_id}", response_model=UserRead)
-async def get_user_by_id(user_id: int, session: AsyncSession = Depends(db_session.session_getter)):
+async def get_user_by_id(user_id: int, 
+                         session: AsyncSession = Depends(db_session.session_getter), 
+                         current_user: User = Depends(get_current_user)):
     user = await users_service.get_user_by_id(session, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")

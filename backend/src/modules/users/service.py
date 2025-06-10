@@ -13,7 +13,6 @@ async def get_all_users(session: AsyncSession) -> list[User]:
     result = await session.scalars(stmt)
     return result.all()
 
-
 async def get_user_by_id(session: AsyncSession, user_id: int) -> Optional[User]:
     stmt = select(User).where(User.id == user_id)
     result = await session.scalar(stmt)

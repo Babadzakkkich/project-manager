@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 import uvicorn
 
 from core.config import settings

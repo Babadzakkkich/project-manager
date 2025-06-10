@@ -19,6 +19,11 @@ class DatabaseConfig(BaseModel):
     echo_pool: bool = False
     pool_size: int = 50
     max_overflow: int = 10
+    
+class SecurityConfig(BaseModel):
+    secret_key: str
+    token_expire_minutes: int
+    algorithm: str
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -30,6 +35,7 @@ class Settings(BaseSettings):
     run: RunConfig = RunConfig()
     api: ApiPrefix = ApiPrefix()
     db: DatabaseConfig
+    security: SecurityConfig
 
 
 settings = Settings()

@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, List
+from typing import TYPE_CHECKING, Optional, List
 
-# Импорты схем из других модулей
-# from modules.users.schemas import UserRead
-# from modules.projects.schemas import ProjectRead
+if TYPE_CHECKING:
+    from modules.users.schemas import UserRead
+    from modules.projects.schemas import ProjectRead
 
 # === Схемы для создания группы ===
 
@@ -22,9 +24,9 @@ class GroupRead(BaseModel):
 
 
 
-# class GroupReadWithRelations(GroupRead):
-#     users: List[UserRead] = []
-#     projects: List[ProjectRead] = []
+class GroupReadWithRelations(GroupRead):
+    users: List[UserRead] = []
+    projects: List[ProjectRead] = []
 
 # === Схемы для обновления ===
 

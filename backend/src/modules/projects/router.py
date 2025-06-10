@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.security.dependencies import get_current_user
 from core.database import db_session
 
 from .schemas import ProjectCreate, ProjectRead, ProjectUpdate
 from . import service as projects_service
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 @router.get("/", response_model=list[ProjectRead])
 async def get_projects(session: AsyncSession = Depends(db_session.session_getter)):

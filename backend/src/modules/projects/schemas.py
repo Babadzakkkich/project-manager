@@ -1,12 +1,12 @@
-# modules/projects/schemas.py
+from __future__ import annotations
 
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, List
+from typing import TYPE_CHECKING, Optional, List
 
-# Импорты из других модулей
-# from modules.groups.schemas import GroupRead
-# from modules.tasks.schemas import TaskRead
+if TYPE_CHECKING:
+    from modules.groups.schemas import GroupRead
+    from modules.tasks.schemas import TaskRead
 
 
 # === Схемы для создания проекта ===
@@ -32,9 +32,9 @@ class ProjectRead(BaseModel):
     group_id: int
 
 
-# class ProjectReadWithRelations(ProjectRead):
-#     group: GroupRead | None = None
-#     tasks: List[TaskRead] = []
+class ProjectReadWithRelations(ProjectRead):
+    group: GroupRead | None = None
+    tasks: List[TaskRead] = []
 
 
 

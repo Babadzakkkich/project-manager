@@ -1,6 +1,12 @@
+from __future__ import annotations
+
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, List
+from typing import TYPE_CHECKING, Optional, List
+
+if TYPE_CHECKING:
+    from modules.groups.schemas import GroupRead
+    from modules.tasks.schemas import TaskRead
 
 class UserCreate(BaseModel):
     login: str
@@ -22,6 +28,13 @@ class UserUpdate(BaseModel):
     name: Optional[str] = None
     password: Optional[str] = None
 
-# class UserWithRelations(UserRead):
-#     groups: List[GroupRead] = []
-#     assigned_tasks: List[TaskRead] = []
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+class TokenData(BaseModel):
+    login: Optional[str] = None
+
+class UserWithRelations(UserRead):
+    groups: List[GroupRead] = []
+    assigned_tasks: List[TaskRead] = []

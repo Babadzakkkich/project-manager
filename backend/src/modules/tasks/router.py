@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.security.dependencies import get_current_user
 from core.database import db_session
 from .schemas import TaskCreate, TaskRead, TaskUpdate, TaskReadWithRelations
 from . import service as tasks_service
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 @router.get("/", response_model=list[TaskRead])
 async def get_tasks(session: AsyncSession = Depends(db_session.session_getter)):

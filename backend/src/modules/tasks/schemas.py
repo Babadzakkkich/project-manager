@@ -1,12 +1,12 @@
-# modules/tasks/schemas.py
+from __future__ import annotations
 
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, List
+from typing import TYPE_CHECKING, Optional, List
 
-# Импорты из других модулей
-from modules.projects.schemas import ProjectRead
-from modules.users.schemas import UserRead
+if TYPE_CHECKING:
+    from modules.projects.schemas import ProjectRead
+    from modules.users.schemas import UserRead
 
 
 # === Схемы для создания задачи ===
@@ -30,12 +30,9 @@ class TaskRead(BaseModel):
     deadline: datetime
     project_id: int
 
-
 class TaskReadWithRelations(TaskRead):
     project: ProjectRead | None = None
     assignees: List[UserRead] = []
-
-
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
