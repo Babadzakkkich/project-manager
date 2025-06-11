@@ -6,9 +6,7 @@ from typing import TYPE_CHECKING, Optional, List
 if TYPE_CHECKING:
     from modules.projects.schemas import ProjectRead
     from modules.users.schemas import UserRead
-
-
-# === Схемы для создания задачи ===
+    from modules.groups.schemas import GroupRead
 
 class TaskCreate(BaseModel):
     title: str
@@ -16,10 +14,8 @@ class TaskCreate(BaseModel):
     status: str
     deadline: datetime
     project_id: int
+    group_id: int
     assignee_ids: List[int]
-    project_id: int
-
-# === Схемы для чтения данных ===
 
 class TaskRead(BaseModel):
     id: int
@@ -38,9 +34,12 @@ class TaskUpdate(BaseModel):
 
 class TaskReadWithRelations(TaskRead):
     project: ProjectRead | None = None
+    group: GroupRead | None = None
     assignees: List[UserRead] = []
+    
+class AddRemoveUsersToTask(BaseModel):
+    user_ids: List[int]
 
+from modules.groups.schemas import GroupRead
 from modules.projects.schemas import ProjectRead
 from modules.users.schemas import UserRead
-
-# TaskReadWithRelations.model_rebuild()

@@ -6,9 +6,7 @@ import uvicorn
 from core.config import settings
 from core.database.session import db_session
 from core.database.models import Base
-#from core.database.models import *
 
-#from modules.auth import router as auth_router
 from modules.users.router import router as users_router
 from modules.groups.router import router as groups_router
 from modules.tasks.router import router as tasks_router
@@ -26,11 +24,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 main_app = FastAPI(lifespan=lifespan)
-#main_app.include_router(auth_router, prefix=settings.api.auth)
 main_app.include_router(users_router, prefix=settings.api.users, tags=["Users"])
 main_app.include_router(groups_router, prefix=settings.api.groups, tags=["Groups"])
-main_app.include_router(tasks_router, prefix=settings.api.tasks, tags=["Tasks"])
 main_app.include_router(projects_router, prefix=settings.api.projects, tags=["Projects"])
+main_app.include_router(tasks_router, prefix=settings.api.tasks, tags=["Tasks"])
 
 if __name__ == "__main__":
     uvicorn.run("main:main_app", 

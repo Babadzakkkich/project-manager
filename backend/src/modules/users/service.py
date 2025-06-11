@@ -7,7 +7,6 @@ from core.security.password_hasher import hash_password
 from core.database.models import User
 from .schemas import UserCreate, UserUpdate
 
-
 async def get_all_users(session: AsyncSession) -> list[User]:
     stmt = select(User).order_by(User.id)
     result = await session.scalars(stmt)
@@ -18,7 +17,7 @@ async def get_user_by_id(session: AsyncSession, user_id: int) -> Optional[User]:
         selectinload(User.groups),
         selectinload(User.assigned_tasks)
     ).where(User.id == user_id)
-
+    
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
 
@@ -38,7 +37,18 @@ async def create_user(session: AsyncSession, user_create: UserCreate) -> User:
     return new_user
 
 async def update_user(session: AsyncSession, user_id: int, user_update: UserUpdate) -> User | None:
-    user = await get_user_by_id(session, user_id)
+    stmt = (
+        select(User)
+        .options(
+            selectinload(User.groups),
+            selectinload(User.assigned_tasks)
+        )
+        .where(User.id == user_id)
+    )
+
+    result = await session.execute(stmt)
+    user = result.scalar_one_or_none()
+
     if not user:
         return None
 
@@ -59,14 +69,11 @@ async def delete_user(session: AsyncSession, user_id: int) -> bool:
     if not user:
         return False
 
-    # Удаляем все задачи, где пользователь assignee
     for task in list(user.assigned_tasks):
         await session.delete(task)
 
-    # Удаляем пользователя из всех групп
     user.groups.clear()
 
-    # Теперь можно безопасно удалить пользователя
     await session.delete(user)
     await session.commit()
     return True

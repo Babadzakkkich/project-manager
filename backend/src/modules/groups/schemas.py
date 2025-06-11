@@ -13,7 +13,6 @@ class GroupCreate(BaseModel):
     description: Optional[str] = None
     user_ids: List[int]
     
-
 class GroupRead(BaseModel):
     id: int
     name: str
@@ -36,5 +35,3 @@ class RemoveUsersFromGroup(AddUsersToGroup):
     
 from modules.users.schemas import UserRead
 from modules.projects.schemas import ProjectRead
-
-# GroupReadWithRelations.model_rebuild()

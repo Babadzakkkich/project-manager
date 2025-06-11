@@ -1,5 +1,3 @@
-# core/database/models.py
-
 from datetime import datetime
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import Column, ForeignKey, String, DateTime, Table, Text, func, Integer
@@ -72,8 +70,8 @@ class Group(Base):
         "Project", 
         secondary=project_group_association, 
         back_populates="groups",
-        
     )
+    tasks: Mapped[List["Task"]] = relationship(back_populates="group")
 
 
 class Project(Base):
@@ -87,14 +85,13 @@ class Project(Base):
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String)
 
-    # Теперь проект может быть связан с несколькими группами
     groups: Mapped[List["Group"]] = relationship(
         "Group", 
         secondary=project_group_association, 
         back_populates="projects",
         
     )
-    tasks: Mapped[List["Task"]] = relationship("Task", back_populates="project", )
+    tasks: Mapped[List["Task"]] = relationship("Task", back_populates="project")
 
 
 class Task(Base):
@@ -114,3 +111,5 @@ class Task(Base):
     assignees: Mapped[List["User"]] = relationship(
         "User", secondary=task_user_association, back_populates="assigned_tasks", 
     )
+    group_id: Mapped[Optional[int]] = mapped_column(ForeignKey("groups.id"))
+    group: Mapped["Group"] = relationship(back_populates="tasks")

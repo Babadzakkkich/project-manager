@@ -1,9 +1,34 @@
 services:
-  pg:
-    image: postgres
+  app:
+    build:
+      dockerfile: DockerfileBackend
+    ports:
+      - "8000:8000"
     environment:
-      POSTGRES_DB: project-manager
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      APP_CONFIG__DB__USER: ${APP_CONFIG__DB__USER}
+      APP_CONFIG__DB__PASSWORD: ${APP_CONFIG__DB__PASSWORD}
+      APP_CONFIG__DB__HOST: ${APP_CONFIG__DB__HOST}
+      APP_CONFIG__DB__PORT: ${APP_CONFIG__DB__PORT}
+      APP_CONFIG__DB__NAME: ${APP_CONFIG__DB__NAME}
+      APP_CONFIG__SECURITY__SECRET_KEY: ${APP_CONFIG__SECURITY__SECRET_KEY}
+      APP_CONFIG__SECURITY__TOKEN_EXPIRE_MINUTES: ${APP_CONFIG__SECURITY__TOKEN_EXPIRE_MINUTES}
+      APP_CONFIG__SECURITY__ALGORITHM: ${APP_CONFIG__SECURITY__ALGORITHM}
+
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${APP_CONFIG__DB__USER}
+      POSTGRES_PASSWORD: ${APP_CONFIG__DB__PASSWORD}
+      POSTGRES_DB: ${APP_CONFIG__DB__NAME}
     ports:
       - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${APP_CONFIG__DB__USER} -d ${APP_CONFIG__DB__NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
