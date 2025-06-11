@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from pydantic import BaseModel
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional, List
@@ -17,7 +16,8 @@ class TaskCreate(BaseModel):
     status: str
     deadline: datetime
     project_id: int
-
+    assignee_ids: List[int]
+    project_id: int
 
 # === Схемы для чтения данных ===
 
@@ -29,14 +29,18 @@ class TaskRead(BaseModel):
     created_at: datetime
     deadline: datetime
     project_id: int
-
-class TaskReadWithRelations(TaskRead):
-    project: ProjectRead | None = None
-    assignees: List[UserRead] = []
-
+    
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
     deadline: Optional[datetime] = None
-    project_id: Optional[int] = None
+
+class TaskReadWithRelations(TaskRead):
+    project: ProjectRead | None = None
+    assignees: List[UserRead] = []
+
+from modules.projects.schemas import ProjectRead
+from modules.users.schemas import UserRead
+
+# TaskReadWithRelations.model_rebuild()

@@ -5,11 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database.models import User
 from core.config import settings
-from core.database import db_session
+from core.database.session import db_session
 from core.security.dependencies import get_current_user
 from core.security.jwt import create_access_token, authenticate_user
 from . import service as users_service
-from .schemas import UserLogin, UserRead, UserCreate, UserUpdate, Token
+from .schemas import UserRead, UserCreate, UserUpdate, UserWithRelations, Token
 
 router = APIRouter()
 
@@ -35,7 +35,7 @@ async def get_users(session: AsyncSession = Depends(db_session.session_getter)):
     return users
 
 
-@router.get("/{user_id}", response_model=UserRead)
+@router.get("/{user_id}", response_model=UserWithRelations)
 async def get_user_by_id(user_id: int, 
                          session: AsyncSession = Depends(db_session.session_getter), 
                          current_user: User = Depends(get_current_user)):
@@ -55,7 +55,7 @@ async def create_new_user(
     except Exception as e:
         raise HTTPException(status_code=400, detail="Ошибка создания пользователя")
     
-@router.put("/{user_id}", response_model=UserRead)
+@router.put("/{user_id}", response_model=UserWithRelations)
 async def update_user_by_id(
     user_id: int,
     user_update: UserUpdate,

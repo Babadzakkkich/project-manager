@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security.password_hasher import hash_password
@@ -14,9 +14,13 @@ async def get_all_users(session: AsyncSession) -> list[User]:
     return result.all()
 
 async def get_user_by_id(session: AsyncSession, user_id: int) -> Optional[User]:
-    stmt = select(User).where(User.id == user_id)
-    result = await session.scalar(stmt)
-    return result
+    stmt = select(User).options(
+        selectinload(User.groups),
+        selectinload(User.assigned_tasks)
+    ).where(User.id == user_id)
+
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
 
 async def create_user(session: AsyncSession, user_create: UserCreate) -> User:
     hashed_password = hash_password(user_create.password)
@@ -55,6 +59,14 @@ async def delete_user(session: AsyncSession, user_id: int) -> bool:
     if not user:
         return False
 
+    # Удаляем все задачи, где пользователь assignee
+    for task in list(user.assigned_tasks):
+        await session.delete(task)
+
+    # Удаляем пользователя из всех групп
+    user.groups.clear()
+
+    # Теперь можно безопасно удалить пользователя
     await session.delete(user)
     await session.commit()
     return True

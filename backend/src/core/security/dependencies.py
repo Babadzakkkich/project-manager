@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from modules.users.schemas import TokenData
 from core.config import settings
 from core.database.models import User
-from core.database import db_session
+from core.database.session import db_session
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
 

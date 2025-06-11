@@ -1,8 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
-from core.database.models import Project
-from .schemas import ProjectCreate, ProjectUpdate, ProjectRead
+from core.database.models import Project, Group, Task
+from .schemas import AddGroupsToProject, ProjectCreate, ProjectReadWithRelations, ProjectUpdate, ProjectRead, RemoveGroupsFromProject
 
 
 async def get_all_projects(session: AsyncSession) -> list[ProjectRead]:
@@ -11,19 +12,78 @@ async def get_all_projects(session: AsyncSession) -> list[ProjectRead]:
     return result.all()
 
 
-async def get_project_by_id(session: AsyncSession, project_id: int) -> ProjectRead | None:
-    stmt = select(Project).where(Project.id == project_id)
-    result = await session.scalar(stmt)
-    return result
+async def get_project_by_id(session: AsyncSession, project_id: int) -> ProjectReadWithRelations | None:
+    stmt = select(Project).options(
+        selectinload(Project.groups),
+        selectinload(Project.tasks)
+    ).where(Project.id == project_id)
 
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
 
-async def create_project(session: AsyncSession, project_create: ProjectCreate) -> ProjectRead:
-    new_project = Project(**project_create.model_dump())
+async def create_project(session: AsyncSession, project_data: ProjectCreate) -> ProjectReadWithRelations:
+    # Проверяем, существуют ли все указанные группы
+    stmt_groups = select(Group).where(Group.id.in_(project_data.group_ids))
+    result_groups = await session.execute(stmt_groups)
+    groups = result_groups.scalars().all()
+
+    if len(groups) != len(project_data.group_ids):
+        found_ids = {g.id for g in groups}
+        missing_ids = set(project_data.group_ids) - found_ids
+        raise ValueError(f"Группы с ID {missing_ids} не найдены")
+
+    # Создаем проект
+    new_project = Project(**project_data.model_dump(exclude={"group_ids"}))
+    new_project.groups.extend(groups)
+
     session.add(new_project)
     await session.commit()
     await session.refresh(new_project)
-    return new_project
 
+    # Возвращаем проект с relations
+    stmt = select(Project).options(
+        selectinload(Project.groups),
+        selectinload(Project.tasks)
+    ).where(Project.id == new_project.id)
+
+    result = await session.execute(stmt)
+    return result.scalar_one()
+
+async def add_groups_to_project(
+    session: AsyncSession,
+    project_id: int,
+    data: AddGroupsToProject
+) -> ProjectReadWithRelations:
+    stmt = select(Project).options(
+        selectinload(Project.groups),
+        selectinload(Project.tasks).selectinload(Task.assignees)
+    ).where(Project.id == project_id)
+
+    result = await session.execute(stmt)
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise ValueError("Проект не найден")
+
+    # Проверяем, что группы существуют
+    groups_stmt = select(Group).where(Group.id.in_(data.group_ids))
+    groups_result = await session.execute(groups_stmt)
+    groups = groups_result.scalars().all()
+
+    if len(groups) != len(data.group_ids):
+        found_ids = {g.id for g in groups}
+        missing_ids = set(data.group_ids) - found_ids
+        raise ValueError(f"Группы {missing_ids} не найдены")
+
+    # Добавляем новые группы
+    for group in groups:
+        if group not in project.groups:
+            project.groups.append(group)
+
+    await session.commit()
+    await session.refresh(project)
+
+    return project
 
 async def update_project(
     session: AsyncSession,
@@ -38,11 +98,66 @@ async def update_project(
     return db_project
 
 
+async def remove_groups_from_project(
+    session: AsyncSession,
+    project_id: int,
+    data: RemoveGroupsFromProject
+) -> ProjectReadWithRelations:
+    stmt = select(Project).options(
+        selectinload(Project.groups).selectinload(Group.users),
+        selectinload(Project.tasks).selectinload(Task.assignees)
+    ).where(Project.id == project_id)
+
+    result = await session.execute(stmt)
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise ValueError("Проект не найден")
+
+    groups_to_remove = [g for g in project.groups if g.id in data.group_ids]
+    if not groups_to_remove:
+        raise ValueError("Нет таких групп в проекте")
+
+    for group in groups_to_remove:
+        if group.users is None:
+            await session.refresh(group, ['users'])
+
+    for task in list(project.tasks): 
+        users_in_removed_groups = set()
+        for group in groups_to_remove:
+            users_in_removed_groups.update(group.users)
+
+        new_assignees = [
+            user for user in task.assignees
+            if user not in users_in_removed_groups
+        ]
+
+        if not new_assignees:
+            await session.delete(task)
+        else:
+            task.assignees = new_assignees
+
+    for group in groups_to_remove:
+        project.groups.remove(group)
+
+    await session.commit()
+    await session.refresh(project)
+
+    return project
+
 async def delete_project(session: AsyncSession, project_id: int) -> bool:
     db_project = await get_project_by_id(session, project_id)
     if not db_project:
         return False
 
+    # Удаляем все задачи проекта
+    for task in list(db_project.tasks):
+        await session.delete(task)
+
+    # Удаляем связи с группами
+    db_project.groups.clear()
+
+    # Удаляем сам проект
     await session.delete(db_project)
     await session.commit()
     return True

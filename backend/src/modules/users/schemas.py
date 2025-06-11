@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from pydantic import BaseModel
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional, List
@@ -38,3 +37,6 @@ class TokenData(BaseModel):
 class UserWithRelations(UserRead):
     groups: List[GroupRead] = []
     assigned_tasks: List[TaskRead] = []
+    
+from modules.groups.schemas import GroupRead
+from modules.tasks.schemas import TaskRead   

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security.dependencies import get_current_user
-from core.database import db_session
+from core.database.session import db_session
 from .schemas import TaskCreate, TaskRead, TaskUpdate, TaskReadWithRelations
 from . import service as tasks_service
 
@@ -13,20 +13,19 @@ async def get_tasks(session: AsyncSession = Depends(db_session.session_getter)):
     return await tasks_service.get_all_tasks(session)
 
 
-@router.get("/{task_id}", response_model=TaskRead)
+@router.get("/{task_id}", response_model=TaskReadWithRelations)
 async def get_task(task_id: int, session: AsyncSession = Depends(db_session.session_getter)):
     task = await tasks_service.get_task_by_id(session, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
     return task
 
-
-@router.post("/", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
-async def create_new_task(
-    task_data: TaskCreate,
-    session: AsyncSession = Depends(db_session.session_getter),
-):
-    return await tasks_service.create_task(session, task_data)
+@router.post("/", response_model=TaskReadWithRelations, status_code=status.HTTP_201_CREATED)
+async def create_new_task(task_data: TaskCreate, session: AsyncSession = Depends(db_session.session_getter)):
+    try:
+        return await tasks_service.create_task(session, task_data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.put("/{task_id}", response_model=TaskRead)
