@@ -22,8 +22,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print("dispose engine")
     await db_session.dispose()
 
-
 main_app = FastAPI(lifespan=lifespan)
+
 main_app.include_router(users_router, prefix=settings.api.users, tags=["Users"])
 main_app.include_router(groups_router, prefix=settings.api.groups, tags=["Groups"])
 main_app.include_router(projects_router, prefix=settings.api.projects, tags=["Projects"])

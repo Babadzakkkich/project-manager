@@ -7,14 +7,11 @@ class RunConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
 
-
 class ApiPrefix(BaseModel):
-    auth: str = "/auth"
     users: str = "/users"
     groups: str = "/groups"
     projects: str = "/projects"
     tasks: str = "/tasks"
-
 
 class DatabaseConfig(BaseModel):
     user: str = Field(..., env="APP_CONFIG__DB__USER")
@@ -38,7 +35,6 @@ class SecurityConfig(BaseModel):
     secret_key: str
     token_expire_minutes: int
     algorithm: str
-
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
