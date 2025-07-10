@@ -16,6 +16,7 @@ group_user_association = Table(
     Base.metadata,
     Column("group_id", Integer, ForeignKey("groups.id"), primary_key=True),
     Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
+    Column("role", String, default="member")
 )
 
 task_user_association = Table(

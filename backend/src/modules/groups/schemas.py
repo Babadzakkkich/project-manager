@@ -7,11 +7,9 @@ if TYPE_CHECKING:
     from modules.users.schemas import UserRead
     from modules.projects.schemas import ProjectRead
 
-
 class GroupCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    user_ids: List[int]
     
 class GroupRead(BaseModel):
     id: int
@@ -27,11 +25,15 @@ class GroupReadWithRelations(GroupRead):
     users: List[UserRead] = []
     projects: List[ProjectRead] = []
     
+class UserWithRoleSchema(BaseModel):
+    user_id: int
+    role: Optional[str] = "member"
+    
 class AddUsersToGroup(BaseModel):
-    user_ids: List[int]
+    users: List[UserWithRoleSchema]
 
-class RemoveUsersFromGroup(AddUsersToGroup):
-    pass
+class RemoveUsersFromGroup(BaseModel):
+    user_ids: List[int]
     
 from modules.users.schemas import UserRead
 from modules.projects.schemas import ProjectRead

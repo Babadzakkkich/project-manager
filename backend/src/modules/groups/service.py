@@ -1,14 +1,14 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from core.database.models import Group, Project, Task, User
+from core.database.models import Group, Project, Task, User, group_user_association
+from core.security.dependencies import check_user_in_group, ensure_user_is_admin
 from .schemas import AddUsersToGroup, RemoveUsersFromGroup, GroupCreate, GroupRead, GroupReadWithRelations, GroupUpdate
 
 async def get_all_groups(session: AsyncSession) -> list[GroupRead]:
     stmt = select(Group).order_by(Group.id)
     result = await session.scalars(stmt)
     return result.all()
-
 
 async def get_group_by_id(session: AsyncSession, group_id: int) -> GroupReadWithRelations | None:
     stmt = select(Group).options(
@@ -20,18 +20,23 @@ async def get_group_by_id(session: AsyncSession, group_id: int) -> GroupReadWith
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
 
-async def create_group(session: AsyncSession, group_create: GroupCreate) -> GroupReadWithRelations:
-    new_group = Group(**group_create.model_dump(exclude={"user_ids"}))
+async def create_group(
+    session: AsyncSession,
+    group_create: GroupCreate,
+    current_user: User
+) -> GroupReadWithRelations:
+    new_group = Group(**group_create.model_dump())
     session.add(new_group)
-
-    stmt_users = select(User).where(User.id.in_(group_create.user_ids))
-    result_users = await session.execute(stmt_users)
-    users = result_users.scalars().all()
-
-    if not users:
-        raise ValueError("Назначенные пользователи не найдены")
-
-    new_group.users.extend(users)
+    
+    await session.flush()
+    
+    await session.execute(
+        group_user_association.insert().values(
+            group_id=new_group.id,
+            user_id=current_user.id,
+            role="admin"
+        )
+    )
 
     await session.commit()
     await session.refresh(new_group)
@@ -48,7 +53,8 @@ async def create_group(session: AsyncSession, group_create: GroupCreate) -> Grou
 async def add_users_to_group(
     session: AsyncSession,
     group_id: int,
-    data: AddUsersToGroup
+    data: AddUsersToGroup,
+    current_user: User
 ) -> GroupReadWithRelations:
     stmt = select(Group).options(
         selectinload(Group.users),
@@ -62,29 +68,51 @@ async def add_users_to_group(
     if not group:
         raise ValueError("Группа не найдена")
 
-    users_stmt = select(User).where(User.id.in_(data.user_ids))
+    await ensure_user_is_admin(session, current_user.id, group.id)
+
+    user_ids = [user_with_role.user_id for user_with_role in data.users]
+    
+    users_stmt = select(User).where(User.id.in_(user_ids))
     users_result = await session.execute(users_stmt)
     users = users_result.scalars().all()
 
-    if len(users) != len(data.user_ids):
+    if len(users) != len(user_ids):
         found_ids = {u.id for u in users}
-        missing_ids = set(data.user_ids) - found_ids
+        missing_ids = set(user_ids) - found_ids
         raise ValueError(f"Пользователи {missing_ids} не найдены")
 
-    for user in users:
-        if user not in group.users:
-            group.users.append(user)
+    for user_with_role in data.users:
+        user_id = user_with_role.user_id
+        role = user_with_role.role
 
+        existing_entry = await session.execute(
+            select(group_user_association.c.user_id)
+            .where(
+                group_user_association.c.user_id == user_id,
+                group_user_association.c.group_id == group.id
+            )
+        )
+        existing_user_id = existing_entry.scalar_one_or_none()
+
+        if not existing_user_id:
+            await session.execute(
+                group_user_association.insert().values(
+                    user_id=user_id,
+                    group_id=group.id,
+                    role=role
+                )
+            )
     await session.commit()
     await session.refresh(group)
-
     return group
 
 async def update_group(
     session: AsyncSession,
     db_group: Group,
-    group_update: GroupUpdate
+    group_update: GroupUpdate,
+    current_user: User
 ) -> GroupRead:
+    await ensure_user_is_admin(session, current_user.id, db_group.id)
     for key, value in group_update.model_dump(exclude_unset=True).items():
         setattr(db_group, key, value)
 
@@ -92,8 +120,13 @@ async def update_group(
     await session.refresh(db_group)
     return db_group
 
-
-async def remove_users_from_group(session: AsyncSession, group_id: int, data: RemoveUsersFromGroup) -> GroupReadWithRelations:
+async def remove_users_from_group(
+    session: AsyncSession,
+    group_id: int,
+    data: RemoveUsersFromGroup,
+    current_user: User
+) -> GroupReadWithRelations:
+    
     stmt = select(Group).options(
         selectinload(Group.users),
         selectinload(Group.projects).selectinload(Project.tasks).selectinload(Task.assignees),
@@ -105,6 +138,8 @@ async def remove_users_from_group(session: AsyncSession, group_id: int, data: Re
 
     if not group:
         raise ValueError("Группа не найдена")
+
+    await ensure_user_is_admin(session, current_user.id, group.id)
 
     users_to_remove = [u for u in group.users if u.id in data.user_ids]
     if not users_to_remove:
@@ -130,10 +165,12 @@ async def remove_users_from_group(session: AsyncSession, group_id: int, data: Re
     return group
 
 
-async def delete_group(session: AsyncSession, group_id: int) -> bool:
+async def delete_group(session: AsyncSession, group_id: int, current_user: User) -> bool:
     group = await get_group_by_id(session, group_id)
     if not group:
         return False
+    
+    await ensure_user_is_admin(session, current_user.id, group.id)
 
     for task in list(group.tasks):
         await session.delete(task)

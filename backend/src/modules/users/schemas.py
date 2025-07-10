@@ -26,7 +26,7 @@ class UserUpdate(BaseModel):
     login: Optional[str] = None
     name: Optional[str] = None
     password: Optional[str] = None
-
+    
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
