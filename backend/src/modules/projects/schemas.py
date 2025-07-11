@@ -17,7 +17,6 @@ class ProjectCreate(BaseModel):
     group_ids: List[int]
     model_config = {"from_attributes": True}
 
-
 class ProjectRead(BaseModel):
     id: int
     title: str

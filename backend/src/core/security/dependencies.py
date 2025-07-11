@@ -51,20 +51,16 @@ async def get_user_group_role(session: AsyncSession, user_id: int, group_id: int
     row = result.fetchone()
     return row[0] if row else None
 
-
 async def check_user_in_group(session: AsyncSession, user_id: int, group_id: int) -> bool:
     """Проверить, состоит ли пользователь в группе"""
     role = await get_user_group_role(session, user_id, group_id)
     return role is not None
 
-
 async def ensure_user_is_admin(session: AsyncSession, user_id: int, group_id: int):
-    # Сначала проверяем, состоит ли пользователь в группе
     in_group = await check_user_in_group(session, user_id, group_id)
     if not in_group:
         raise HTTPException(status_code=403, detail="Пользователь не состоит в группе")
     
-    # Затем проверяем роль
     role = await get_user_group_role(session, user_id, group_id)
     if role != "admin":
         raise HTTPException(status_code=403, detail="Недостаточно прав")

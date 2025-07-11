@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from core.database.models import Group, Project, Task, User, group_user_association
-from core.security.dependencies import check_user_in_group, ensure_user_is_admin
+from core.security.dependencies import ensure_user_is_admin
 from .schemas import AddUsersToGroup, RemoveUsersFromGroup, GroupCreate, GroupRead, GroupReadWithRelations, GroupUpdate
 
 async def get_all_groups(session: AsyncSession) -> list[GroupRead]:
