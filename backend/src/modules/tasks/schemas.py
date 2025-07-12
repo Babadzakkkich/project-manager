@@ -15,7 +15,6 @@ class TaskCreate(BaseModel):
     deadline: datetime
     project_id: int
     group_id: int
-    assignee_ids: List[int]
 
 class TaskRead(BaseModel):
     id: int
