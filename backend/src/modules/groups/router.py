@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database.models import User
 from core.security.dependencies import get_current_user
 from core.database.session import db_session
-from .schemas import AddUsersToGroup, GroupCreate, GroupRead, GroupUpdate, GroupReadWithRelations, RemoveUsersFromGroup
+from .schemas import AddUsersToGroup, GetUserRoleResponse, GroupCreate, GroupRead, GroupUpdate, GroupReadWithRelations, RemoveUsersFromGroup, UserWithRoleSchema
 from . import service as groups_service
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -20,6 +20,14 @@ async def get_group(group_id: int, session: AsyncSession = Depends(db_session.se
     if not group:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Группа не найдена")
     return group
+
+@router.get("/{group_id}/my_role", response_model=GetUserRoleResponse)
+async def get_my_role_in_group(
+    group_id: int,
+    session: AsyncSession = Depends(db_session.session_getter),
+    current_user: User = Depends(get_current_user)
+):
+    return await groups_service.get_role_for_user_in_group(session, current_user.id, group_id)
 
 
 @router.post("/", response_model=GroupReadWithRelations, status_code=status.HTTP_201_CREATED)
@@ -60,6 +68,22 @@ async def update_group_by_id(
         raise e
     except Exception as e:
         raise HTTPException(status_code=400, detail="Ошибка обновления группы")
+    
+@router.put("/{group_id}/change_role", status_code=200)
+async def change_user_role_in_group(
+    group_id: int,
+    request: UserWithRoleSchema,
+    session: AsyncSession = Depends(db_session.session_getter),
+    current_user: User = Depends(get_current_user)
+):
+    await groups_service.change_user_role(
+        session=session,
+        current_user_id=current_user.id,
+        group_id=group_id,
+        user_id=request.user_id,
+        new_role=request.role
+    )
+    return {"detail": "Роль успешно изменена"}
 
 @router.delete("/{group_id}/remove_users", response_model=GroupReadWithRelations)
 async def remove_users_from_group(

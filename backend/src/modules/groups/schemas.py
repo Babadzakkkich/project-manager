@@ -24,10 +24,13 @@ class GroupUpdate(BaseModel):
 class GroupReadWithRelations(GroupRead):
     users: List[UserRead] = []
     projects: List[ProjectRead] = []
+
+class GetUserRoleResponse(BaseModel):
+    role: str
     
 class UserWithRoleSchema(BaseModel):
     user_id: int
-    role: Optional[str] = "member"
+    role: str
     
 class AddUsersToGroup(BaseModel):
     users: List[UserWithRoleSchema]

@@ -1,9 +1,10 @@
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from core.database.models import Group, Project, Task, User, group_user_association
-from core.security.dependencies import ensure_user_is_admin
-from .schemas import AddUsersToGroup, RemoveUsersFromGroup, GroupCreate, GroupRead, GroupReadWithRelations, GroupUpdate
+from core.security.dependencies import ensure_user_is_admin, get_user_group_role
+from .schemas import AddUsersToGroup, GetUserRoleResponse, RemoveUsersFromGroup, GroupCreate, GroupRead, GroupReadWithRelations, GroupUpdate
 
 async def get_all_groups(session: AsyncSession) -> list[GroupRead]:
     stmt = select(Group).order_by(Group.id)
@@ -19,6 +20,17 @@ async def get_group_by_id(session: AsyncSession, group_id: int) -> GroupReadWith
 
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
+
+async def get_role_for_user_in_group(
+    session: AsyncSession,
+    current_user_id: int,
+    group_id: int
+) -> GetUserRoleResponse:
+    role = await get_user_group_role(session, current_user_id, group_id)
+    if role is None:
+        raise HTTPException(status_code=403, detail="Пользователь не состоит в группе")
+    
+    return GetUserRoleResponse(role=role)
 
 async def create_group(
     session: AsyncSession,
@@ -105,6 +117,31 @@ async def add_users_to_group(
     await session.commit()
     await session.refresh(group)
     return group
+
+async def change_user_role(
+    session: AsyncSession,
+    current_user_id: int,
+    group_id: int,
+    user_id: int,
+    new_role: str
+):
+    await ensure_user_is_admin(session, current_user_id, group_id)
+
+    stmt = (
+        group_user_association.update()
+        .where(
+            group_user_association.c.user_id == user_id,
+            group_user_association.c.group_id == group_id
+        )
+        .values(role=new_role)
+    )
+    result = await session.execute(stmt)
+    await session.commit()
+
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Пользователь не найден в группе")
+    
+    return {"detail": "Роль успешно обновлена"}
 
 async def update_group(
     session: AsyncSession,
