@@ -1,17 +1,18 @@
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional, List
 
 if TYPE_CHECKING:
     from modules.projects.schemas import ProjectRead
-    from modules.users.schemas import UserRead
+    from modules.users.schemas import UserRead, UserWithRole
     from modules.groups.schemas import GroupRead
-
+    
 class TaskCreate(BaseModel):
     title: str
     description: Optional[str] = None
     status: str
+    start_date: datetime
     deadline: datetime
     project_id: int
     group_id: int
@@ -21,7 +22,7 @@ class TaskRead(BaseModel):
     title: str
     description: Optional[str]
     status: str
-    created_at: datetime
+    start_date: datetime
     deadline: datetime
     project_id: int
     
@@ -29,11 +30,21 @@ class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
+    start_date: datetime
     deadline: Optional[datetime] = None
+    
+class GroupReadForTask(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+    users: List[UserWithRole] = []
+
+    model_config = ConfigDict(from_attributes=True)
 
 class TaskReadWithRelations(TaskRead):
     project: ProjectRead | None = None
-    group: GroupRead | None = None
+    group: GroupReadForTask | None = None
     assignees: List[UserRead] = []
     
 class AddRemoveUsersToTask(BaseModel):
@@ -41,4 +52,4 @@ class AddRemoveUsersToTask(BaseModel):
 
 from modules.groups.schemas import GroupRead
 from modules.projects.schemas import ProjectRead
-from modules.users.schemas import UserRead
+from modules.users.schemas import UserRead, UserWithRole

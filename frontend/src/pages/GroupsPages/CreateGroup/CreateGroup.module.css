@@ -1,0 +1,217 @@
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 40px 32px;
+  min-height: calc(100vh - 80px);
+  background: #f8fafc;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.title {
+  color: #004B23;
+  font-size: 36px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.subtitle {
+  color: #666;
+  font-size: 18px;
+  line-height: 1.6;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.form {
+  background: white;
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.groupsList {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.groupCard {
+  background: #f8fafc;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  transition: border-color 0.2s ease;
+}
+
+.groupCard:focus-within {
+  border-color: #004B23;
+}
+
+.groupHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.groupNumber {
+  color: #004B23;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.removeButton {
+  background: #fed7d7;
+  color: #c53030;
+  border: 1px solid #feb2b2;
+}
+
+.removeButton:hover:not(:disabled) {
+  background: #feb2b2;
+  color: #9b2c2c;
+}
+
+.groupFields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+
+.addButton {
+  background: #f7fafc;
+  color: #004B23;
+  border: 2px dashed #cbd5e0;
+}
+
+.addButton:hover:not(:disabled) {
+  background: #edf2f7;
+  border-color: #004B23;
+}
+
+.addIcon {
+  width: 20px;
+  height: 20px;
+}
+
+.submitError {
+  background: #fed7d7;
+  color: #c53030;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 16px;
+  text-align: center;
+  margin-bottom: 24px;
+  border: 1px solid #feb2b2;
+}
+
+.submitActions {
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.submitButton {
+  min-width: 200px;
+}
+
+/* Success state */
+.successContainer {
+  background: white;
+  border-radius: 16px;
+  padding: 60px 40px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  text-align: center;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.successIcon {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #004B23, #006400);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  font-weight: bold;
+  margin: 0 auto 24px;
+}
+
+.successTitle {
+  color: #004B23;
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.successMessage {
+  color: #666;
+  font-size: 18px;
+  margin-bottom: 8px;
+  line-height: 1.6;
+}
+
+.redirectMessage {
+  color: #a0aec0;
+  font-size: 14px;
+  margin-bottom: 32px;
+}
+
+.successButton {
+  min-width: 200px;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .container {
+    padding: 24px 20px;
+  }
+  
+  .form {
+    padding: 24px;
+  }
+  
+  .title {
+    font-size: 28px;
+  }
+  
+  .subtitle {
+    font-size: 16px;
+  }
+  
+  .groupCard {
+    padding: 20px;
+  }
+  
+  .groupHeader {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  
+  .submitActions {
+    flex-direction: column;
+  }
+  
+  .submitButton {
+    min-width: auto;
+    width: 100%;
+  }
+}

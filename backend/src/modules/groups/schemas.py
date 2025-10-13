@@ -1,10 +1,10 @@
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional, List
 
 if TYPE_CHECKING:
-    from modules.users.schemas import UserRead
+    from modules.users.schemas import UserWithRole
     from modules.projects.schemas import ProjectRead
 
 class GroupCreate(BaseModel):
@@ -17,19 +17,21 @@ class GroupRead(BaseModel):
     description: Optional[str] = None
     created_at: datetime
 
+    model_config = ConfigDict(from_attributes=True)
+
 class GroupUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
 
 class GroupReadWithRelations(GroupRead):
-    users: List[UserRead] = []
+    users: List[UserWithRole] = []
     projects: List[ProjectRead] = []
 
 class GetUserRoleResponse(BaseModel):
     role: str
     
 class UserWithRoleSchema(BaseModel):
-    user_id: int
+    user_email: str
     role: str
     
 class AddUsersToGroup(BaseModel):
@@ -38,5 +40,5 @@ class AddUsersToGroup(BaseModel):
 class RemoveUsersFromGroup(BaseModel):
     user_ids: List[int]
     
-from modules.users.schemas import UserRead
+from modules.users.schemas import UserWithRole
 from modules.projects.schemas import ProjectRead

@@ -1,12 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import Column, ForeignKey, String, DateTime, Table, Text, func, Integer
 from typing import List, Optional
 
 class Base(DeclarativeBase):
     __abstract__ = True
-
-    id: Mapped[int] = mapped_column(primary_key=True)
 
 
 # === Ассоциативные таблицы ===
@@ -39,12 +37,15 @@ project_group_association = Table(
 class User(Base):
     __tablename__ = "users"
 
+    id: Mapped[int] = mapped_column(primary_key=True)
     login: Mapped[str] = mapped_column(String, unique=True)
+    email: Mapped[str] = mapped_column(String, unique=True)
     password_hash: Mapped[str] = mapped_column(Text)
     name: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(),
-        default=func.now()
+        DateTime(timezone=True), 
+        server_default=func.now(),
+        default=lambda: datetime.now(timezone.utc)  # Явно указываем UTC
     )
 
     groups: Mapped[List["Group"]] = relationship(
@@ -58,10 +59,12 @@ class User(Base):
 class Group(Base):
     __tablename__ = "groups"
 
+    id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String, unique=True)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+        DateTime(timezone=True), 
+        server_default=func.now()
     )
 
     users: Mapped[List["User"]] = relationship(
@@ -78,10 +81,13 @@ class Group(Base):
 class Project(Base):
     __tablename__ = "projects"
 
+    id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     start_date: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=True
+        DateTime(timezone=True), 
+        server_default=func.now(), 
+        nullable=True
     )
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String)
@@ -90,7 +96,6 @@ class Project(Base):
         "Group", 
         secondary=project_group_association, 
         back_populates="projects",
-        
     )
     tasks: Mapped[List["Task"]] = relationship("Task", back_populates="project")
 
@@ -98,19 +103,38 @@ class Project(Base):
 class Task(Base):
     __tablename__ = "tasks"
 
+    id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+        DateTime(timezone=True), 
+        server_default=func.now()
     )
+    start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
     deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
     
-    project: Mapped["Project"] = relationship("Project", back_populates="tasks", )
+    project: Mapped["Project"] = relationship("Project", back_populates="tasks")
     assignees: Mapped[List["User"]] = relationship(
         "User", secondary=task_user_association, back_populates="assigned_tasks", 
     )
     group_id: Mapped[Optional[int]] = mapped_column(ForeignKey("groups.id"))
     group: Mapped["Group"] = relationship(back_populates="tasks")
+    
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    token_hash: Mapped[str] = mapped_column(String, unique=True, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used: Mapped[bool] = mapped_column(default=False)
+    
+    user: Mapped["User"] = relationship("User")

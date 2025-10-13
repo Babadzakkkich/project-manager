@@ -1,21 +1,19 @@
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional, List
 
 if TYPE_CHECKING:
-    from modules.groups.schemas import GroupRead
+    from modules.users.schemas import UserWithRole
     from modules.tasks.schemas import TaskRead
-
 
 class ProjectCreate(BaseModel):
     title: str
     description: Optional[str] = None
-    start_date: Optional[datetime] = None
+    start_date: datetime
     end_date: datetime
     status: str
     group_ids: List[int]
-    model_config = {"from_attributes": True}
 
 class ProjectRead(BaseModel):
     id: int
@@ -24,7 +22,8 @@ class ProjectRead(BaseModel):
     start_date: datetime
     end_date: datetime
     status: str
-    model_config = {"from_attributes": True}
+
+    model_config = ConfigDict(from_attributes=True)
     
 class ProjectUpdate(BaseModel):
     title: Optional[str] = None
@@ -32,9 +31,18 @@ class ProjectUpdate(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     status: Optional[str] = None
-    
+
+class SimpleGroupForProject(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+    users: List[UserWithRole] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
 class ProjectReadWithRelations(ProjectRead):
-    groups: List[GroupRead] = []
+    groups: List[SimpleGroupForProject] = [] 
     tasks: List[TaskRead] = []
     
 class AddGroupsToProject(BaseModel):
@@ -43,5 +51,5 @@ class AddGroupsToProject(BaseModel):
 class RemoveGroupsFromProject(AddGroupsToProject):
     pass
     
-from modules.groups.schemas import GroupRead
+from modules.users.schemas import UserWithRole
 from modules.tasks.schemas import TaskRead

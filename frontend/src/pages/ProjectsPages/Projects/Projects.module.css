@@ -1,0 +1,120 @@
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 32px;
+  min-height: calc(100vh - 80px);
+  background: #f8fafc;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.title {
+  color: #004B23;
+  font-size: 36px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.subtitle {
+  color: #666;
+  font-size: 18px;
+  margin-bottom: 32px;
+}
+
+.createButton {
+  min-width: 200px;
+}
+
+.loadingContainer,
+.errorContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 80px);
+  text-align: center;
+  padding: 40px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #004B23;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.errorContainer h2 {
+  color: #c53030;
+  margin-bottom: 16px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 80px 40px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.emptyState h2 {
+  color: #004B23;
+  margin-bottom: 16px;
+}
+
+.emptyState p {
+  color: #666;
+  margin-bottom: 32px;
+  font-size: 16px;
+}
+
+.projectsInfo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 0 8px;
+}
+
+.projectsCount {
+  color: #666;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.projectsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 24px;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .container {
+    padding: 24px 20px;
+  }
+  
+  .title {
+    font-size: 28px;
+  }
+  
+  .projectsGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .projectsInfo {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+}

@@ -1,0 +1,451 @@
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 40px 32px;
+  min-height: calc(100vh - 80px);
+  background: #f8fafc;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 40px;
+  background: white;
+  padding: 32px;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.backButton {
+  align-self: flex-start;
+}
+
+.headerInfo {
+  flex: 1;
+}
+
+.title {
+  color: #004B23;
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.description {
+  color: #666;
+  font-size: 18px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.editActions {
+  display: flex;
+  gap: 12px;
+}
+
+.headerActions {
+  display: flex;
+  gap: 12px;
+  align-self: flex-start;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+.section {
+  background: white;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #f1f5f9;
+}
+
+.sectionHeader h2 {
+  color: #004B23;
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.addUserForm {
+  background: #f8fafc;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  border: 1px solid #e2e8f0;
+}
+
+.addUserFields {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: end;
+}
+
+.roleSelect {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.roleSelect label {
+  font-weight: 600;
+  color: #004B23;
+  font-size: 14px;
+}
+
+.roleSelect select {
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 16px;
+  background: white;
+}
+
+.usersList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.userCard {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  gap: 16px;
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.userLogin {
+  font-weight: 600;
+  color: #004B23;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.currentUserBadge {
+  background: #004B23;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.userEmail {
+  color: #666;
+  font-size: 14px;
+}
+
+.userActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.roleEdit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.roleSelectSmall {
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+}
+
+.cancelEditButton {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.userRole {
+  background: #e6f7e9;
+  color: #004B23;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.actionButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.editRoleButton {
+  background: #edf2f7;
+  color: #4a5568;
+  border: 1px solid #e2e8f0;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.editRoleButton:hover {
+  background: #e2e8f0;
+}
+
+.removeButton {
+  background: #fed7d7;
+  color: #c53030;
+  border: 1px solid #feb2b2;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.removeButton:hover {
+  background: #feb2b2;
+  color: #9b2c2c;
+}
+
+.selfAdminNote {
+  color: #666;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* Стили для секции проектов */
+.projectsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.projectsListCompact {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.moreProjects {
+  text-align: center;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px dashed #e2e8f0;
+}
+
+.moreProjects p {
+  color: #666;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Стили для карточек проектов в компактном режиме */
+.projectCard {
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.projectCard:hover {
+  border-color: #004B23;
+  transform: translateY(-1px);
+}
+
+.projectTitle {
+  color: #004B23;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.projectDescription {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 8px;
+  line-height: 1.4;
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.projectStatus {
+  color: #666;
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.projectStatus span {
+  color: #004B23;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #e6f7e9;
+  font-size: 11px;
+}
+
+/* Статусы проектов */
+.statusInProgress {
+  background: #e6f7e9;
+  color: #004B23;
+}
+
+.statusCompleted {
+  background: #d4edda;
+  color: #155724;
+}
+
+.statusPlanned {
+  background: #e2e8f0;
+  color: #4a5568;
+}
+
+.statusOnHold {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.statusCancelled {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.statusDefault {
+  background: #f7fafc;
+  color: #4a5568;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+.loadingContainer,
+.errorContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 80px);
+  text-align: center;
+  padding: 40px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #004B23;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.errorContainer h2 {
+  color: #c53030;
+  margin-bottom: 16px;
+}
+
+.deleteButton {
+  background: #fed7d7;
+  color: #c53030;
+  border: 1px solid #feb2b2;
+}
+
+.deleteButton:hover:not(:disabled) {
+  background: #feb2b2;
+  color: #9b2c2c;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .container {
+    padding: 24px 20px;
+  }
+  
+  .header {
+    flex-direction: column;
+    gap: 16px;
+    padding: 24px;
+  }
+  
+  .content {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  
+  .section {
+    padding: 20px;
+  }
+  
+  .addUserFields {
+    grid-template-columns: 1fr;
+  }
+  
+  .title {
+    font-size: 24px;
+  }
+  
+  .userCard {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .userActions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .actionButtons {
+    flex-wrap: wrap;
+  }
+  
+  .projectTitle {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

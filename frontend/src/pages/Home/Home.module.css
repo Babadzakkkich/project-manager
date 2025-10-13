@@ -1,0 +1,134 @@
+.container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #004B23 0%, #006400 50%, #007200 100%);
+  color: white;
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 80px 20px;
+  min-height: 80vh;
+}
+
+.content {
+  flex: 1;
+  max-width: 600px;
+}
+
+.title {
+  font-size: 48px;
+  font-weight: 800;
+  margin-bottom: 24px;
+  line-height: 1.2;
+}
+
+.highlight {
+  color: #38B000;
+}
+
+.subtitle {
+  font-size: 20px;
+  margin-bottom: 40px;
+  line-height: 1.6;
+  opacity: 0.9;
+}
+
+.buttons {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.graphic {
+  flex: 1;
+  position: relative;
+  height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.circle, .square, .triangle {
+  position: absolute;
+  background: rgba(56, 176, 0, 0.3);
+  border-radius: 50%;
+}
+
+.circle {
+  width: 200px;
+  height: 200px;
+  top: 50px;
+  right: 100px;
+}
+
+.square {
+  width: 150px;
+  height: 150px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  bottom: 80px;
+  right: 50px;
+}
+
+.triangle {
+  width: 0;
+  height: 0;
+  border-left: 80px solid transparent;
+  border-right: 80px solid transparent;
+  border-bottom: 140px solid rgba(255, 255, 255, 0.1);
+  background: none;
+  top: 100px;
+  left: 50px;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 80px 20px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.feature {
+  text-align: center;
+  padding: 30px;
+}
+
+.feature h3 {
+  font-size: 24px;
+  margin-bottom: 16px;
+}
+
+.feature p {
+  opacity: 0.8;
+  line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+  .hero {
+    flex-direction: column;
+    text-align: center;
+    padding: 40px 20px;
+  }
+  
+  .title {
+    font-size: 36px;
+  }
+  
+  .buttons {
+    justify-content: center;
+  }
+  
+  .graphic {
+    height: 200px;
+    margin-top: 40px;
+  }
+}

@@ -1,0 +1,354 @@
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 32px;
+  min-height: calc(100vh - 80px);
+  background: #f8fafc;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.title {
+  color: #004B23;
+  font-size: 36px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.subtitle {
+  color: #666;
+  font-size: 18px;
+  margin-bottom: 32px;
+}
+
+.createButton {
+  min-width: 200px;
+}
+
+.statsContainer {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.statItem.overdueStat {
+  background: #fff5f5;
+  border-color: #fed7d7;
+}
+
+.statNumber {
+  color: #004B23;
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.statItem.overdueStat .statNumber {
+  color: #e53e3e;
+}
+
+.statLabel {
+  color: #666;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.loadingContainer,
+.errorContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 80px);
+  text-align: center;
+  padding: 40px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #004B23;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.errorContainer h2 {
+  color: #c53030;
+  margin-bottom: 16px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 80px 40px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.emptyState h2 {
+  color: #004B23;
+  margin-bottom: 16px;
+}
+
+.emptyState p {
+  color: #666;
+  margin-bottom: 32px;
+  font-size: 16px;
+}
+
+.tasksInfo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 0 8px;
+}
+
+.tasksCount {
+  color: #666;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tasksGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 24px;
+}
+
+.headerTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.viewModeSwitcher {
+  display: flex;
+  gap: 8px;
+}
+
+.viewModeSwitcher button {
+  min-width: 140px;
+}
+
+/* Стили для исполнителей в карточке задач */
+.assigneesSection {
+  margin: 16px 0;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.assigneesTitle {
+  color: #004B23;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.assigneesLabel {
+  color: #666;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.assigneesList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assignee {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.assignee.currentUser {
+  background: #f0fff4;
+  border-color: #c6f6d5;
+}
+
+.assigneeInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.assigneeName {
+  font-weight: 600;
+  color: #004B23;
+  font-size: 14px;
+}
+
+.assigneeEmail {
+  color: #666;
+  font-size: 12px;
+}
+
+.youBadge {
+  background: #004B23;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.assigneeRole {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.assigneeRole.admin {
+  background: #e6f7e9;
+  color: #004B23;
+  border: 1px solid #c6f6d5;
+}
+
+.assigneeRole.member {
+  background: #edf2f7;
+  color: #4a5568;
+  border: 1px solid #e2e8f0;
+}
+
+.assigneeRole.assignee {
+  background: #fffaf0;
+  color: #744210;
+  border: 1px solid #feebc8;
+}
+
+.groupedTasks {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.userTaskGroup {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.userHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #f1f5f9;
+}
+
+.userName {
+  color: #004B23;
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.userEmail {
+  color: #666;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.taskCount {
+  background: #e6f7e9;
+  color: #004B23;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.userTasksGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 20px;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .container {
+    padding: 24px 20px;
+  }
+  
+  .title {
+    font-size: 28px;
+  }
+  
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .tasksGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .tasksInfo {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .statItem {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .statNumber {
+    margin-bottom: 0;
+  }
+}

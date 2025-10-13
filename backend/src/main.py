@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from core.config import settings
 from core.database.session import db_session
 from core.database.models import Base
 
+from modules.auth.router import router as auth_router
 from modules.users.router import router as users_router
 from modules.groups.router import router as groups_router
 from modules.tasks.router import router as tasks_router
@@ -24,6 +26,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 main_app = FastAPI(lifespan=lifespan)
 
+main_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+main_app.include_router(auth_router, prefix=settings.api.auth, tags=["Auth"])
 main_app.include_router(users_router, prefix=settings.api.users, tags=["Users"])
 main_app.include_router(groups_router, prefix=settings.api.groups, tags=["Groups"])
 main_app.include_router(projects_router, prefix=settings.api.projects, tags=["Projects"])

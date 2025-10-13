@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field, PostgresDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
 from urllib.parse import quote_plus
 
 class RunConfig(BaseModel):
@@ -8,6 +7,7 @@ class RunConfig(BaseModel):
     port: int = 8000
 
 class ApiPrefix(BaseModel):
+    auth: str = "/auth"
     users: str = "/users"
     groups: str = "/groups"
     projects: str = "/projects"
@@ -33,7 +33,8 @@ class DatabaseConfig(BaseModel):
 
 class SecurityConfig(BaseModel):
     secret_key: str
-    token_expire_minutes: int
+    access_token_expire_minutes: int
+    refresh_token_expire_days: int
     algorithm: str
 
 class Settings(BaseSettings):
