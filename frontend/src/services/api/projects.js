@@ -1,4 +1,3 @@
-// projects.js
 import apiClient from './client';
 import { API_ENDPOINTS } from '../../utils/constants';
 

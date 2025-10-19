@@ -4,6 +4,11 @@ import { Button } from '../../../components/ui/Button';
 import { FilterSort } from '../../../components/ui/FilterSort';
 import { ProjectCard } from '../../../components/ui/ProjectCard';
 import { useAuthContext } from '../../../contexts/AuthContext';
+import { 
+  PROJECT_STATUS_OPTIONS,
+  PROJECT_STATUS_TRANSLATIONS 
+} from '../../../utils/constants';
+import { handleApiError} from '../../../utils/helpers';
 import styles from './Projects.module.css';
 
 export const Projects = () => {
@@ -18,13 +23,7 @@ export const Projects = () => {
     {
       key: 'status',
       label: 'Статус проекта',
-      options: [
-        { value: 'in_progress', label: 'В процессе' },
-        { value: 'completed', label: 'Завершен' },
-        { value: 'planned', label: 'Запланирован' },
-        { value: 'on_hold', label: 'Приостановлен' },
-        { value: 'cancelled', label: 'Отменен' }
-      ]
+      options: PROJECT_STATUS_OPTIONS
     }
   ];
 
@@ -34,14 +33,19 @@ export const Projects = () => {
     { value: 'start_date_desc', label: 'Сначала новые' },
     { value: 'start_date_asc', label: 'Сначала старые' },
     { value: 'end_date_asc', label: 'Ближайшие сроки' },
-    { value: 'end_date_desc', label: 'Дальние сроки' }
+    { value: 'end_date_desc', label: 'Дальние сроки' },
+    { value: 'status', label: 'По статусу' }
   ];
 
   const loadProjects = useCallback(async () => {
     try {
       setLoading(true);
+      setError('');
       const projectsData = await projectsAPI.getMyProjects();
       setProjects(projectsData);
+    } catch (err) {
+      console.error('Error loading projects:', err);
+      setError(handleApiError(err));
     } finally {
       setLoading(false);
     }
@@ -60,38 +64,45 @@ export const Projects = () => {
       await projectsAPI.delete(projectId);
       setProjects(prev => prev.filter(project => project.id !== projectId));
     } catch (err) {
-      setError('Не удалось удалить проект: ' + (err.response?.data?.detail || 'Неизвестная ошибка'));
+      console.error('Error deleting project:', err);
+      setError(handleApiError(err));
     }
   };
 
-  // Упрощенная функция определения роли
+  // Функция определения роли пользователя в проекте
   const getUserRoleInProject = (project) => {
     if (!user || !project.groups) return 'member';
     
-    // Проверяем все группы проекта
+    // Ищем пользователя в группах проекта
     for (const group of project.groups) {
-      // Если в группе есть пользователи и среди них есть текущий пользователь
-      if (group.users && group.users.some(u => u.id === user.id)) {
-        const userInGroup = group.users.find(u => u.id === user.id);
-        if (userInGroup && userInGroup.role === 'admin') {
-          return 'admin';
-        }
+      const userInGroup = group.users?.find(u => u.id === user.id);
+      if (userInGroup) {
+        return userInGroup.role;
       }
     }
     
     return 'member';
   };
 
-  // Фильтрация и сортировка
+  // Проверяем, является ли пользователь администратором хотя бы в одной группе проекта
+  const isUserAdminInProject = (project) => {
+    if (!user || !project.groups) return false;
+    
+    return project.groups.some(group => 
+      group.users?.some(u => u.id === user.id && u.role === 'admin')
+    );
+  };
+
+  // Фильтрация и сортировка проектов
   const filteredAndSortedProjects = useMemo(() => {
     let result = [...projects];
 
-    // Фильтры
+    // Применяем фильтры
     if (filters.status) {
       result = result.filter(project => project.status === filters.status);
     }
 
-    // Сортировка
+    // Применяем сортировку
     if (sort) {
       switch (sort) {
         case 'title_asc':
@@ -112,6 +123,11 @@ export const Projects = () => {
         case 'end_date_desc':
           result.sort((a, b) => new Date(b.end_date) - new Date(a.end_date));
           break;
+        case 'status':
+          result.sort((a, b) => 
+            PROJECT_STATUS_TRANSLATIONS[a.status]?.localeCompare(PROJECT_STATUS_TRANSLATIONS[b.status])
+          );
+          break;
         default:
           break;
       }
@@ -119,6 +135,10 @@ export const Projects = () => {
 
     return result;
   }, [projects, filters, sort]);
+
+  const hasActiveFilters = Object.keys(filters).some(key => 
+    filters[key] && filters[key] !== ''
+  );
 
   if (loading) {
     return (
@@ -129,7 +149,7 @@ export const Projects = () => {
     );
   }
 
-  if (error) {
+  if (error && !loading) {
     return (
       <div className={styles.errorContainer}>
         <h2>Ошибка</h2>
@@ -156,7 +176,7 @@ export const Projects = () => {
         </Button>
       </div>
 
-      {filteredAndSortedProjects.length > 0 && (
+      {(filteredAndSortedProjects.length > 0 || hasActiveFilters) && (
         <FilterSort
           filters={filterOptions}
           sortOptions={sortOptions}
@@ -169,7 +189,7 @@ export const Projects = () => {
 
       {filteredAndSortedProjects.length === 0 ? (
         <div className={styles.emptyState}>
-          {Object.keys(filters).length > 0 ? (
+          {hasActiveFilters ? (
             <>
               <h2>Проекты не найдены</h2>
               <p>Попробуйте изменить параметры фильтрации</p>
@@ -200,22 +220,22 @@ export const Projects = () => {
           <div className={styles.projectsInfo}>
             <span className={styles.projectsCount}>
               Найдено проектов: {filteredAndSortedProjects.length}
+              {hasActiveFilters && ' (отфильтровано)'}
             </span>
           </div>
           <div className={styles.projectsGrid}>
             {filteredAndSortedProjects.map((project) => {
               const userRole = getUserRoleInProject(project);
-              const isAdmin = userRole === 'admin';
+              const isAdmin = isUserAdminInProject(project);
               
               return (
                 <ProjectCard
                   key={project.id}
                   project={project}
-                  showDetailsButton={true}
-                  compact={false}
-                  showDeleteButton={isAdmin}
                   userRole={userRole}
+                  showDeleteButton={isAdmin}
                   onDelete={() => handleDeleteProject(project.id, project.title)}
+                  onUpdate={loadProjects}
                 />
               );
             })}

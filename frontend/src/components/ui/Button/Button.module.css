@@ -17,7 +17,6 @@
   cursor: not-allowed;
 }
 
-/* Variants */
 .primary {
   background: linear-gradient(135deg, #004B23, #014701);
   color: white;
@@ -27,6 +26,62 @@
   background: linear-gradient(135deg, #006400, #014701);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 107, 35, 0.3);
+}
+
+.secondary {
+  background: #f7fafc;
+  color: #4a5568;
+  border: 2px solid #e2e8f0;
+}
+
+.secondary:hover:not(:disabled) {
+  background: #edf2f7;
+  border-color: #cbd5e0;
+}
+
+.danger {
+  background: #e53e3e;
+  color: white;
+  border: 1px solid #c53030;
+}
+
+.danger:hover:not(:disabled) {
+  background: #c53030;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(229, 62, 62, 0.3);
+}
+
+.danger:disabled {
+  background: #fc8181;
+  border-color: #fc8181;
+  cursor: not-allowed;
+}
+
+.success {
+  background: #38a169;
+  color: white;
+  border: 1px solid #2f855a;
+}
+
+.success:hover:not(:disabled) {
+  background: #2f855a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
+}
+
+.link {
+  background: transparent;
+  color: #006400;
+  text-decoration: underline;
+  padding: 0;
+  height: auto;
+}
+
+.link:hover:not(:disabled) {
+  color: #004B23;
+  background: transparent;
+  transform: none;
+  box-shadow: none;
 }
 
 .action {
@@ -43,17 +98,6 @@
   transform: translateY(-4px);
   box-shadow: 0 8px 25px rgba(0, 107, 35, 0.4);
   background: linear-gradient(135deg, #006400, #007200);
-}
-
-.secondary {
-  background: #f7fafc;
-  color: #4a5568;
-  border: 2px solid #e2e8f0;
-}
-
-.secondary:hover:not(:disabled) {
-  background: #edf2f7;
-  border-color: #cbd5e0;
 }
 
 /* Sizes */
@@ -76,7 +120,6 @@
   width: 100%;
 }
 
-/* Loading state */
 .loading {
   position: relative;
   color: transparent;
@@ -96,4 +139,21 @@
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+.button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 75, 35, 0.3);
+}
+
+.danger:focus {
+  box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.3);
+}
+
+.success:focus {
+  box-shadow: 0 0 0 3px rgba(56, 161, 105, 0.3);
+}
+
+.secondary:focus {
+  box-shadow: 0 0 0 3px rgba(226, 232, 240, 0.6);
 }

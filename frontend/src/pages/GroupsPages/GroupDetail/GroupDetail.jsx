@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { groupsAPI } from '../../../services/api/groups';
+import { projectsAPI } from '../../../services/api/projects';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { ProjectCard } from '../../../components/ui/ProjectCard';
-import { ProjectsModal } from '../../../components/ui/ProjectsModal';
+import { ItemsModal } from '../../../components/ui/ItemsModal';
+import { ConfirmationModal } from '../../../components/ui/ConfirmationModal';
+import { Notification } from '../../../components/ui/Notification';
 import { useAuthContext } from '../../../contexts/AuthContext';
+import { useNotification } from '../../../hooks/useNotification';
+import { handleApiError, getUserRoleTranslation } from '../../../utils/helpers';
 import styles from './GroupDetail.module.css';
 
 export const GroupDetail = () => {
@@ -22,20 +27,55 @@ export const GroupDetail = () => {
   const [newUserRole, setNewUserRole] = useState('member');
   const [editingUser, setEditingUser] = useState(null);
   const [showProjectsModal, setShowProjectsModal] = useState(false);
+  
+  // Состояния для модальных окон подтверждения
+  const [showDeleteGroupModal, setShowDeleteGroupModal] = useState(false);
+  const [showRemoveUserModal, setShowRemoveUserModal] = useState(null);
+  
+  // Состояния для загрузки
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
+  const [isRemovingUser, setIsRemovingUser] = useState(false);
+
   const { user } = useAuthContext();
+  const { 
+    notification, 
+    showSuccess, 
+    showError, 
+    hideNotification 
+  } = useNotification();
 
   const loadGroup = useCallback(async () => {
     try {
       setLoading(true);
+      setError('');
       const groupData = await groupsAPI.getById(groupId);
-      setGroup(groupData);
+      
+      // Загружаем детали проектов сразу
+      const projectsWithDetails = await Promise.all(
+        groupData.projects.map(async (project) => {
+          try {
+            const fullProject = await projectsAPI.getById(project.id);
+            return fullProject;
+          } catch (err) {
+            console.error(`Error loading project ${project.id}:`, err);
+            return project;
+          }
+        })
+      );
+      
+      setGroup({
+        ...groupData,
+        projects: projectsWithDetails
+      });
+      
       setEditForm({
         name: groupData.name,
         description: groupData.description || ''
       });
     } catch (err) {
       console.error('Error loading group:', err);
-      setError('Не удалось загрузить информацию о группе');
+      const errorMessage = handleApiError(err);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -47,6 +87,8 @@ export const GroupDetail = () => {
       setUserRole(roleData.role);
     } catch (err) {
       console.error('Error loading user role:', err);
+      const errorMessage = handleApiError(err);
+      setError(errorMessage);
     }
   }, [groupId]);
 
@@ -72,9 +114,11 @@ export const GroupDetail = () => {
       const updatedGroup = await groupsAPI.update(groupId, editForm);
       setGroup(updatedGroup);
       setEditing(false);
+      showSuccess('Группа успешно обновлена');
     } catch (err) {
       console.error('Error updating group:', err);
-      setError('Не удалось обновить группу');
+      const errorMessage = handleApiError(err);
+      showError(`Не удалось обновить группу: ${errorMessage}`);
     }
   };
 
@@ -87,26 +131,36 @@ export const GroupDetail = () => {
       setNewUserEmail('');
       setNewUserRole('member');
       setAddingUser(false);
-      loadGroup();
+      await loadGroup(); // Перезагружаем данные
+      showSuccess('Пользователь успешно добавлен в группу');
     } catch (err) {
       console.error('Error adding user:', err);
-      setError('Не удалось добавить пользователя: ' + (err.response?.data?.detail || 'Неизвестная ошибка'));
+      const errorMessage = handleApiError(err);
+      showError(`Не удалось добавить пользователя: ${errorMessage}`);
     }
   };
 
-  const handleRemoveUser = async (userId) => {
-    if (!window.confirm('Вы уверены, что хотите удалить этого пользователя из группы?')) {
-      return;
-    }
+  const handleRemoveUserClick = (userId, userLogin) => {
+    setShowRemoveUserModal({ userId, userLogin });
+  };
 
+  const handleConfirmRemoveUser = async () => {
+    if (!showRemoveUserModal) return;
+
+    setIsRemovingUser(true);
     try {
       await groupsAPI.removeUsers(groupId, {
-        user_ids: [userId]
+        user_ids: [showRemoveUserModal.userId]
       });
-      loadGroup();
+      await loadGroup(); // Перезагружаем данные
+      showSuccess(`Пользователь ${showRemoveUserModal.userLogin} удален из группы`);
     } catch (err) {
       console.error('Error removing user:', err);
-      setError('Не удалось удалить пользователя из группы: ' + (err.response?.data?.detail || 'Неизвестная ошибка'));
+      const errorMessage = handleApiError(err);
+      showError(`Не удалось удалить пользователя из группы: ${errorMessage}`);
+    } finally {
+      setIsRemovingUser(false);
+      setShowRemoveUserModal(null);
     }
   };
 
@@ -121,36 +175,36 @@ export const GroupDetail = () => {
       });
       
       setEditingUser(null);
-      loadGroup();
+      await loadGroup(); // Перезагружаем данные
+      showSuccess(`Роль пользователя ${userToUpdate.login} изменена`);
     } catch (err) {
       console.error('Error changing user role:', err);
-      setError('Не удалось изменить роль пользователя: ' + (err.response?.data?.detail || 'Неизвестная ошибка'));
+      const errorMessage = handleApiError(err);
+      showError(`Не удалось изменить роль пользователя: ${errorMessage}`);
     }
   };
 
-  const handleDeleteGroup = async () => {
-    if (!window.confirm(`Вы уверены, что хотите удалить группу "${group.name}"? Это действие нельзя отменить.`)) {
-      return;
-    }
+  const handleDeleteGroupClick = () => {
+    setShowDeleteGroupModal(true);
+  };
 
+  const handleConfirmDeleteGroup = async () => {
+    setIsDeletingGroup(true);
     try {
       await groupsAPI.delete(groupId);
+      showSuccess(`Группа "${group.name}" успешно удалена`);
       navigate('/groups');
     } catch (err) {
       console.error('Error deleting group:', err);
-      setError('Не удалось удалить группу: ' + (err.response?.data?.detail || 'Неизвестная ошибка'));
+      const errorMessage = handleApiError(err);
+      showError(`Не удалось удалить группу: ${errorMessage}`);
+    } finally {
+      setIsDeletingGroup(false);
+      setShowDeleteGroupModal(false);
     }
   };
 
-  const getRoleTranslation = (role) => {
-    const roleTranslations = {
-      'admin': 'Администратор',
-      'member': 'Участник'
-    };
-    return roleTranslations[role] || role;
-  };
-
-  const isAdmin = userRole === 'admin';
+  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
   const isCurrentUser = (userItem) => userItem.id === user?.id;
   const hasAccessToGroup = group && group.users?.some(u => u.id === user?.id);
 
@@ -178,6 +232,15 @@ export const GroupDetail = () => {
 
   return (
     <div className={styles.container}>
+      {/* Уведомление */}
+      <Notification
+        message={notification.message}
+        type={notification.type}
+        isVisible={notification.isVisible}
+        onClose={hideNotification}
+        duration={5000}
+      />
+
       <div className={styles.header}>
         <Button 
           variant="secondary" 
@@ -238,10 +301,11 @@ export const GroupDetail = () => {
             </Button>
             <Button 
               variant="secondary" 
-              onClick={handleDeleteGroup}
+              onClick={handleDeleteGroupClick}
               className={styles.deleteButton}
+              disabled={isDeletingGroup}
             >
-              Удалить группу
+              {isDeletingGroup ? 'Удаление...' : 'Удалить группу'}
             </Button>
           </div>
         )}
@@ -324,7 +388,7 @@ export const GroupDetail = () => {
                     </div>
                   ) : (
                     <span className={styles.userRole}>
-                      {getRoleTranslation(userItem.role)}
+                      {getUserRoleTranslation(userItem.role)}
                     </span>
                   )}
                   
@@ -343,14 +407,15 @@ export const GroupDetail = () => {
                           <Button 
                             variant="secondary" 
                             size="small"
-                            onClick={() => handleRemoveUser(userItem.id)}
+                            onClick={() => handleRemoveUserClick(userItem.id, userItem.login)}
                             className={styles.removeButton}
+                            disabled={isRemovingUser}
                           >
-                            Удалить
+                            {isRemovingUser ? 'Удаление...' : 'Удалить'}
                           </Button>
                         </>
                       )}
-                      {isCurrentUser(userItem) && userItem.role === 'admin' && (
+                      {isCurrentUser(userItem) && (userItem.role === 'admin' || userItem.role === 'super_admin') && (
                         <span className={styles.selfAdminNote}>
                           Вы администратор
                         </span>
@@ -363,7 +428,7 @@ export const GroupDetail = () => {
           </div>
         </div>
 
-        {/* Проекты группы - ОБНОВЛЕННАЯ СЕКЦИЯ */}
+        {/* Проекты группы */}
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Проекты группы</h2>
@@ -404,12 +469,40 @@ export const GroupDetail = () => {
         </div>
       </div>
 
-      {/* Модальное окно всех проектов */}
-      <ProjectsModal
-        projects={group.projects || []}
+      {/* Универсальное модальное окно для проектов (без удаления) */}
+      <ItemsModal
+        items={group.projects || []}
+        itemType="projects"
         isOpen={showProjectsModal}
         onClose={() => setShowProjectsModal(false)}
         title={`Проекты группы "${group.name}"`}
+        showDeleteButton={false} // Убрана возможность удаления проектов
+      />
+
+      {/* Модальное окно подтверждения удаления группы */}
+      <ConfirmationModal
+        isOpen={showDeleteGroupModal}
+        onClose={() => setShowDeleteGroupModal(false)}
+        onConfirm={handleConfirmDeleteGroup}
+        title="Удаление группы"
+        message={`Вы уверены, что хотите удалить группу "${group.name}"? Это действие нельзя отменить. Все проекты и данные группы будут потеряны.`}
+        confirmText={isDeletingGroup ? "Удаление..." : "Удалить группу"}
+        cancelText="Отмена"
+        variant="danger"
+        isLoading={isDeletingGroup}
+      />
+
+      {/* Модальное окно подтверждения удаления пользователя */}
+      <ConfirmationModal
+        isOpen={!!showRemoveUserModal}
+        onClose={() => setShowRemoveUserModal(null)}
+        onConfirm={handleConfirmRemoveUser}
+        title="Удаление пользователя из группы"
+        message={`Вы уверены, что хотите удалить пользователя "${showRemoveUserModal?.userLogin}" из группы?`}
+        confirmText={isRemovingUser ? "Удаление..." : "Удалить"}
+        cancelText="Отмена"
+        variant="warning"
+        isLoading={isRemovingUser}
       />
     </div>
   );

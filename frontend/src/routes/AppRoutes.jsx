@@ -9,9 +9,11 @@ import { Groups } from '../pages/GroupsPages/Groups';
 import { GroupDetail } from '../pages/GroupsPages/GroupDetail';
 import { CreateProject } from '../pages/ProjectsPages/CreateProject/CreateProject';
 import { Projects } from '../pages/ProjectsPages/Projects/Projects';
+import { ProjectDetail } from '../pages/ProjectsPages/ProjectDetail/ProjectDetail';
 import { CreateTask } from '../pages/TasksPages/CreateTask/CreateTask';
 import { Tasks } from '../pages/TasksPages/Tasks/Tasks';
-import { Button } from '../components/ui/Button';
+import { TaskDetail } from '../pages/TasksPages/TaskDetail/TaskDetail';
+import { Profile } from '../pages/Profile/Profile';
 
 const LoadingSpinner = () => (
   <div style={{ 
@@ -68,61 +70,10 @@ const HomeRoute = () => {
   return isAuthenticated ? <Navigate to="/workspace" replace /> : <Home />;
 };
 
-// Заглушки для страниц (позже заменим на реальные компоненты)
-const TasksPage = () => (
-  <div style={{ padding: '40px' }}>
-    <h1>Задачи</h1>
-    <p>Страница задач будет реализована позже</p>
-  </div>
-);
-
 const DashboardPage = () => (
   <div style={{ padding: '40px' }}>
     <h1>Панель управления</h1>
     <p>Добро пожаловать в Syncro!</p>
-  </div>
-);
-
-// Временная заглушка для страницы проекта
-const ProjectDetailPage = () => (
-  <div style={{ 
-    padding: '40px',
-    maxWidth: '1000px',
-    margin: '0 auto',
-    minHeight: 'calc(100vh - 80px)',
-    background: '#f8fafc'
-  }}>
-    <div style={{
-      background: 'white',
-      borderRadius: '16px',
-      padding: '32px',
-      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-      textAlign: 'center'
-    }}>
-      <h1 style={{ 
-        color: '#004B23', 
-        fontSize: '32px', 
-        fontWeight: '700', 
-        marginBottom: '16px' 
-      }}>
-        Страница проекта
-      </h1>
-      <p style={{ 
-        color: '#666', 
-        fontSize: '18px', 
-        marginBottom: '32px',
-        lineHeight: '1.5'
-      }}>
-        Детальная страница проекта будет реализована позже
-      </p>
-      <Button 
-        variant="secondary" 
-        onClick={() => window.history.back()}
-        size="large"
-      >
-        ← Назад
-      </Button>
-    </div>
   </div>
 );
 
@@ -146,6 +97,14 @@ export const AppRoutes = () => {
           <PublicRoute>
             <Login />
           </PublicRoute>
+        } 
+      />
+      <Route 
+        path="/profile" 
+        element={
+          <PrivateRoute>
+            <Profile />
+          </PrivateRoute>
         } 
       />
       <Route 
@@ -192,7 +151,7 @@ export const AppRoutes = () => {
         path="/projects/:projectId" 
         element={
           <PrivateRoute>
-            <ProjectDetailPage />
+            <ProjectDetail />
           </PrivateRoute>
         } 
       />
@@ -201,6 +160,14 @@ export const AppRoutes = () => {
         element={
           <PrivateRoute>
             <Tasks />
+          </PrivateRoute>
+        } 
+      />
+      <Route 
+        path="/tasks/:taskId" 
+        element={
+          <PrivateRoute>
+            <TaskDetail />
           </PrivateRoute>
         } 
       />

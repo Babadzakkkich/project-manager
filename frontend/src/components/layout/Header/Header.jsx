@@ -35,10 +35,10 @@ export const Header = () => {
     setIsDropdownOpen(!isDropdownOpen);
   };
 
-  const handleProfileClick = () => {
-    // Пока просто закрываем dropdown, позже добавим страницу профиля
-    setIsDropdownOpen(false);
-  };
+const handleProfileClick = () => {
+  navigate('/profile');
+  setIsDropdownOpen(false);
+};
 
   // Не показываем header если пользователь не авторизован
   if (!isAuthenticated) {

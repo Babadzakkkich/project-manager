@@ -2,6 +2,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional, List
+from core.database.models import UserRole
 
 if TYPE_CHECKING:
     from modules.users.schemas import UserWithRole
@@ -28,11 +29,11 @@ class GroupReadWithRelations(GroupRead):
     projects: List[ProjectRead] = []
 
 class GetUserRoleResponse(BaseModel):
-    role: str
+    role: UserRole
     
 class UserWithRoleSchema(BaseModel):
     user_email: str
-    role: str
+    role: UserRole
     
 class AddUsersToGroup(BaseModel):
     users: List[UserWithRoleSchema]

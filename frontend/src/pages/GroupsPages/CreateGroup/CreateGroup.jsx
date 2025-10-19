@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { groupsAPI } from '../../../services/api/groups';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
+import { ConfirmationModal } from '../../../components/ui/ConfirmationModal';
+import { Notification } from '../../../components/ui/Notification';
+import { useNotification } from '../../../hooks/useNotification';
+import { handleApiError } from '../../../utils/helpers';
 import plusIcon from '../../../assets/plus_icon.svg';
 import styles from './CreateGroup.module.css';
 
@@ -11,7 +15,15 @@ export const CreateGroup = () => {
   const [groups, setGroups] = useState([{ name: '', description: '' }]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
-  const [success, setSuccess] = useState(false);
+  const [createdGroups, setCreatedGroups] = useState([]);
+  const [showContinueModal, setShowContinueModal] = useState(false);
+
+  const { 
+    notification, 
+    showSuccess, 
+    showError, 
+    hideNotification 
+  } = useNotification();
 
   const handleGroupChange = (index, field, value) => {
     const updatedGroups = [...groups];
@@ -58,6 +70,8 @@ export const CreateGroup = () => {
         newErrors[`group_${index}_name`] = 'Название группы обязательно';
       } else if (group.name.length < 2) {
         newErrors[`group_${index}_name`] = 'Название должно содержать минимум 2 символа';
+      } else if (group.name.length > 100) {
+        newErrors[`group_${index}_name`] = 'Название не должно превышать 100 символов';
       }
       
       if (group.description && group.description.length > 500) {
@@ -76,61 +90,88 @@ export const CreateGroup = () => {
     
     setLoading(true);
     setErrors({});
+    setCreatedGroups([]);
     
     try {
       // Создаем группы последовательно
-      const createdGroups = [];
-      for (const group of groups) {
+      const created = [];
+      const creationErrors = [];
+      
+      for (const [index, group] of groups.entries()) {
         if (group.name.trim()) {
-          const createdGroup = await groupsAPI.create(group);
-          createdGroups.push(createdGroup);
+          try {
+            const createdGroup = await groupsAPI.create(group);
+            created.push(createdGroup);
+          } catch (error) {
+            const errorMessage = handleApiError(error);
+            creationErrors.push(`Группа ${index + 1}: ${errorMessage}`);
+          }
         }
       }
       
-      setSuccess(true);
-      setTimeout(() => {
-        navigate('/groups');
-      }, 2000);
+      setCreatedGroups(created);
+      
+      if (creationErrors.length > 0) {
+        // Если есть ошибки, показываем их
+        if (created.length === 0) {
+          // Если ни одна группа не создана
+          const errorMessage = creationErrors.join('; ');
+          showError(errorMessage);
+          setErrors({ submit: errorMessage });
+        } else {
+          // Если часть групп создана успешно
+          const successMessage = `Успешно создано ${created.length} из ${groups.length} групп`;
+          const errorMessage = `Ошибки: ${creationErrors.join('; ')}`;
+          showSuccess(successMessage);
+          setErrors({ submit: errorMessage });
+          setShowContinueModal(true);
+        }
+      } else {
+        // Все группы созданы успешно
+        const successMessage = created.length === 1 
+          ? `Группа "${created[0].name}" успешно создана!` 
+          : `Успешно создано ${created.length} групп!`;
+        showSuccess(successMessage);
+        setShowContinueModal(true);
+      }
       
     } catch (error) {
       console.error('Error creating groups:', error);
-      const errorMessage = error.response?.data?.detail || 'Ошибка при создании групп';
+      const errorMessage = handleApiError(error);
+      showError(errorMessage);
       setErrors({ submit: errorMessage });
     } finally {
       setLoading(false);
     }
   };
 
-  if (success) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.successContainer}>
-          <div className={styles.successIcon}>✓</div>
-          <h2 className={styles.successTitle}>Группы успешно созданы!</h2>
-          <p className={styles.successMessage}>
-            {groups.length === 1 
-              ? 'Группа была успешно создана.' 
-              : `Все ${groups.length} групп были успешно созданы.`
-            }
-          </p>
-          <p className={styles.redirectMessage}>
-            Вы будете перенаправлены на страницу групп через 2 секунды...
-          </p>
-          <Button 
-            variant="primary" 
-            size="large"
-            onClick={() => navigate('/groups')}
-            className={styles.successButton}
-          >
-            Перейти к группам
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const handleNavigateToGroups = () => {
+    navigate('/groups');
+  };
+
+  const handleContinueCreating = () => {
+    // Сбрасываем форму для создания новых групп
+    setGroups([{ name: '', description: '' }]);
+    setCreatedGroups([]);
+    setShowContinueModal(false);
+    setErrors({});
+  };
+
+  const handleCloseContinueModal = () => {
+    setShowContinueModal(false);
+  };
 
   return (
     <div className={styles.container}>
+      {/* Уведомление */}
+      <Notification
+        message={notification.message}
+        type={notification.type}
+        isVisible={notification.isVisible}
+        onClose={hideNotification}
+        duration={5000}
+      />
+
       <div className={styles.header}>
         <h1 className={styles.title}>Создание групп</h1>
         <p className={styles.subtitle}>
@@ -151,6 +192,7 @@ export const CreateGroup = () => {
                     size="small"
                     onClick={() => removeGroup(index)}
                     className={styles.removeButton}
+                    disabled={loading}
                   >
                     Удалить
                   </Button>
@@ -168,19 +210,30 @@ export const CreateGroup = () => {
                   placeholder="Введите название группы"
                   disabled={loading}
                   autoComplete="off"
+                  maxLength={100}
                 />
                 
-                <Input
-                  label="Описание группы"
-                  name={`description_${index}`}
-                  type="text"
-                  value={group.description}
-                  onChange={(e) => handleGroupChange(index, 'description', e.target.value)}
-                  error={errors[`group_${index}_description`]}
-                  placeholder="Введите описание группы (необязательно)"
-                  disabled={loading}
-                  autoComplete="off"
-                />
+                <div className={styles.textareaGroup}>
+                  <label className={styles.label}>Описание группы</label>
+                  <textarea
+                    name={`description_${index}`}
+                    value={group.description}
+                    onChange={(e) => handleGroupChange(index, 'description', e.target.value)}
+                    placeholder="Введите описание группы (необязательно)"
+                    disabled={loading}
+                    className={styles.textarea}
+                    rows={3}
+                    maxLength={500}
+                  />
+                  {errors[`group_${index}_description`] && (
+                    <span className={styles.errorMessage}>
+                      {errors[`group_${index}_description`]}
+                    </span>
+                  )}
+                  <div className={styles.charCount}>
+                    {group.description?.length || 0}/500
+                  </div>
+                </div>
               </div>
             </div>
           ))}
@@ -192,12 +245,17 @@ export const CreateGroup = () => {
             variant="secondary"
             size="large"
             onClick={addGroup}
-            disabled={loading}
+            disabled={loading || groups.length >= 5}
             className={styles.addButton}
           >
             <img src={plusIcon} alt="Добавить" className={styles.addIcon} />
             Добавить еще группу
           </Button>
+          {groups.length >= 5 && (
+            <p className={styles.maxGroupsWarning}>
+              Максимальное количество групп для одновременного создания: 5
+            </p>
+          )}
         </div>
 
         {errors.submit && (
@@ -219,12 +277,42 @@ export const CreateGroup = () => {
             variant="primary" 
             size="large" 
             loading={loading}
+            disabled={groups.some(group => !group.name.trim())}
             className={styles.submitButton}
           >
-            {groups.length === 1 ? 'Создать группу' : `Создать ${groups.length} группу`}
+            {groups.length === 1 ? 'Создать группу' : `Создать ${groups.length} групп`}
           </Button>
         </div>
       </form>
+
+      {/* Модальное окно выбора действий после успешного создания */}
+      <ConfirmationModal
+        isOpen={showContinueModal}
+        onClose={handleCloseContinueModal}
+        onConfirm={handleNavigateToGroups}
+        title="Группы успешно созданы!"
+        message={
+          <div className={styles.successModalContent}>
+            <div className={styles.successIcon}>✓</div>
+            <p>
+              {createdGroups.length === 1 
+                ? `Группа "${createdGroups[0].name}" была успешно создана.` 
+                : `Успешно создано ${createdGroups.length} групп.`
+              }
+            </p>
+            {errors.submit && (
+              <div className={styles.partialSuccessInfo}>
+                <p>{errors.submit}</p>
+              </div>
+            )}
+            <p className={styles.continueQuestion}>Что вы хотите сделать дальше?</p>
+          </div>
+        }
+        confirmText="Перейти к группам"
+        cancelText="Создать еще группы"
+        variant="info"
+        onCancel={handleContinueCreating}
+      />
     </div>
   );
 };

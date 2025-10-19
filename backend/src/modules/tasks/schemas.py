@@ -1,12 +1,11 @@
 from __future__ import annotations
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional, List
 
 if TYPE_CHECKING:
     from modules.projects.schemas import ProjectRead
     from modules.users.schemas import UserRead, UserWithRole
-    from modules.groups.schemas import GroupRead
     
 class TaskCreate(BaseModel):
     title: str
@@ -16,6 +15,9 @@ class TaskCreate(BaseModel):
     deadline: datetime
     project_id: int
     group_id: int
+    
+class TaskCreateExtended(TaskCreate):
+    assignee_ids: List[int] = Field(default_factory=list)
 
 class TaskRead(BaseModel):
     id: int
@@ -30,7 +32,7 @@ class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
-    start_date: datetime
+    start_date: Optional[datetime] = None
     deadline: Optional[datetime] = None
     
 class GroupReadForTask(BaseModel):
@@ -50,6 +52,5 @@ class TaskReadWithRelations(TaskRead):
 class AddRemoveUsersToTask(BaseModel):
     user_ids: List[int]
 
-from modules.groups.schemas import GroupRead
 from modules.projects.schemas import ProjectRead
 from modules.users.schemas import UserRead, UserWithRole

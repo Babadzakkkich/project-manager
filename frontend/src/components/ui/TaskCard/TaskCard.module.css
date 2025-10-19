@@ -116,27 +116,27 @@
 
 .statusInProgress {
   background: #e6f7e9;
-  color: #004B23;
+  color: white;
 }
 
 .statusCompleted {
   background: #d4edda;
-  color: #155724;
+  color: white
 }
 
 .statusPlanned {
   background: #e2e8f0;
-  color: #4a5568;
+  color: white;
 }
 
 .statusOnHold {
   background: #fff3cd;
-  color: #856404;
+  color: white;
 }
 
 .statusCancelled {
   background: #f8d7da;
-  color: #721c24;
+  color: white;
 }
 
 .statusDefault {

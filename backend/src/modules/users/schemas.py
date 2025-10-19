@@ -30,10 +30,14 @@ class UserUpdate(BaseModel):
 
 class UserWithRole(UserRead):
     role: str
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class UserWithRelations(UserRead):
     groups: List[GroupRead] = []
     assigned_tasks: List[TaskRead] = []
     
+    model_config = ConfigDict(from_attributes=True)
+        
 from modules.groups.schemas import GroupRead
 from modules.tasks.schemas import TaskRead   

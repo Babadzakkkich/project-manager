@@ -5,6 +5,7 @@ import { Button } from '../../../components/ui/Button';
 import { FilterSort } from '../../../components/ui/FilterSort';
 import { TaskCard } from '../../../components/ui/TaskCard';
 import { useAuthContext } from '../../../contexts/AuthContext';
+import { handleApiError } from '../../../utils/helpers';
 import styles from './Tasks.module.css';
 
 export const Tasks = () => {
@@ -13,19 +14,17 @@ export const Tasks = () => {
   const [error, setError] = useState('');
   const [filters, setFilters] = useState({});
   const [sort, setSort] = useState('');
-  const [viewMode, setViewMode] = useState('my'); // 'my' или 'all' для администраторов
+  const [viewMode, setViewMode] = useState('my');
   const [adminGroups, setAdminGroups] = useState([]);
   const [groupUsers, setGroupUsers] = useState([]);
   const [projectOptions, setProjectOptions] = useState([]);
   
   const { user } = useAuthContext();
 
-  // Определяем, является ли пользователь администратором каких-либо групп
   const isAdmin = useMemo(() => {
     return adminGroups.length > 0;
   }, [adminGroups]);
 
-  // Опции фильтрации
   const filterOptions = useMemo(() => {
     const baseOptions = [
       {
@@ -46,7 +45,6 @@ export const Tasks = () => {
       }
     ];
 
-    // Добавляем фильтр по пользователям для администраторов в режиме "все задачи"
     if (isAdmin && viewMode === 'all') {
       return [
         ...baseOptions,
@@ -77,19 +75,14 @@ export const Tasks = () => {
     { value: 'status', label: 'По статусу' }
   ];
 
-  // Загрузка групп, где пользователь является администратором
   const loadAdminGroups = useCallback(async () => {
     try {
-      console.log('Загрузка моих групп для проверки прав администратора...');
       const groups = await groupsAPI.getMyGroups();
-      console.log('Полученные группы:', groups);
       const adminGroups = groups.filter(group => 
         group.users?.some(u => u.id === user.id && u.role === 'admin')
       );
-      console.log('Админские группы:', adminGroups);
       setAdminGroups(adminGroups);
       
-      // Собираем всех пользователей из админских групп
       const allUsers = [];
       adminGroups.forEach(group => {
         if (group.users) {
@@ -100,52 +93,39 @@ export const Tasks = () => {
           });
         }
       });
-      console.log('Все пользователи из админских групп:', allUsers);
       setGroupUsers(allUsers);
+    // eslint-disable-next-line no-unused-vars
     } catch (err) {
-      console.error('Error loading admin groups:', err);
+      // Ошибка загрузки групп не критична для основного функционала
     }
   }, [user]);
 
-  // Загрузка задач
   const loadTasks = useCallback(async () => {
     try {
-      console.log('Загрузка задач, isAdmin:', isAdmin, 'viewMode:', viewMode);
       setLoading(true);
+      setError('');
       
+      let tasksData;
       if (isAdmin && viewMode === 'all') {
-        // Для администраторов в режиме "все задачи" - используем новый эндпоинт
-        console.log('Запрашиваем задачи команды...');
-        const teamTasks = await tasksAPI.getTeamTasks();
-        console.log('Полученные задачи команды:', teamTasks);
-        setTasks(teamTasks);
+        tasksData = await tasksAPI.getTeamTasks();
       } else {
-        // Обычный режим - только мои задачи
-        console.log('Запрашиваем мои задачи...');
-        const tasksData = await tasksAPI.getMyTasks();
-        console.log('Полученные мои задачи:', tasksData);
-        setTasks(tasksData);
+        tasksData = await tasksAPI.getMyTasks();
       }
+      setTasks(tasksData);
     } catch (err) {
-      console.error('Error loading tasks:', err);
-      setError('Не удалось загрузить задачи');
+      setError(handleApiError(err));
     } finally {
       setLoading(false);
     }
   }, [isAdmin, viewMode]);
 
-  // Обновление опций проектов при изменении задач
   useEffect(() => {
-    if (tasks.length > 0) {
-      const uniqueProjects = [...new Set(tasks.map(task => task.project?.title).filter(Boolean))];
-      const newProjectOptions = uniqueProjects.map(projectTitle => ({
-        value: projectTitle,
-        label: projectTitle
-      }));
-      setProjectOptions(newProjectOptions);
-    } else {
-      setProjectOptions([]);
-    }
+    const uniqueProjects = [...new Set(tasks.map(task => task.project?.title).filter(Boolean))];
+    const newProjectOptions = uniqueProjects.map(projectTitle => ({
+      value: projectTitle,
+      label: projectTitle
+    }));
+    setProjectOptions(newProjectOptions);
   }, [tasks]);
 
   useEffect(() => {
@@ -165,47 +145,33 @@ export const Tasks = () => {
       await tasksAPI.delete(taskId);
       setTasks(prev => prev.filter(task => task.id !== taskId));
     } catch (err) {
-      setError('Не удалось удалить задачу: ' + (err.response?.data?.detail || 'Неизвестная ошибка'));
+      setError(handleApiError(err));
     }
   };
 
-  // Функция определения роли пользователя в задаче
-  const getUserRoleInTask = (task) => {
-    console.log('getUserRoleInTask вызвана для задачи:', task.title, 'ID:', task.id);
+  const getUserRoleInTask = useCallback((task) => {
     if (!user || !task.group) {
-        console.log('getUserRoleInTask: нет user или task.group');
-        return 'member';
+      return 'member';
     }
     
-    // Проверяем, является ли пользователь администратором группы
     if (task.group.users && Array.isArray(task.group.users)) {
       const userInGroup = task.group.users.find(u => u.id === user.id);
-      console.log('getUserRoleInTask: пользователь в группе задачи:', userInGroup);
       if (userInGroup && userInGroup.role === 'admin') {
-        console.log('getUserRoleInTask: пользователь является админом группы задачи');
         return 'admin';
       }
-    } else {
-        console.log('getUserRoleInTask: task.group.users отсутствует или не массив');
     }
     
-    // Проверяем, является ли пользователь исполнителем задачи
     const isAssignee = task.assignees?.some(assignee => assignee.id === user.id);
     if (isAssignee) {
-      console.log('getUserRoleInTask: пользователь является исполнителем задачи');
       return 'assignee';
     }
     
-    console.log('getUserRoleInTask: пользователь является обычным участником');
     return 'member';
-  };
+  }, [user]);
 
-  // Фильтрация и сортировка
   const filteredAndSortedTasks = useMemo(() => {
-    console.log('Фильтрация и сортировка задач начата. Всего задач:', tasks.length);
     let result = [...tasks];
 
-    // Фильтры
     if (filters.status) {
       result = result.filter(task => task.status === filters.status);
     }
@@ -221,7 +187,6 @@ export const Tasks = () => {
       );
     }
 
-    // Сортировка
     if (sort) {
       switch (sort) {
         case 'title_asc':
@@ -249,15 +214,12 @@ export const Tasks = () => {
           break;
       }
     }
-    console.log('Фильтрация и сортировка завершена. Результат:', result);
+
     return result;
   }, [tasks, filters, sort, isAdmin, viewMode]);
 
-  // Группировка задач по пользователям для режима "Задачи команды"
   const groupedTasks = useMemo(() => {
-    console.log('Начинается группировка задач. isAdmin:', isAdmin, 'viewMode:', viewMode);
     if (viewMode !== 'all' || !isAdmin) {
-      console.log('Группировка не требуется, возвращаем null.');
       return null;
     }
 
@@ -275,7 +237,6 @@ export const Tasks = () => {
           grouped[assignee.id].tasks.push(task);
         });
       } else {
-        // Задачи без исполнителей
         if (!grouped['unassigned']) {
           grouped['unassigned'] = {
             user: { id: 'unassigned', login: 'Без исполнителя', email: '' },
@@ -285,11 +246,10 @@ export const Tasks = () => {
         grouped['unassigned'].tasks.push(task);
       }
     });
-    console.log('Сгруппированные задачи:', grouped);
+
     return Object.values(grouped);
   }, [filteredAndSortedTasks, viewMode, isAdmin]);
 
-  // Статистика для отображения
   const taskStats = useMemo(() => {
     const total = filteredAndSortedTasks.length;
     const completed = filteredAndSortedTasks.filter(task => task.status === 'completed').length;
@@ -303,31 +263,20 @@ export const Tasks = () => {
     return { total, completed, overdue, inProgress };
   }, [filteredAndSortedTasks]);
 
-  // Функция для определения, может ли пользователь удалить задачу
-  const canDeleteTask = (task) => {
+  const canDeleteTask = useCallback((task) => {
     const userRole = getUserRoleInTask(task);
-    const canDelete = userRole === 'admin' || userRole === 'assignee';
-    console.log('canDeleteTask: для задачи', task.title, 'роль:', userRole, 'canDelete:', canDelete);
-    return canDelete;
-  };
+    return userRole === 'admin' || userRole === 'assignee';
+  }, [getUserRoleInTask]);
 
-  // Переключение режима просмотра для администраторов
   const handleViewModeChange = (newMode) => {
-    console.log('Переключение режима просмотра на:', newMode);
     setViewMode(newMode);
-    setFilters({}); // Сбрасываем фильтры при смене режима
+    setFilters({});
   };
 
-  // Получаем заголовок в зависимости от режима просмотра
   const getPageTitle = () => {
-    if (viewMode === 'my') {
-      return 'Мои задачи';
-    } else {
-      return 'Задачи команды';
-    }
+    return viewMode === 'my' ? 'Мои задачи' : 'Задачи команды';
   };
 
-  // Получаем подзаголовок в зависимости от режима просмотра
   const getPageSubtitle = () => {
     if (viewMode === 'my') {
       return 'Задачи, назначенные на вас';
@@ -360,7 +309,6 @@ export const Tasks = () => {
       <div className={styles.header}>
         <div className={styles.headerTop}>
           <h1 className={styles.title}>{getPageTitle()}</h1>
-          {/* Переключатель режимов для администраторов */}
           {isAdmin && (
             <div className={styles.viewModeSwitcher}>
               <Button
@@ -393,7 +341,6 @@ export const Tasks = () => {
         </Button>
       </div>
 
-      {/* Статистика */}
       {filteredAndSortedTasks.length > 0 && (
         <div className={styles.statsContainer}>
           <div className={styles.stats}>
@@ -469,9 +416,7 @@ export const Tasks = () => {
             </span>
           </div>
 
-          {/* Отображение задач в зависимости от режима */}
           {viewMode === 'all' && isAdmin ? (
-            // Группировка по пользователям для режима "Задачи команды"
             <div className={styles.groupedTasks}>
               {groupedTasks && groupedTasks.map(group => (
                 <div key={group.user.id} className={styles.userTaskGroup}>
@@ -488,11 +433,8 @@ export const Tasks = () => {
                   </div>
                   <div className={styles.userTasksGrid}>
                     {group.tasks.map((task) => {
-                      console.log('Отрисовка TaskCard для задачи:', task.title, 'ID:', task.id);
-                      const userRole = getUserRoleInTask(task); // Вызов с отладкой
-                      const canDelete = canDeleteTask(task); // Вызов с отладкой
-                      
-                      console.log('TaskCard props - task:', task, 'userRole:', userRole, 'canDelete:', canDelete, 'currentUserId:', user.id);
+                      const userRole = getUserRoleInTask(task);
+                      const canDelete = canDeleteTask(task);
                       
                       return (
                         <TaskCard
@@ -512,14 +454,10 @@ export const Tasks = () => {
               ))}
             </div>
           ) : (
-            // Обычный список для режима "Мои задачи"
             <div className={styles.tasksGrid}>
               {filteredAndSortedTasks.map((task) => {
-                console.log('Отрисовка TaskCard (обычный список) для задачи:', task.title, 'ID:', task.id);
-                const userRole = getUserRoleInTask(task); // Вызов с отладкой
-                const canDelete = canDeleteTask(task); // Вызов с отладкой
-                
-                console.log('TaskCard props (обычный список) - task:', task, 'userRole:', userRole, 'canDelete:', canDelete, 'currentUserId:', user.id);
+                const userRole = getUserRoleInTask(task);
+                const canDelete = canDeleteTask(task);
                 
                 return (
                   <TaskCard
@@ -542,4 +480,4 @@ export const Tasks = () => {
   );
 };
 
-export default Tasks; // Не забудьте экспорт, если используется
+export default Tasks;

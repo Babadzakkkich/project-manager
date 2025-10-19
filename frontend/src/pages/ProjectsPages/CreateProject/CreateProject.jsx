@@ -4,29 +4,41 @@ import { projectsAPI } from '../../../services/api/projects';
 import { groupsAPI } from '../../../services/api/groups';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
+import { ConfirmationModal } from '../../../components/ui/ConfirmationModal';
+import { Notification } from '../../../components/ui/Notification';
 import { useAuthContext } from '../../../contexts/AuthContext';
+import { useNotification } from '../../../hooks/useNotification';
+import { getAutoProjectStatus } from '../../../utils/projectStatus';
+import { handleApiError } from '../../../utils/helpers';
 import styles from './CreateProject.module.css';
 
 export const CreateProject = () => {
   const navigate = useNavigate();
   
-  // Устанавливаем сегодняшнюю дату по умолчанию для start_date
   const today = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
   
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    start_date: today, // Автоматически устанавливаем сегодняшнюю дату
-    end_date: '',
-    status: 'in_progress',
+    start_date: today,
+    end_date: tomorrow,
     group_ids: []
   });
   const [availableGroups, setAvailableGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [groupsLoading, setGroupsLoading] = useState(true);
   const [errors, setErrors] = useState({});
-  const [success, setSuccess] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdProject, setCreatedProject] = useState(null);
   const { user } = useAuthContext();
+
+  const { 
+    notification, 
+    showSuccess, 
+    showError, 
+    hideNotification 
+  } = useNotification();
 
   // Загружаем группы, где пользователь является администратором
   const loadAvailableGroups = useCallback(async () => {
@@ -34,7 +46,6 @@ export const CreateProject = () => {
       setGroupsLoading(true);
       const groupsData = await groupsAPI.getMyGroups();
       
-      // Фильтруем группы, где пользователь является администратором
       const adminGroups = groupsData.filter(group => 
         group.users?.some(u => u.id === user?.id && u.role === 'admin')
       );
@@ -42,11 +53,12 @@ export const CreateProject = () => {
       setAvailableGroups(adminGroups);
     } catch (err) {
       console.error('Error loading groups:', err);
+      showError('Не удалось загрузить список групп');
       setErrors({ groups: 'Не удалось загрузить список групп' });
     } finally {
       setGroupsLoading(false);
     }
-  }, [user]);
+  }, [user, showError]);
 
   useEffect(() => {
     loadAvailableGroups();
@@ -59,11 +71,9 @@ export const CreateProject = () => {
       [name]: value
     }));
     
+    // Очищаем ошибки при изменении
     if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
+      setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
@@ -74,11 +84,13 @@ export const CreateProject = () => {
         ? prev.group_ids.filter(id => id !== groupId)
         : [...prev.group_ids, groupId];
       
-      return {
-        ...prev,
-        group_ids: newGroupIds
-      };
+      return { ...prev, group_ids: newGroupIds };
     });
+    
+    // Очищаем ошибку групп при изменении
+    if (errors.group_ids) {
+      setErrors(prev => ({ ...prev, group_ids: '' }));
+    }
   };
 
   const validateForm = () => {
@@ -92,24 +104,16 @@ export const CreateProject = () => {
     
     if (!formData.start_date) {
       newErrors.start_date = 'Дата начала обязательна';
-    } else {
-      const startDate = new Date(formData.start_date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      if (startDate < today) {
-        newErrors.start_date = 'Дата начала не может быть в прошлом';
-      }
     }
     
     if (!formData.end_date) {
       newErrors.end_date = 'Дата окончания обязательна';
-    } else {
+    } else if (formData.start_date) {
       const endDate = new Date(formData.end_date);
       const startDate = new Date(formData.start_date);
       
-      if (endDate < startDate) {
-        newErrors.end_date = 'Дата окончания не может быть раньше даты начала';
+      if (endDate <= startDate) {
+        newErrors.end_date = 'Дата окончания должна быть позже даты начала';
       }
     }
     
@@ -130,59 +134,71 @@ export const CreateProject = () => {
     setErrors({});
     
     try {
+      // Автоматически определяем статус проекта на основе дат
+      const autoStatus = getAutoProjectStatus(formData.start_date, formData.end_date);
+      
       // Подготавливаем данные для отправки
       const projectData = {
         ...formData,
-        // Преобразуем даты в ISO строки
+        status: autoStatus, // Автоматически определяем статус
         start_date: new Date(formData.start_date).toISOString(),
         end_date: new Date(formData.end_date).toISOString(),
-        status: 'in_progress' // Автоматически устанавливаем статус "В процессе"
       };
       
-      await projectsAPI.create(projectData);
-      setSuccess(true);
-      
-      // Перенаправляем на страницу проектов через 2 секунды
-      setTimeout(() => {
-        navigate('/projects');
-      }, 2000);
+      const project = await projectsAPI.create(projectData);
+      setCreatedProject(project);
+      showSuccess(`Проект "${formData.title}" успешно создан!`);
+      setShowSuccessModal(true);
       
     } catch (error) {
       console.error('Error creating project:', error);
-      const errorMessage = error.response?.data?.detail || 'Ошибка при создании проекта';
+      const errorMessage = handleApiError(error);
+      showError(errorMessage);
       setErrors({ submit: errorMessage });
     } finally {
       setLoading(false);
     }
   };
 
-  if (success) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.successContainer}>
-          <div className={styles.successIcon}>✓</div>
-          <h2 className={styles.successTitle}>Проект успешно создан!</h2>
-          <p className={styles.successMessage}>
-            Проект "{formData.title}" был успешно создан.
-          </p>
-          <p className={styles.redirectMessage}>
-            Вы будете перенаправлены на страницу проектов через 2 секунды...
-          </p>
-          <Button 
-            variant="primary" 
-            size="large"
-            onClick={() => navigate('/projects')}
-            className={styles.successButton}
-          >
-            Перейти к проектам
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const handleNavigateToProjects = () => {
+    navigate('/projects');
+  };
+
+  const handleNavigateToProjectDetail = () => {
+    if (createdProject) {
+      navigate(`/projects/${createdProject.id}`);
+    }
+  };
+
+  const handleContinueCreating = () => {
+    // Сбрасываем форму для создания нового проекта
+    setFormData({
+      title: '',
+      description: '',
+      start_date: today,
+      end_date: tomorrow,
+      group_ids: []
+    });
+    setCreatedProject(null);
+    setShowSuccessModal(false);
+    setErrors({});
+  };
+
+  const handleCloseSuccessModal = () => {
+    setShowSuccessModal(false);
+  };
 
   return (
     <div className={styles.container}>
+      {/* Уведомление */}
+      <Notification
+        message={notification.message}
+        type={notification.type}
+        isVisible={notification.isVisible}
+        onClose={hideNotification}
+        duration={5000}
+      />
+
       <div className={styles.header}>
         <h1 className={styles.title}>Создание проекта</h1>
         <p className={styles.subtitle}>
@@ -232,6 +248,7 @@ export const CreateProject = () => {
               onChange={handleChange}
               error={errors.start_date}
               disabled={loading}
+              min={today}
               required
             />
             
@@ -243,6 +260,7 @@ export const CreateProject = () => {
               onChange={handleChange}
               error={errors.end_date}
               disabled={loading}
+              min={formData.start_date || today}
               required
             />
           </div>
@@ -292,6 +310,7 @@ export const CreateProject = () => {
                         checked={formData.group_ids.includes(group.id)}
                         onChange={() => handleGroupToggle(group.id)}
                         className={styles.checkboxInput}
+                        disabled={loading}
                       />
                       <span className={styles.checkboxCustom}></span>
                     </div>
@@ -326,7 +345,7 @@ export const CreateProject = () => {
             type="button"
             variant="secondary" 
             size="large"
-            onClick={() => navigate('/workspace')}
+            onClick={() => navigate('/projects')}
             disabled={loading}
           >
             Отмена
@@ -336,13 +355,37 @@ export const CreateProject = () => {
             variant="primary" 
             size="large" 
             loading={loading}
-            disabled={availableGroups.length === 0}
+            disabled={availableGroups.length === 0 || loading}
             className={styles.submitButton}
           >
             Создать проект
           </Button>
         </div>
       </form>
+
+      {/* Модальное окно выбора действий после успешного создания */}
+      <ConfirmationModal
+        isOpen={showSuccessModal}
+        onClose={handleCloseSuccessModal}
+        onConfirm={handleNavigateToProjectDetail}
+        title="Проект успешно создан!"
+        message={
+          <div className={styles.successModalContent}>
+            <div className={styles.successIcon}>✓</div>
+            <p>
+              Проект "{formData.title}" был успешно создан и прикреплен к {formData.group_ids.length} {formData.group_ids.length === 1 ? 'группе' : 'группам'}.
+            </p>
+            <p className={styles.continueQuestion}>Что вы хотите сделать дальше?</p>
+          </div>
+        }
+        confirmText="Перейти к проекту"
+        cancelText="Создать еще проект"
+        variant="info"
+        onCancel={handleContinueCreating}
+        showThirdButton={true}
+        thirdButtonText="К списку проектов"
+        onThirdButton={handleNavigateToProjects}
+      />
     </div>
   );
 };

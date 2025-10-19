@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { groupsAPI } from '../../../services/api/groups';
 import { Button } from '../../../components/ui/Button';
 import { FilterSort } from '../../../components/ui/FilterSort';
 import { GroupCard } from '../../../components/ui/GroupCard';
 import { useAuthContext } from '../../../contexts/AuthContext';
+import { handleApiError, getUserRoleTranslation } from '../../../utils/helpers';
 import styles from './Groups.module.css';
 
 export const Groups = () => {
@@ -36,6 +37,19 @@ export const Groups = () => {
     { value: 'projects_desc', label: 'По количеству проектов' }
   ];
 
+  // Получение роли текущего пользователя в группе
+  const getUserRoleInGroup = useCallback((group) => {
+    if (!user || !group.users) return null;
+    const userInGroup = group.users.find(u => u.id === user.id);
+    return userInGroup ? userInGroup.role : null;
+  }, [user]);
+
+  // Проверка, является ли пользователь администратором группы
+  const isUserAdminInGroup = useCallback((group) => {
+    const userRole = getUserRoleInGroup(group);
+    return userRole === 'admin' || userRole === 'super_admin';
+  }, [getUserRoleInGroup]);
+
   useEffect(() => {
     loadGroups();
   }, []);
@@ -43,11 +57,13 @@ export const Groups = () => {
   const loadGroups = async () => {
     try {
       setLoading(true);
+      setError('');
       const groupsData = await groupsAPI.getMyGroups();
       setGroups(groupsData);
     } catch (err) {
       console.error('Error loading groups:', err);
-      setError('Не удалось загрузить группы');
+      const errorMessage = handleApiError(err);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -60,24 +76,24 @@ export const Groups = () => {
 
     try {
       await groupsAPI.delete(groupId);
-      setGroups(prev => prev.filter(group => group.id !== groupId));
+      // Полностью перезагружаем группы, чтобы убедиться в актуальности данных
+      await loadGroups();
     } catch (err) {
       console.error('Error deleting group:', err);
-      setError('Не удалось удалить группу: ' + (err.response?.data?.detail || 'Неизвестная ошибка'));
+      const errorMessage = handleApiError(err);
+      setError(`Не удалось удалить группу: ${errorMessage}`);
     }
   };
 
   // Фильтрация и сортировка групп
   const filteredAndSortedGroups = useMemo(() => {
-    let result = groups.filter(group => 
-      group.users?.some(u => u.id === user?.id)
-    );
+    let result = [...groups];
 
     // Применяем фильтры
     if (filters.role) {
       result = result.filter(group => {
-        const userInGroup = group.users.find(u => u.id === user?.id);
-        return userInGroup && userInGroup.role === filters.role;
+        const userRole = getUserRoleInGroup(group);
+        return userRole === filters.role;
       });
     }
 
@@ -108,7 +124,7 @@ export const Groups = () => {
     }
 
     return result;
-  }, [groups, user, filters, sort]);
+  }, [groups, filters, sort, getUserRoleInGroup]);
 
   if (loading) {
     return (
@@ -191,6 +207,11 @@ export const Groups = () => {
             <span className={styles.groupsCount}>
               Найдено групп: {filteredAndSortedGroups.length}
             </span>
+            {filters.role && (
+              <span className={styles.activeFilter}>
+                Фильтр: {getUserRoleTranslation(filters.role)}
+              </span>
+            )}
           </div>
           <div className={styles.groupsGrid}>
             {filteredAndSortedGroups.map((group) => (
@@ -199,7 +220,7 @@ export const Groups = () => {
                 group={group}
                 currentUserId={user?.id}
                 onDelete={handleDeleteGroup}
-                showDeleteButton={true}
+                showDeleteButton={isUserAdminInGroup(group)}
               />
             ))}
           </div>

@@ -45,6 +45,8 @@ class ProjectReadWithRelations(ProjectRead):
     groups: List[SimpleGroupForProject] = [] 
     tasks: List[TaskRead] = []
     
+    model_config = ConfigDict(from_attributes=True)
+    
 class AddGroupsToProject(BaseModel):
     group_ids: List[int]
 

@@ -1,51 +1,93 @@
 .workspace {
   min-height: calc(100vh - 80px);
-  background: #f8fafc;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
   padding: 40px 0;
 }
 
+.header {
+  text-align: center;
+  margin-bottom: 48px;
+  padding: 0 32px;
+}
+
+.title {
+  color: #004B23;
+  font-size: 48px;
+  font-weight: 700;
+  margin: 0 0 16px 0;
+  background: linear-gradient(135deg, #004B23, #006400);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  color: #666;
+  font-size: 18px;
+  margin: 0;
+  font-weight: 500;
+}
+
 .container {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 0 32px;
   display: grid;
-  grid-template-columns: 1fr 400px;
-  gap: 48px;
-  align-items: center; /* Изменено с start на center */
-  min-height: 500px; /* Добавлено для обеспечения минимальной высоты */
+  grid-template-columns: 1fr 2fr;
+  gap: 32px;
+  align-items: start;
 }
 
-/* Левая колонка - Быстрые действия */
-.leftColumn {
+/* Секции */
+.section {
   background: white;
   border-radius: 16px;
-  padding: 32px;
+  padding: 28px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  display: flex; /* Добавлено */
-  flex-direction: column; /* Добавлено */
-  justify-content: center; /* Добавлено */
-  height: fit-content; /* Добавлено */
+  margin-bottom: 24px;
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
 .sectionTitle {
   color: #004B23;
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 700;
-  margin-bottom: 32px;
-  text-align: center;
+  margin: 0;
+}
+
+/* Левая колонка */
+.leftColumn {
+  position: sticky;
+  top: 100px;
 }
 
 .actionsGrid {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
+}
+
+.actionButton {
+  padding: 20px;
+  border-radius: 12px;
+  transition: all 0.3s ease;
 }
 
 .actionContent {
   display: flex;
   align-items: center;
-  gap: 16px;
-  justify-content: center;
+  gap: 12px;
+  justify-content: flex-start;
 }
 
 .actionIcon {
@@ -55,69 +97,183 @@
 }
 
 .actionText {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
+  color: white;
 }
 
-/* Правая колонка - Недавние */
+/* Быстрые ссылки */
+.quickLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quickLink {
+  display: block;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.quickLink:hover {
+  border-color: #004B23;
+  background: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.quickLinkContent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.quickLinkText {
+  color: #004B23;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.quickLinkArrow {
+  color: #666;
+  font-size: 18px;
+  font-weight: 600;
+  transition: transform 0.2s ease;
+}
+
+.quickLink:hover .quickLinkArrow {
+  transform: translateX(4px);
+  color: #004B23;
+}
+
+/* Правая колонка */
 .rightColumn {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
 }
 
-.recentSection {
-  background: white;
-  border-radius: 16px;
-  padding: 28px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+.viewAllLink {
+  color: #006400;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  transition: color 0.2s ease;
 }
 
-.recentTitle {
+.viewAllLink:hover {
   color: #004B23;
-  font-size: 20px;
-  font-weight: 700;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
-  border-bottom: 2px solid #f1f5f9;
 }
 
-.recentContent {
-  min-height: 120px;
+/* Сетки контента */
+.projectsGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.tasksList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.projectItem,
+.taskItem {
+  height: 100%;
+  transition: transform 0.2s ease;
+}
+
+.projectItem > * {
+  height: 100%;
+}
+
+.projectItem:hover,
+.taskItem:hover {
+  transform: translateY(-2px);
+}
+
+/* Состояния загрузки и пустые состояния */
+.loadingContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  text-align: center;
+}
+
+.loadingState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+  color: #666;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #004B23;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+.smallSpinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #004B23;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .emptyState {
   text-align: center;
-  color: #718096;
   padding: 40px 20px;
+  color: #666;
 }
 
-.emptyState p {
-  font-size: 16px;
+.emptyIcon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.7;
+}
+
+.emptyTitle {
+  font-size: 18px;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin: 0 0 8px 0;
   color: #4a5568;
 }
 
-.emptyState span {
+.emptyDescription {
   font-size: 14px;
-  color: #a0aec0;
+  margin: 0 0 20px 0;
+  line-height: 1.5;
 }
 
 /* Адаптивность */
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
   .container {
     grid-template-columns: 1fr;
-    gap: 32px;
-    align-items: start; /* На мобильных оставляем выравнивание по верху */
+    gap: 24px;
   }
   
-  .rightColumn {
-    order: -1;
-  }
-
   .leftColumn {
-    height: auto; /* На мобильных убираем фиксированную высоту */
+    position: static;
   }
 }
 
@@ -126,22 +282,35 @@
     padding: 24px 0;
   }
   
+  .header {
+    padding: 0 20px;
+    margin-bottom: 32px;
+  }
+  
+  .title {
+    font-size: 36px;
+  }
+  
   .container {
     padding: 0 20px;
-    gap: 24px;
-    min-height: auto; /* На мобильных убираем минимальную высоту */
+    gap: 20px;
   }
   
-  .leftColumn,
-  .recentSection {
-    padding: 24px;
+  .section {
+    padding: 20px;
   }
   
-  .sectionTitle {
-    font-size: 24px;
+  .sectionHeader {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
   }
   
-  .actionText {
-    font-size: 16px;
+  .actionsGrid {
+    gap: 12px;
+  }
+  
+  .actionButton {
+    padding: 16px;
   }
 }

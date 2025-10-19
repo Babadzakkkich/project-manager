@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database.models import User
 from modules.auth.dependencies import get_current_user
 from core.database.session import db_session
-from .schemas import AddRemoveUsersToTask, TaskCreate, TaskRead, TaskUpdate, TaskReadWithRelations
+from .schemas import AddRemoveUsersToTask, TaskCreate, TaskCreateExtended, TaskRead, TaskUpdate, TaskReadWithRelations
 from . import service as tasks_service
 from .exceptions import (
     TaskNotFoundError,
@@ -23,14 +23,19 @@ from .exceptions import (
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
 @router.get("/", response_model=list[TaskRead])
-async def get_tasks(session: AsyncSession = Depends(db_session.session_getter)):
-    return await tasks_service.get_all_tasks(session)
+async def get_tasks(
+    session: AsyncSession = Depends(db_session.session_getter),
+    current_user: User = Depends(get_current_user)
+):
+    """Получить все задачи (только для супер-админа)"""
+    return await tasks_service.get_all_tasks(session, current_user.id)
 
 @router.get("/my", response_model=list[TaskReadWithRelations])
 async def get_my_tasks(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    """Получить задачи текущего пользователя"""
     try:
         return await tasks_service.get_user_tasks(session, current_user.id)
     except Exception as e:
@@ -44,6 +49,7 @@ async def get_team_tasks(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    """Получить задачи команд (где пользователь администратор)"""
     try:
         return await tasks_service.get_team_tasks(session, current_user.id)
     except Exception as e:
@@ -55,12 +61,20 @@ async def get_team_tasks(
 @router.get("/{task_id}", response_model=TaskReadWithRelations)
 async def get_task(
     task_id: int,
-    session: AsyncSession = Depends(db_session.session_getter)
+    session: AsyncSession = Depends(db_session.session_getter),
+    current_user: User = Depends(get_current_user)
 ):
+    """Получить информацию о задаче (только для участников группы задачи)"""
     try:
         task = await tasks_service.get_task_by_id(session, task_id)
+        
+        # Проверяем, что пользователь имеет доступ к задаче
+        from core.utils.dependencies import check_user_in_group
+        if not await check_user_in_group(session, current_user.id, task.group_id):
+            raise TaskAccessDeniedError("Нет доступа к задаче")
+            
         return task
-    except TaskNotFoundError as e:
+    except (TaskNotFoundError, TaskAccessDeniedError) as e:
         raise e
 
 @router.post("/", response_model=TaskReadWithRelations, status_code=status.HTTP_201_CREATED)
@@ -69,9 +83,39 @@ async def create_new_task(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    """Создать новую задачу"""
     try:
         return await tasks_service.create_task(session, task_data, current_user)
-    except (ProjectNotFoundError, GroupNotFoundError, GroupNotInProjectError, TaskCreationError) as e:
+    except (ProjectNotFoundError, GroupNotFoundError, GroupNotInProjectError, TaskCreationError, TaskAccessDeniedError) as e:
+        raise e
+    
+@router.post("/create_for_users", response_model=TaskReadWithRelations, status_code=status.HTTP_201_CREATED)
+async def create_task_for_users(
+    task_data: TaskCreateExtended,  # Используем расширенную схему
+    session: AsyncSession = Depends(db_session.session_getter),
+    current_user: User = Depends(get_current_user)
+):
+    """Создать задачу для указанных пользователей"""
+    try:
+        # Создаем базовый объект TaskCreate из расширенного
+        base_task_data = TaskCreate(
+            title=task_data.title,
+            description=task_data.description,
+            status=task_data.status,
+            start_date=task_data.start_date,
+            deadline=task_data.deadline,
+            project_id=task_data.project_id,
+            group_id=task_data.group_id
+        )
+        
+        return await tasks_service.create_task_for_users(
+            session, 
+            base_task_data,  # Передаем базовую схему
+            task_data.assignee_ids,  # Отдельно передаем ID исполнителей
+            current_user
+        )
+    except (ProjectNotFoundError, GroupNotFoundError, GroupNotInProjectError, 
+            TaskCreationError, TaskAccessDeniedError, UsersNotInGroupError) as e:
         raise e
 
 @router.post("/{task_id}/add_users", response_model=TaskReadWithRelations)
@@ -81,6 +125,7 @@ async def add_users_to_task_route(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    """Добавить пользователей в задачу (только для исполнителей или администраторов)"""
     try:
         task = await tasks_service.add_users_to_task(session, task_id, data, current_user)
         return task
@@ -94,6 +139,7 @@ async def update_task_by_id(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    """Обновить задачу (только для исполнителей или администраторов)"""
     try:
         db_task = await tasks_service.get_task_by_id(session, task_id)
         return await tasks_service.update_task(session, db_task, task_data, current_user)
@@ -107,11 +153,10 @@ async def remove_users_from_task_route(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    """Удалить пользователей из задачи (только для исполнителей или администраторов)"""
     try:
-        updated_task = await tasks_service.remove_users_from_task(session, task_id, data, current_user)
-        if updated_task is None:
-            return {"detail": "Задача удалена, так как нет assignees"}
-        return updated_task
+        result = await tasks_service.remove_users_from_task(session, task_id, data, current_user)
+        return result
     except (TaskNotFoundError, TaskNoGroupError, TaskAccessDeniedError, UsersNotInTaskError, TaskUpdateError) as e:
         raise e
 
@@ -121,6 +166,7 @@ async def delete_task_by_id(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    """Удалить задачу (только для исполнителей или администраторов)"""
     try:
         deleted = await tasks_service.delete_task(session, task_id, current_user)
         if not deleted:

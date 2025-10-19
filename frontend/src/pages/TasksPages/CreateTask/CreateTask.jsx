@@ -5,15 +5,27 @@ import { projectsAPI } from '../../../services/api/projects';
 import { groupsAPI } from '../../../services/api/groups';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
+import { ConfirmationModal } from '../../../components/ui/ConfirmationModal';
+import { Notification } from '../../../components/ui/Notification';
 import { useAuthContext } from '../../../contexts/AuthContext';
-import { getAutoTaskStatus, TASK_STATUSES, getTaskStatusTranslation } from '../../../utils/taskStatus';
+import { useNotification } from '../../../hooks/useNotification';
+import { 
+  getAutoTaskStatus, 
+  getTaskStatusTranslation
+} from '../../../utils/taskStatus';
+import { TASK_STATUSES } from '../../../utils/constants';
+import {
+  handleApiError,
+  formatDateForInput,
+  isValidDateRange 
+} from '../../../utils/helpers';
 import styles from './CreateTask.module.css';
 
 export const CreateTask = () => {
   const navigate = useNavigate();
+  const { user } = useAuthContext();
   
-  // Устанавливаем сегодняшнюю дату по умолчанию для start_date
-  const today = new Date().toISOString().split('T')[0];
+  const today = formatDateForInput(new Date());
   
   const [formData, setFormData] = useState({
     title: '',
@@ -25,14 +37,24 @@ export const CreateTask = () => {
     group_id: ''
   });
   
+  const [assigneeIds, setAssigneeIds] = useState([]);
   const [availableProjects, setAvailableProjects] = useState([]);
-  const [_availableGroups, setAvailableGroups] = useState([]); // Префикс _ для неиспользуемой переменной
   const [filteredGroups, setFilteredGroups] = useState([]);
+  const [availableUsers, setAvailableUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(true);
+  const [_usersLoading, setUsersLoading] = useState(false); // Префикс _ для неиспользуемой переменной
   const [errors, setErrors] = useState({});
-  const [success, setSuccess] = useState(false);
-  const { user: _user } = useAuthContext(); // Префикс _ для неиспользуемой переменной
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdTask, setCreatedTask] = useState(null);
+  const [isAdminMode, setIsAdminMode] = useState(false);
+
+  const { 
+    notification, 
+    showSuccess, 
+    showError, 
+    hideNotification 
+  } = useNotification();
 
   // Загружаем проекты пользователя
   const loadAvailableProjects = useCallback(async () => {
@@ -42,29 +64,47 @@ export const CreateTask = () => {
       setAvailableProjects(projectsData);
     } catch (err) {
       console.error('Error loading projects:', err);
-      setErrors({ projects: 'Не удалось загрузить список проектов' });
+      showError('Не удалось загрузить список проектов');
+      setErrors(prev => ({ ...prev, projects: 'Не удалось загрузить список проектов' }));
     } finally {
       setProjectsLoading(false);
     }
-  }, []);
+  }, [showError]);
 
-  // Загружаем группы пользователя
-  const loadAvailableGroups = useCallback(async () => {
-    try {
-      const groupsData = await groupsAPI.getMyGroups();
-      setAvailableGroups(groupsData);
-    } catch (err) {
-      console.error('Error loading groups:', err);
-      setErrors({ groups: 'Не удалось загрузить список групп' });
+  // Загружаем пользователей группы при выборе группы
+  const loadGroupUsers = useCallback(async (groupId) => {
+    if (!groupId) {
+      setAvailableUsers([]);
+      return;
     }
-  }, []);
+
+    try {
+      setUsersLoading(true);
+      const groupData = await groupsAPI.getById(groupId);
+      setAvailableUsers(groupData.users || []);
+      
+      // Проверяем, является ли текущий пользователь администратором
+      const currentUserInGroup = groupData.users?.find(u => u.id === user?.id);
+      const isAdmin = currentUserInGroup?.role === 'admin';
+      setIsAdminMode(isAdmin);
+      
+      // Если не админ, автоматически выбираем текущего пользователя
+      if (!isAdmin && user) {
+        setAssigneeIds([user.id]);
+      }
+    } catch (err) {
+      console.error('Error loading group users:', err);
+      setAvailableUsers([]);
+    } finally {
+      setUsersLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     loadAvailableProjects();
-    loadAvailableGroups();
-  }, [loadAvailableProjects, loadAvailableGroups]);
+  }, [loadAvailableProjects]);
 
-  // Фильтруем группы при выборе проекта
+  // Фильтруем группы при выборе проекта и загружаем пользователей при выборе группы
   useEffect(() => {
     if (formData.project_id) {
       const selectedProject = availableProjects.find(p => p.id === parseInt(formData.project_id));
@@ -73,6 +113,9 @@ export const CreateTask = () => {
         // Сбрасываем выбранную группу если она не входит в проект
         if (formData.group_id && !selectedProject.groups.some(g => g.id === parseInt(formData.group_id))) {
           setFormData(prev => ({ ...prev, group_id: '' }));
+          setAvailableUsers([]);
+          setAssigneeIds([]);
+          setIsAdminMode(false);
         }
       } else {
         setFilteredGroups([]);
@@ -80,7 +123,18 @@ export const CreateTask = () => {
     } else {
       setFilteredGroups([]);
     }
-  }, [formData.project_id, formData.group_id, availableProjects]); // Добавил formData.group_id в зависимости
+  }, [formData.project_id, formData.group_id, availableProjects]);
+
+  // Загружаем пользователей при изменении группы
+  useEffect(() => {
+    if (formData.group_id) {
+      loadGroupUsers(parseInt(formData.group_id));
+    } else {
+      setAvailableUsers([]);
+      setAssigneeIds([]);
+      setIsAdminMode(false);
+    }
+  }, [formData.group_id, loadGroupUsers]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -93,17 +147,44 @@ export const CreateTask = () => {
       
       // Автоматически определяем статус при изменении даты начала
       if (name === 'start_date') {
-        newFormData.status = getAutoTaskStatus(value);
+        const autoStatus = getAutoTaskStatus(value, newFormData.deadline);
+        newFormData.status = autoStatus;
+      }
+      
+      // Автоматически определяем статус при изменении дедлайна
+      if (name === 'deadline' && newFormData.start_date) {
+        const autoStatus = getAutoTaskStatus(newFormData.start_date, value);
+        newFormData.status = autoStatus;
       }
       
       return newFormData;
     });
     
+    // Очищаем ошибку для этого поля
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
         [name]: ''
       }));
+    }
+  };
+
+  const handleAssigneeToggle = (userId) => {
+    setAssigneeIds(prev => {
+      if (prev.includes(userId)) {
+        return prev.filter(id => id !== userId);
+      } else {
+        return [...prev, userId];
+      }
+    });
+  };
+
+  const handleSelectAllUsers = () => {
+    if (assigneeIds.length === availableUsers.length) {
+      setAssigneeIds([]);
+    } else {
+      const allUserIds = availableUsers.map(u => u.id);
+      setAssigneeIds(allUserIds);
     }
   };
 
@@ -114,6 +195,8 @@ export const CreateTask = () => {
       newErrors.title = 'Название задачи обязательно';
     } else if (formData.title.length < 2) {
       newErrors.title = 'Название должно содержать минимум 2 символа';
+    } else if (formData.title.length > 200) {
+      newErrors.title = 'Название не должно превышать 200 символов';
     }
     
     if (!formData.start_date) {
@@ -123,11 +206,9 @@ export const CreateTask = () => {
     if (!formData.deadline) {
       newErrors.deadline = 'Дата окончания обязательна';
     } else {
-      const deadline = new Date(formData.deadline);
-      const startDate = new Date(formData.start_date);
-      
-      if (deadline < startDate) {
-        newErrors.deadline = 'Дата окончания не может быть раньше даты начала';
+      const validation = isValidDateRange(formData.start_date, formData.deadline);
+      if (!validation.isValid) {
+        newErrors.deadline = validation.error;
       }
     }
     
@@ -137,6 +218,10 @@ export const CreateTask = () => {
     
     if (!formData.group_id) {
       newErrors.group_id = 'Выберите группу';
+    }
+    
+    if (assigneeIds.length === 0) {
+      newErrors.assignees = 'Выберите хотя бы одного исполнителя';
     }
     
     setErrors(newErrors);
@@ -152,65 +237,123 @@ export const CreateTask = () => {
     setErrors({});
     
     try {
-      // Подготавливаем данные для отправки
-      const taskData = {
-        ...formData,
-        project_id: parseInt(formData.project_id),
-        group_id: parseInt(formData.group_id),
-        // Преобразуем даты в ISO строки
-        start_date: new Date(formData.start_date).toISOString(),
-        deadline: new Date(formData.deadline).toISOString()
-      };
+      let createdTask;
       
-      await tasksAPI.create(taskData);
-      setSuccess(true);
+      if (isAdminMode && assigneeIds.length > 0) {
+        // Используем расширенный эндпоинт для создания задачи с назначением пользователей
+        const taskData = {
+          ...formData,
+          project_id: parseInt(formData.project_id),
+          group_id: parseInt(formData.group_id),
+          assignee_ids: assigneeIds,
+          start_date: new Date(formData.start_date).toISOString(),
+          deadline: new Date(formData.deadline).toISOString()
+        };
+        
+        createdTask = await tasksAPI.createForUsers(taskData);
+      } else {
+        // Используем обычный эндпоинт
+        const taskData = {
+          ...formData,
+          project_id: parseInt(formData.project_id),
+          group_id: parseInt(formData.group_id),
+          start_date: new Date(formData.start_date).toISOString(),
+          deadline: new Date(formData.deadline).toISOString()
+        };
+        
+        createdTask = await tasksAPI.create(taskData);
+      }
       
-      // Перенаправляем на страницу задач через 2 секунды
-      setTimeout(() => {
-        navigate('/tasks');
-      }, 2000);
+      setCreatedTask(createdTask);
+      const successMessage = isAdminMode && assigneeIds.length > 0 
+        ? `Задача "${formData.title}" успешно создана и назначена ${assigneeIds.length} пользователям!`
+        : `Задача "${formData.title}" успешно создана!`;
+      showSuccess(successMessage);
+      setShowSuccessModal(true);
       
     } catch (error) {
       console.error('Error creating task:', error);
-      const errorMessage = error.response?.data?.detail || 'Ошибка при создании задачи';
+      const errorMessage = handleApiError(error);
+      showError(errorMessage);
       setErrors({ submit: errorMessage });
     } finally {
       setLoading(false);
     }
   };
 
-  if (success) {
-    return (
-      <div className={styles.container}>
-        <div className={styles.successContainer}>
-          <div className={styles.successIcon}>✓</div>
-          <h2 className={styles.successTitle}>Задача успешно создана!</h2>
-          <p className={styles.successMessage}>
-            Задача "{formData.title}" была успешно создана.
-          </p>
-          <p className={styles.redirectMessage}>
-            Вы будете перенаправлены на страницу задач через 2 секунды...
-          </p>
-          <Button 
-            variant="primary" 
-            size="large"
-            onClick={() => navigate('/tasks')}
-            className={styles.successButton}
-          >
-            Перейти к задачам
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const handleCancel = () => {
+    navigate('/tasks');
+  };
+
+  const handleNavigateToTasks = () => {
+    navigate('/tasks');
+  };
+
+  const handleNavigateToTaskDetail = () => {
+    if (createdTask) {
+      navigate(`/tasks/${createdTask.id}`);
+    }
+  };
+
+  const handleContinueCreating = () => {
+    // Сбрасываем форму для создания новой задачи
+    setFormData({
+      title: '',
+      description: '',
+      start_date: today,
+      deadline: '',
+      status: TASK_STATUSES.IN_PROGRESS,
+      project_id: '',
+      group_id: ''
+    });
+    setAssigneeIds([]);
+    setCreatedTask(null);
+    setShowSuccessModal(false);
+    setErrors({});
+    setIsAdminMode(false);
+  };
+
+  const handleCloseSuccessModal = () => {
+    setShowSuccessModal(false);
+  };
+
+  // Проверяем, есть ли у пользователя доступные проекты
+  const hasAvailableProjects = availableProjects.length > 0 && !projectsLoading;
 
   return (
     <div className={styles.container}>
+      {/* Уведомление */}
+      <Notification
+        message={notification.message}
+        type={notification.type}
+        isVisible={notification.isVisible}
+        onClose={hideNotification}
+        duration={5000}
+      />
+
       <div className={styles.header}>
-        <h1 className={styles.title}>Создание задачи</h1>
-        <p className={styles.subtitle}>
-          Создайте новую задачу и прикрепите её к проекту и группе
-        </p>
+        <Button 
+          variant="secondary" 
+          onClick={handleCancel}
+          className={styles.backButton}
+        >
+          ← Назад к задачам
+        </Button>
+        
+        <div className={styles.headerContent}>
+          <h1 className={styles.title}>Создание задачи</h1>
+          <p className={styles.subtitle}>
+            {isAdminMode 
+              ? 'Создайте новую задачу и назначьте её участникам группы'
+              : 'Создайте новую задачу и прикрепите её к проекту и группе'
+            }
+          </p>
+          {isAdminMode && (
+            <div className={styles.adminBadge}>
+              🛡️ Режим администратора: вы можете назначать задачу любым участникам группы
+            </div>
+          )}
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className={styles.form}>
@@ -227,6 +370,7 @@ export const CreateTask = () => {
             placeholder="Введите название задачи"
             disabled={loading}
             autoComplete="off"
+            maxLength={200}
           />
           
           <div className={styles.textareaGroup}>
@@ -239,7 +383,11 @@ export const CreateTask = () => {
               disabled={loading}
               className={styles.textarea}
               rows={4}
+              maxLength={1000}
             />
+            <div className={styles.charCount}>
+              {formData.description.length}/1000 символов
+            </div>
           </div>
         </div>
 
@@ -255,6 +403,7 @@ export const CreateTask = () => {
               onChange={handleChange}
               error={errors.start_date}
               disabled={loading}
+              min={today}
               required
             />
             
@@ -266,6 +415,7 @@ export const CreateTask = () => {
               onChange={handleChange}
               error={errors.deadline}
               disabled={loading}
+              min={formData.start_date || today}
               required
             />
           </div>
@@ -289,7 +439,7 @@ export const CreateTask = () => {
                 value={formData.project_id}
                 onChange={handleChange}
                 className={`${styles.select} ${errors.project_id ? styles.error : ''}`}
-                disabled={loading || projectsLoading}
+                disabled={loading || projectsLoading || !hasAvailableProjects}
               >
                 <option value="">Выберите проект</option>
                 {availableProjects.map((project) => (
@@ -352,6 +502,81 @@ export const CreateTask = () => {
           )}
         </div>
 
+        {/* Блок выбора исполнителей (только для администраторов) */}
+        {isAdminMode && availableUsers.length > 0 && (
+          <div className={styles.formSection}>
+            <h3 className={styles.sectionTitle}>Назначение исполнителей</h3>
+            
+            <div className={styles.assigneesSection}>
+              <div className={styles.assigneesHeader}>
+                <span>Выберите исполнителей задачи:</span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="small"
+                  onClick={handleSelectAllUsers}
+                >
+                  {assigneeIds.length === availableUsers.length ? 'Снять всех' : 'Выбрать всех'}
+                </Button>
+              </div>
+              
+              {errors.assignees && (
+                <div className={styles.assigneesError}>{errors.assignees}</div>
+              )}
+              
+              <div className={styles.usersGrid}>
+                {availableUsers.map((userItem) => (
+                  <div 
+                    key={userItem.id} 
+                    className={`${styles.userCard} ${
+                      assigneeIds.includes(userItem.id) ? styles.selected : ''
+                    }`}
+                    onClick={() => handleAssigneeToggle(userItem.id)}
+                  >
+                    <div className={styles.userCheckbox}>
+                      <input
+                        type="checkbox"
+                        checked={assigneeIds.includes(userItem.id)}
+                        onChange={() => handleAssigneeToggle(userItem.id)}
+                        className={styles.checkboxInput}
+                      />
+                      <span className={styles.checkboxCustom}></span>
+                    </div>
+                    
+                    <div className={styles.userInfo}>
+                      <div className={styles.userMain}>
+                        <span className={styles.userLogin}>{userItem.login}</span>
+                        {userItem.id === user?.id && (
+                          <span className={styles.currentUserBadge}>Вы</span>
+                        )}
+                      </div>
+                      <span className={styles.userEmail}>{userItem.email}</span>
+                      <span className={styles.userRole}>
+                        {userItem.role === 'admin' ? 'Администратор' : 'Участник'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className={styles.selectedCount}>
+                Выбрано исполнителей: {assigneeIds.length} из {availableUsers.length}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Информация для обычных пользователей */}
+        {!isAdminMode && formData.group_id && (
+          <div className={styles.formSection}>
+            <h3 className={styles.sectionTitle}>Исполнитель</h3>
+            <div className={styles.userInfoCard}>
+              <p>Задача будет назначена вам как создателю.</p>
+              <p>Только администраторы группы могут назначать задачи другим пользователям.</p>
+            </div>
+          </div>
+        )}
+
         {errors.submit && (
           <div className={styles.submitError}>{errors.submit}</div>
         )}
@@ -361,7 +586,7 @@ export const CreateTask = () => {
             type="button"
             variant="secondary" 
             size="large"
-            onClick={() => navigate('/workspace')}
+            onClick={handleCancel}
             disabled={loading}
           >
             Отмена
@@ -371,13 +596,41 @@ export const CreateTask = () => {
             variant="primary" 
             size="large" 
             loading={loading}
-            disabled={availableProjects.length === 0}
+            disabled={!hasAvailableProjects || loading}
             className={styles.submitButton}
           >
-            Создать задачу
+            {isAdminMode && assigneeIds.length > 1 
+              ? `Создать задачу для ${assigneeIds.length} пользователей` 
+              : 'Создать задачу'
+            }
           </Button>
         </div>
       </form>
+
+      {/* Модальное окно выбора действий после успешного создания */}
+      <ConfirmationModal
+        isOpen={showSuccessModal}
+        onClose={handleCloseSuccessModal}
+        onConfirm={handleNavigateToTaskDetail}
+        title="Задача успешно создана!"
+        message={
+          <div className={styles.successModalContent}>
+            <div className={styles.successIcon}>✓</div>
+            <p>
+              Задача "{formData.title}" была успешно создана.
+              {isAdminMode && assigneeIds.length > 0 && ` Назначена ${assigneeIds.length} пользователям.`}
+            </p>
+            <p className={styles.continueQuestion}>Что вы хотите сделать дальше?</p>
+          </div>
+        }
+        confirmText="Перейти к задаче"
+        cancelText="Создать еще задачу"
+        variant="info"
+        onCancel={handleContinueCreating}
+        showThirdButton={true}
+        thirdButtonText="К списку задач"
+        onThirdButton={handleNavigateToTasks}
+      />
     </div>
   );
 };
