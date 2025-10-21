@@ -98,7 +98,6 @@
   gap: 24px;
 }
 
-/* Адаптивность */
 @media (max-width: 768px) {
   .container {
     padding: 24px 20px;

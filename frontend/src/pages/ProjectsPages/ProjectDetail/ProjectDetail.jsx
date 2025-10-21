@@ -15,8 +15,13 @@ import { useNotification } from '../../../hooks/useNotification';
 import { 
   handleApiError, 
   formatDate,
-  getProjectStatusTranslation 
+  formatDateForInput
 } from '../../../utils/helpers';
+import { 
+  getProjectStatusTranslation, 
+  getProjectStatusColor,
+  PROJECT_STATUS_OPTIONS
+} from '../../../utils/projectStatus';
 import styles from './ProjectDetail.module.css';
 
 export const ProjectDetail = () => {
@@ -40,10 +45,8 @@ export const ProjectDetail = () => {
   const [showGroupsModal, setShowGroupsModal] = useState(false);
   const [showTasksModal, setShowTasksModal] = useState(false);
   
-  // Состояния для модальных окон подтверждения
   const [showDeleteProjectModal, setShowDeleteProjectModal] = useState(false);
   
-  // Состояния для загрузки
   const [isDeletingProject, setIsDeletingProject] = useState(false);
 
   const { user } = useAuthContext();
@@ -60,7 +63,6 @@ export const ProjectDetail = () => {
       setError('');
       const projectData = await projectsAPI.getById(projectId);
       
-      // Загружаем полные данные групп с проектами
       const groupsWithDetails = await Promise.all(
         projectData.groups.map(async (group) => {
           try {
@@ -68,12 +70,11 @@ export const ProjectDetail = () => {
             return fullGroup;
           } catch (err) {
             console.error(`Error loading group ${group.id}:`, err);
-            return { ...group, projects: [] }; // Возвращаем базовые данные если не удалось загрузить
+            return { ...group, projects: [] };
           }
         })
       );
       
-      // Загружаем детали задач
       const tasksWithDetails = await Promise.all(
         projectData.tasks.map(async (task) => {
           try {
@@ -96,8 +97,8 @@ export const ProjectDetail = () => {
         title: projectData.title,
         description: projectData.description || '',
         status: projectData.status,
-        start_date: projectData.start_date.split('T')[0],
-        end_date: projectData.end_date.split('T')[0]
+        start_date: projectData.start_date ? formatDateForInput(new Date(projectData.start_date)) : '',
+        end_date: projectData.end_date ? formatDateForInput(new Date(projectData.end_date)) : ''
       });
     } catch (err) {
       console.error('Error loading project:', err);
@@ -108,12 +109,10 @@ export const ProjectDetail = () => {
     }
   }, [projectId]);
 
-  // Загружаем доступные группы для добавления
   const loadAvailableGroups = useCallback(async () => {
     try {
       const groupsData = await groupsAPI.getMyGroups();
       
-      // Фильтруем группы, где пользователь является администратором
       const adminGroups = groupsData.filter(group => 
         group.users?.some(u => u.id === user?.id && (u.role === 'admin' || u.role === 'super_admin'))
       );
@@ -124,11 +123,9 @@ export const ProjectDetail = () => {
     }
   }, [user]);
 
-  // Определяем роль пользователя в проекте
   const determineUserRole = useCallback(() => {
     if (!project || !user) return '';
     
-    // Проверяем, является ли пользователь администратором хотя бы одной группы проекта
     const isAdminInAnyGroup = project.groups.some(group => 
       group.users?.some(u => u.id === user.id && (u.role === 'admin' || u.role === 'super_admin'))
     );
@@ -150,7 +147,6 @@ export const ProjectDetail = () => {
     }
   }, [project, determineUserRole]);
 
-  // Получаем первые 3 группы в алфавитном порядке для компактного отображения
   const getDisplayGroups = useCallback(() => {
     if (!project?.groups) return [];
     
@@ -159,7 +155,6 @@ export const ProjectDetail = () => {
       .slice(0, 3);
   }, [project?.groups]);
 
-  // Получаем первые 3 задачи по сроку выполнения для компактного отображения
   const getDisplayTasks = useCallback(() => {
     if (!project?.tasks) return [];
     
@@ -171,8 +166,16 @@ export const ProjectDetail = () => {
   const handleUpdateProject = async (e) => {
     e.preventDefault();
     try {
-      const updatedProject = await projectsAPI.update(projectId, editForm);
-      setProject(updatedProject);
+      const updateData = {
+        ...editForm,
+        start_date: editForm.start_date ? new Date(editForm.start_date).toISOString() : null,
+        end_date: editForm.end_date ? new Date(editForm.end_date).toISOString() : null
+      };
+      
+      await projectsAPI.update(projectId, updateData);
+      
+      await loadProject();
+      
       setEditing(false);
       showSuccess('Проект успешно обновлен');
     } catch (err) {
@@ -190,8 +193,8 @@ export const ProjectDetail = () => {
       });
       setNewGroupId('');
       setAddingGroup(false);
-      await loadProject(); // Перезагружаем данные
-      await loadAvailableGroups(); // Обновляем список доступных групп
+      await loadProject();
+      await loadAvailableGroups();
       showSuccess('Группа успешно добавлена в проект');
     } catch (err) {
       console.error('Error adding group:', err);
@@ -206,7 +209,6 @@ export const ProjectDetail = () => {
         group_ids: [groupId]
       });
       
-      // Полностью перезагружаем проект для получения актуальных данных
       await loadProject();
       
       showSuccess(`Группа "${groupName}" удалена из проекта`);
@@ -242,18 +244,15 @@ export const ProjectDetail = () => {
     }
   };
 
-  // Обработчик удаления задачи
   const handleDeleteTask = async (taskId, taskTitle) => {
     try {
       await tasksAPI.delete(taskId);
       
-      // Обновляем состояние локально вместо полной перезагрузки
       setProject(prev => ({
         ...prev,
         tasks: prev.tasks.filter(task => task.id !== taskId)
       }));
       
-      // Закрываем модальное окно
       setShowTasksModal(false);
       
       showSuccess(`Задача "${taskTitle}" успешно удалена`);
@@ -261,7 +260,6 @@ export const ProjectDetail = () => {
       console.error('Error deleting task:', err);
       const errorMessage = handleApiError(err);
       
-      // Обрабатываем ошибку 403
       if (err.response?.status === 403) {
         showError('У вас нет прав для удаления этой задачи');
       } else {
@@ -293,7 +291,7 @@ export const ProjectDetail = () => {
     return (
       <div className={styles.errorContainer}>
         <h2>Ошибка</h2>
-        <p>{error || 'Проект не найдена или у вас нет доступа'}</p>
+        <p>{error || 'Проект не найден или у вас нет доступа'}</p>
         <Button onClick={() => navigate('/projects')}>Вернуться к проектам</Button>
       </div>
     );
@@ -301,7 +299,6 @@ export const ProjectDetail = () => {
 
   return (
     <div className={styles.container}>
-      {/* Уведомление */}
       <Notification
         message={notification.message}
         type={notification.type}
@@ -319,125 +316,149 @@ export const ProjectDetail = () => {
           ← Назад к проектам
         </Button>
         
-        <div className={styles.headerInfo}>
-          {editing ? (
-            <form onSubmit={handleUpdateProject} className={styles.editForm}>
-              <Input
-                label="Название проекта"
-                value={editForm.title}
-                onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="Название проекта"
-                required
-              />
-              <Input
-                label="Описание проекта"
-                value={editForm.description}
-                onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Описание проекта"
-              />
-              <div className={styles.dateFields}>
+        <div className={styles.headerContent}>
+          <div className={styles.headerInfo}>
+            {editing ? (
+              <form onSubmit={handleUpdateProject} className={styles.editForm}>
                 <Input
-                  label="Дата начала"
-                  type="date"
-                  value={editForm.start_date}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, start_date: e.target.value }))}
+                  label="Название проекта"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="Название проекта"
                   required
                 />
                 <Input
-                  label="Дата окончания"
-                  type="date"
-                  value={editForm.end_date}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, end_date: e.target.value }))}
-                  required
+                  label="Описание проекта"
+                  value={editForm.description}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Описание проекта"
+                  multiline
+                  rows={4}
                 />
-              </div>
-              <div className={styles.statusSelect}>
-                <label>Статус:</label>
-                <select 
-                  value={editForm.status} 
-                  onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
-                >
-                  <option value="in_progress">В процессе</option>
-                  <option value="completed">Завершен</option>
-                  <option value="planned">Запланирован</option>
-                  <option value="on_hold">Приостановлен</option>
-                  <option value="cancelled">Отменен</option>
-                </select>
-              </div>
-              <div className={styles.editActions}>
-                <Button type="submit" variant="primary">Сохранить</Button>
-                <Button 
-                  type="button" 
-                  variant="secondary" 
-                  onClick={() => {
-                    setEditing(false);
-                    setEditForm({
-                      title: project.title,
-                      description: project.description || '',
-                      status: project.status,
-                      start_date: project.start_date.split('T')[0],
-                      end_date: project.end_date.split('T')[0]
-                    });
-                  }}
-                >
-                  Отмена
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <>
-              <h1 className={styles.title}>{project.title}</h1>
-              {project.description && (
-                <p className={styles.description}>{project.description}</p>
-              )}
-              <div className={styles.projectMeta}>
-                <div className={styles.metaItem}>
-                  <span className={styles.metaLabel}>Статус:</span>
-                  <span className={styles.metaValue}>
-                    {getProjectStatusTranslation(project.status)}
-                  </span>
+                <div className={styles.dateFields}>
+                  <Input
+                    label="Дата начала"
+                    type="date"
+                    value={editForm.start_date}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, start_date: e.target.value }))}
+                    required
+                  />
+                  <Input
+                    label="Дата окончания"
+                    type="date"
+                    value={editForm.end_date}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, end_date: e.target.value }))}
+                    required
+                  />
                 </div>
-                <div className={styles.metaItem}>
-                  <span className={styles.metaLabel}>Сроки:</span>
-                  <span className={styles.metaValue}>
-                    {formatDate(project.start_date)} - {formatDate(project.end_date)}
-                  </span>
+                <div className={styles.statusSelect}>
+                  <label>Статус:</label>
+                  <select 
+                    value={editForm.status} 
+                    onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
+                  >
+                    {PROJECT_STATUS_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div className={styles.metaItem}>
-                  <span className={styles.metaLabel}>Группы:</span>
-                  <span className={styles.metaValue}>{project.groups?.length || 0}</span>
+                <div className={styles.editActions}>
+                  <Button type="submit" variant="primary">Сохранить</Button>
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    onClick={() => {
+                      setEditing(false);
+                      setEditForm({
+                        title: project.title,
+                        description: project.description || '',
+                        status: project.status,
+                        start_date: project.start_date ? formatDateForInput(new Date(project.start_date)) : '',
+                        end_date: project.end_date ? formatDateForInput(new Date(project.end_date)) : ''
+                      });
+                    }}
+                  >
+                    Отмена
+                  </Button>
                 </div>
-                <div className={styles.metaItem}>
-                  <span className={styles.metaLabel}>Задачи:</span>
-                  <span className={styles.metaValue}>{project.tasks?.length || 0}</span>
+              </form>
+            ) : (
+              <>
+                <div className={styles.titleSection}>
+                  <h1 className={styles.title}>{project.title}</h1>
+                  <div className={styles.projectBadges}>
+                    <div 
+                      className={styles.statusBadge}
+                      style={{ 
+                        backgroundColor: getProjectStatusColor(project.status),
+                        color: 'white'
+                      }}
+                    >
+                      {getProjectStatusTranslation(project.status)}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </>
+                
+                {project.description && (
+                  <div className={styles.descriptionSection}>
+                    <h3 className={styles.descriptionTitle}>Описание</h3>
+                    <p className={styles.description}>{project.description}</p>
+                  </div>
+                )}
+                
+                <div className={styles.projectMeta}>
+                  <div className={styles.metaGrid}>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Дата начала:</span>
+                      <span className={styles.metaValue}>
+                        {project.start_date ? formatDate(project.start_date) : 'Не указана'}
+                      </span>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Дата окончания:</span>
+                      <span className={styles.metaValue}>
+                        {project.end_date ? formatDate(project.end_date) : 'Не указана'}
+                      </span>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Группы:</span>
+                      <span className={styles.metaValue}>{project.groups?.length || 0}</span>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Задачи:</span>
+                      <span className={styles.metaValue}>{project.tasks?.length || 0}</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {isAdmin && !editing && (
+            <div className={styles.headerActions}>
+              <Button 
+                variant="primary" 
+                onClick={() => setEditing(true)}
+                className={styles.editButton}
+              >
+                Редактировать
+              </Button>
+              <Button 
+                variant="danger" 
+                onClick={handleDeleteProjectClick}
+                className={styles.deleteButton}
+                disabled={isDeletingProject}
+              >
+                {isDeletingProject ? 'Удаление...' : 'Удалить проект'}
+              </Button>
+            </div>
           )}
         </div>
-
-        {isAdmin && !editing && (
-          <div className={styles.headerActions}>
-            <Button 
-              variant="secondary" 
-              onClick={() => setEditing(true)}
-            >
-              Редактировать
-            </Button>
-            <Button 
-              variant="secondary" 
-              onClick={handleDeleteProjectClick}
-              className={styles.deleteButton}
-              disabled={isDeletingProject}
-            >
-              {isDeletingProject ? 'Удаление...' : 'Удалить проект'}
-            </Button>
-          </div>
-        )}
       </div>
 
       <div className={styles.content}>
-        {/* Группы проекта - левая колонка */}
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Группы проекта</h2>
@@ -518,7 +539,6 @@ export const ProjectDetail = () => {
           )}
         </div>
 
-        {/* Задачи проекта - правая колонка */}
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Задачи проекта</h2>
@@ -579,7 +599,6 @@ export const ProjectDetail = () => {
         </div>
       </div>
 
-      {/* Модальное окно для групп */}
       <ItemsModal
         items={project.groups || []}
         itemType="groups"
@@ -591,7 +610,6 @@ export const ProjectDetail = () => {
         onDelete={(groupId, groupName) => handleRemoveGroup(groupId, groupName)}
       />
 
-      {/* Модальное окно для задач */}
       <ItemsModal
         items={project.tasks || []}
         itemType="tasks"
@@ -603,7 +621,6 @@ export const ProjectDetail = () => {
         onDelete={(taskId, taskTitle) => handleDeleteTask(taskId, taskTitle)}
       />
 
-      {/* Модальное окно подтверждения удаления проекта */}
       <ConfirmationModal
         isOpen={showDeleteProjectModal}
         onClose={() => setShowDeleteProjectModal(false)}

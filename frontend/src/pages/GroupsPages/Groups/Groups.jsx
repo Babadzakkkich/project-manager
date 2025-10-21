@@ -15,7 +15,6 @@ export const Groups = () => {
   const [sort, setSort] = useState('');
   const { user } = useAuthContext();
 
-  // Опции фильтрации
   const filterOptions = [
     {
       key: 'role',
@@ -27,7 +26,6 @@ export const Groups = () => {
     }
   ];
 
-  // Опции сортировки
   const sortOptions = [
     { value: 'name_asc', label: 'По названию (А-Я)' },
     { value: 'name_desc', label: 'По названию (Я-А)' },
@@ -37,14 +35,12 @@ export const Groups = () => {
     { value: 'projects_desc', label: 'По количеству проектов' }
   ];
 
-  // Получение роли текущего пользователя в группе
   const getUserRoleInGroup = useCallback((group) => {
     if (!user || !group.users) return null;
     const userInGroup = group.users.find(u => u.id === user.id);
     return userInGroup ? userInGroup.role : null;
   }, [user]);
 
-  // Проверка, является ли пользователь администратором группы
   const isUserAdminInGroup = useCallback((group) => {
     const userRole = getUserRoleInGroup(group);
     return userRole === 'admin' || userRole === 'super_admin';
@@ -69,14 +65,9 @@ export const Groups = () => {
     }
   };
 
-  const handleDeleteGroup = async (groupId, groupName) => {
-    if (!window.confirm(`Вы уверены, что хотите удалить группу "${groupName}"? Это действие нельзя отменить.`)) {
-      return;
-    }
-
+  const handleDeleteGroup = async (groupId) => {
     try {
       await groupsAPI.delete(groupId);
-      // Полностью перезагружаем группы, чтобы убедиться в актуальности данных
       await loadGroups();
     } catch (err) {
       console.error('Error deleting group:', err);
@@ -85,11 +76,9 @@ export const Groups = () => {
     }
   };
 
-  // Фильтрация и сортировка групп
   const filteredAndSortedGroups = useMemo(() => {
     let result = [...groups];
 
-    // Применяем фильтры
     if (filters.role) {
       result = result.filter(group => {
         const userRole = getUserRoleInGroup(group);
@@ -97,7 +86,6 @@ export const Groups = () => {
       });
     }
 
-    // Применяем сортировку
     if (sort) {
       switch (sort) {
         case 'name_asc':
@@ -191,13 +179,6 @@ export const Groups = () => {
             <>
               <h2>У вас пока нет групп</h2>
               <p>Создайте свою первую группу или попросите администратора добавить вас в существующую</p>
-              <Button 
-                to="/groups/create" 
-                variant="primary" 
-                size="large"
-              >
-                Создать первую группу
-              </Button>
             </>
           )}
         </div>

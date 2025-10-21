@@ -60,3 +60,23 @@ class TaskNoGroupError(TaskException):
 class TaskAccessDeniedError(TaskException):
     def __init__(self, detail: str = "Недостаточно прав для выполнения операции с задачей"):
         super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+        
+class InvalidTaskStatusError(TaskException):
+    def __init__(self, status: str, valid_statuses: List[str] = None):
+        if valid_statuses:
+            detail = f"Статус '{status}' недопустим. Допустимые статусы: {', '.join(valid_statuses)}"
+        else:
+            detail = f"Статус '{status}' недопустим"
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+class InvalidTaskPriorityError(TaskException):
+    def __init__(self, priority: str, valid_priorities: List[str] = None):
+        if valid_priorities:
+            detail = f"Приоритет '{priority}' недопустим. Допустимые приоритеты: {', '.join(valid_priorities)}"
+        else:
+            detail = f"Приоритет '{priority}' недопустим"
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+class BulkUpdateError(TaskException):
+    def __init__(self, detail: str = "Ошибка массового обновления задач"):
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)

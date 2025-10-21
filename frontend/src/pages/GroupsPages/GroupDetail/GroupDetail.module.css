@@ -233,13 +233,6 @@
   color: #9b2c2c;
 }
 
-.selfAdminNote {
-  color: #666;
-  font-size: 12px;
-  font-style: italic;
-}
-
-/* Стили для секции проектов */
 .projectsSection {
   display: flex;
   flex-direction: column;
@@ -266,7 +259,38 @@
   margin: 0;
 }
 
-/* Стили для карточек проектов в компактном режиме */
+.emptyProjects {
+  text-align: center;
+  padding: 60px 40px;
+  color: #666;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 2px dashed #e2e8f0;
+}
+
+.emptyProjectsIcon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.emptyProjectsTitle {
+  color: #004B23;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.emptyProjectsDescription {
+  color: #666;
+  font-size: 16px;
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.createProjectButton {
+  min-width: 160px;
+}
+
 .projectCard {
   padding: 16px;
   background: #f8fafc;
@@ -447,5 +471,21 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+  }
+  
+  .emptyProjects {
+    padding: 40px 20px;
+  }
+  
+  .emptyProjectsIcon {
+    font-size: 36px;
+  }
+  
+  .emptyProjectsTitle {
+    font-size: 18px;
+  }
+  
+  .emptyProjectsDescription {
+    font-size: 14px;
   }
 }

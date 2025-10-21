@@ -10,7 +10,7 @@ export const ConfirmationModal = ({
   message = "Вы уверены, что хотите выполнить это действие?",
   confirmText = "Подтвердить",
   cancelText = "Отмена",
-  variant = "danger", // 'danger', 'warning', 'info'
+  variant = "danger",
   isLoading = false
 }) => {
   if (!isOpen) return null;

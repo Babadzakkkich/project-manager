@@ -10,7 +10,7 @@ export const Button = ({
   disabled = false,
   loading = false,
   className = '',
-  to, // Добавляем поддержку ссылок
+  to,
   ...props 
 }) => {
   const buttonClass = classNames(
@@ -22,7 +22,6 @@ export const Button = ({
     className
   );
 
-  // Если передан to, рендерим как Link
   if (to) {
     return (
       <Link
@@ -35,7 +34,6 @@ export const Button = ({
     );
   }
 
-  // Иначе как обычную кнопку
   return (
     <button
       className={buttonClass}

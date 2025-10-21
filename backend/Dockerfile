@@ -2,11 +2,13 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-COPY requirements.txt /app/requirements.txt
+RUN apt-get update && apt-get install -y
 
-RUN pip install --no-cache-dir -r /app/requirements.txt 
+COPY requirements.txt .
 
-COPY backend/src /app/src
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
 
 WORKDIR /app/src
 

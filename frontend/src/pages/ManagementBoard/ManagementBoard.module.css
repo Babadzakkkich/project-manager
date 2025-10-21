@@ -1,0 +1,138 @@
+.managementBoard {
+  padding: 24px;
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+.controlPanel {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.controlsGroup {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.controlItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+}
+
+.controlLabel {
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+}
+
+.controlSelect {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  transition: border-color 0.2s ease;
+}
+
+.controlSelect:focus {
+  outline: none;
+  border-color: #004B23;
+  box-shadow: 0 0 0 3px rgba(0, 75, 35, 0.1);
+}
+
+.actionsGroup {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.boardArea {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  min-height: 600px;
+  overflow: hidden;
+}
+
+.loadingState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  color: #666;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #004B23;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 40px;
+  text-align: center;
+  color: #666;
+}
+
+.emptyIcon {
+  font-size: 64px;
+  margin-bottom: 20px;
+  opacity: 0.5;
+}
+
+.emptyState h3 {
+  color: #374151;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 1024px) {
+  .controlPanel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .actionsGroup {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .managementBoard {
+    padding: 16px;
+  }
+  
+  .controlsGroup {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .controlItem {
+    min-width: auto;
+  }
+}

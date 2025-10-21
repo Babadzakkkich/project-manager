@@ -107,7 +107,6 @@
   justify-content: flex-end;
 }
 
-/* Адаптивность */
 @media (max-width: 640px) {
   .modal {
     max-width: 100%;

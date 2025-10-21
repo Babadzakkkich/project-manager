@@ -2,9 +2,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
 
-from modules.projects.service import delete_project, delete_project_auto
-from core.database.models import Group, User, GroupMember, UserRole, Project, Task, project_group_association, task_user_association
-from core.utils.dependencies import ensure_user_is_admin, get_user_group_role, get_group_member, ensure_user_is_super_admin_global
+from modules.projects.service import delete_project_auto
+from core.database.models import Group, User, GroupMember, UserRole, Task, project_group_association, task_user_association
+from core.utils.dependencies import ensure_user_is_admin, get_user_group_role, ensure_user_is_super_admin_global
 from .schemas import AddUsersToGroup, GetUserRoleResponse, RemoveUsersFromGroup, GroupCreate, GroupRead, GroupReadWithRelations, GroupUpdate
 from .exceptions import (
     GroupNotFoundError,
@@ -17,16 +17,16 @@ from .exceptions import (
     UserNotFoundInGroupError,
     UsersNotFoundError,
     InsufficientPermissionsError,
-    InvalidRoleError
 )
 
+# Получить все группы (только для супер-админа)
 async def get_all_groups(session: AsyncSession, current_user_id: int) -> list[GroupRead]:
-    # Только супер-админ может видеть все группы
     await ensure_user_is_super_admin_global(session, current_user_id)
     stmt = select(Group).order_by(Group.id)
     result = await session.scalars(stmt)
     return result.all()
 
+# Получить группу по ID
 async def get_group_by_id(session: AsyncSession, group_id: int) -> GroupReadWithRelations:
     stmt = select(Group).options(
         selectinload(Group.group_members).selectinload(GroupMember.user),
@@ -40,7 +40,6 @@ async def get_group_by_id(session: AsyncSession, group_id: int) -> GroupReadWith
     if not group:
         raise GroupNotFoundError(group_id=group_id)
     
-    # Преобразуем GroupMember в пользователей с ролями
     group.users = []
     for group_member in group.group_members:
         user_with_role = group_member.user
@@ -49,6 +48,7 @@ async def get_group_by_id(session: AsyncSession, group_id: int) -> GroupReadWith
     
     return group
 
+# Получить группы пользователя
 async def get_user_groups(session: AsyncSession, user_id: int) -> list[GroupReadWithRelations]:
     stmt = select(Group).options(
         selectinload(Group.group_members).selectinload(GroupMember.user),
@@ -59,7 +59,6 @@ async def get_user_groups(session: AsyncSession, user_id: int) -> list[GroupRead
     result = await session.execute(stmt)
     groups = result.scalars().all()
     
-    # Преобразуем GroupMember в пользователей с ролями для каждой группы
     for group in groups:
         group.users = []
         for group_member in group.group_members:
@@ -69,6 +68,7 @@ async def get_user_groups(session: AsyncSession, user_id: int) -> list[GroupRead
     
     return groups
 
+# Получить роль пользователя в группе
 async def get_role_for_user_in_group(
     session: AsyncSession,
     current_user_id: int,
@@ -80,6 +80,7 @@ async def get_role_for_user_in_group(
     
     return GetUserRoleResponse(role=role)
 
+# Создать группу
 async def create_group(
     session: AsyncSession,
     group_create: GroupCreate,
@@ -98,7 +99,6 @@ async def create_group(
         
         await session.flush()
         
-        # Создаем запись GroupMember для создателя группы с ролью ADMIN
         group_member = GroupMember(
             user_id=current_user.id,
             group_id=new_group.id,
@@ -108,7 +108,6 @@ async def create_group(
 
         await session.commit()
         
-        # Перезагружаем группу с отношениями
         return await get_group_by_id(session, new_group.id)
 
     except (GroupAlreadyExistsError):
@@ -117,6 +116,7 @@ async def create_group(
         await session.rollback()
         raise GroupCreationError(f"Не удалось создать группу: {str(e)}")
 
+# Добавить пользователей в группу
 async def add_users_to_group(
     session: AsyncSession,
     group_id: int,
@@ -124,18 +124,15 @@ async def add_users_to_group(
     current_user: User
 ) -> GroupReadWithRelations:
     try:
-        # Проверяем существование группы
         group_exists_stmt = select(Group).where(Group.id == group_id)
         group_exists_result = await session.execute(group_exists_stmt)
         if not group_exists_result.scalar_one_or_none():
             raise GroupNotFoundError(group_id=group_id)
 
-        # Проверяем права администратора
         await ensure_user_is_admin(session, current_user.id, group_id)
 
         user_emails = [user_with_role.user_email for user_with_role in data.users]
         
-        # Находим пользователей по email
         users_stmt = select(User).where(User.email.in_(user_emails))
         users_result = await session.execute(users_stmt)
         users = users_result.scalars().all()
@@ -147,13 +144,11 @@ async def add_users_to_group(
 
         email_to_user = {user.email: user for user in users}
 
-        # Добавляем пользователей в группу
         for user_with_role in data.users:
             user_email = user_with_role.user_email
             role = user_with_role.role
             user = email_to_user[user_email]
 
-            # Проверяем существующее членство
             existing_member_stmt = select(GroupMember).where(
                 GroupMember.user_id == user.id,
                 GroupMember.group_id == group_id
@@ -162,7 +157,6 @@ async def add_users_to_group(
             if existing_member_result.scalar_one_or_none():
                 raise UserAlreadyInGroupError(user_email, group_id)
 
-            # Создаем новую запись GroupMember
             group_member = GroupMember(
                 user_id=user.id,
                 group_id=group_id,
@@ -172,7 +166,6 @@ async def add_users_to_group(
 
         await session.commit()
         
-        # Перезагружаем группу с обновленными данными
         return await get_group_by_id(session, group_id)
 
     except (GroupNotFoundError, InsufficientPermissionsError, UsersNotFoundError, 
@@ -183,6 +176,7 @@ async def add_users_to_group(
         await session.rollback()
         raise GroupUpdateError(f"Не удалось добавить пользователей в группу: {str(e)}")
 
+# Изменить роль пользователя в группе
 async def change_user_role(
     session: AsyncSession,
     current_user_id: int,
@@ -193,7 +187,6 @@ async def change_user_role(
     try:
         await ensure_user_is_admin(session, current_user_id, group_id)
 
-        # Находим пользователя по email
         user_stmt = select(User).where(User.email == user_email)
         user_result = await session.execute(user_stmt)
         user = user_result.scalar_one_or_none()
@@ -201,7 +194,6 @@ async def change_user_role(
         if not user:
             raise UserNotFoundInGroupError(user_email=user_email)
 
-        # Находим запись GroupMember
         group_member_stmt = select(GroupMember).where(
             GroupMember.user_id == user.id,
             GroupMember.group_id == group_id
@@ -212,7 +204,6 @@ async def change_user_role(
         if not group_member:
             raise UserNotFoundInGroupError(user_email=user_email)
 
-        # Обновляем роль
         group_member.role = new_role
         await session.commit()
 
@@ -224,6 +215,7 @@ async def change_user_role(
         await session.rollback()
         raise GroupUpdateError(f"Не удалось изменить роль пользователя: {str(e)}")
 
+# Обновить группу
 async def update_group(
     session: AsyncSession,
     db_group: Group,
@@ -249,7 +241,6 @@ async def update_group(
 
         await session.commit()
         
-        # Перезагружаем группу с обновленными данными
         return await get_group_by_id(session, db_group.id)
 
     except (InsufficientPermissionsError, GroupAlreadyExistsError):
@@ -258,6 +249,7 @@ async def update_group(
         await session.rollback()
         raise GroupUpdateError(f"Не удалось обновить группу: {str(e)}")
 
+# Удалить пользователей из группы
 async def remove_users_from_group(
     session: AsyncSession,
     group_id: int,
@@ -265,7 +257,6 @@ async def remove_users_from_group(
     current_user: User
 ) -> GroupReadWithRelations:
     try:
-        # Проверяем существование группы
         group_exists_stmt = select(Group).where(Group.id == group_id)
         group_exists_result = await session.execute(group_exists_stmt)
         if not group_exists_result.scalar_one_or_none():
@@ -273,27 +264,36 @@ async def remove_users_from_group(
 
         await ensure_user_is_admin(session, current_user.id, group_id)
 
-        # Получаем все задачи группы
         tasks_stmt = select(Task).options(selectinload(Task.assignees)).where(Task.group_id == group_id)
         tasks_result = await session.execute(tasks_stmt)
         tasks = tasks_result.scalars().all()
 
-        # Обрабатываем каждую задачу
+        task_ids = [task.id for task in tasks]
+
+        if task_ids and data.user_ids:
+            from core.database.models import TaskHistory
+            delete_user_history_stmt = delete(TaskHistory).where(
+                TaskHistory.task_id.in_(task_ids),
+                TaskHistory.user_id.in_(data.user_ids)
+            )
+            await session.execute(delete_user_history_stmt)
+
         for task in tasks:
-            # Получаем текущих исполнителей задачи
             current_assignees = list(task.assignees)
             
-            # Удаляем пользователей, которых нужно исключить из группы
             users_to_remove_from_task = [user for user in current_assignees if user.id in data.user_ids]
             
             for user in users_to_remove_from_task:
                 task.assignees.remove(user)
             
-            # Если после удаления не осталось исполнителей, удаляем задачу
             if not task.assignees:
+                from core.database.models import TaskHistory
+                delete_task_history_stmt = delete(TaskHistory).where(
+                    TaskHistory.task_id == task.id
+                )
+                await session.execute(delete_task_history_stmt)
                 await session.delete(task)
 
-        # Удаляем записи GroupMember
         delete_members_stmt = delete(GroupMember).where(
             GroupMember.group_id == group_id,
             GroupMember.user_id.in_(data.user_ids)
@@ -303,19 +303,16 @@ async def remove_users_from_group(
         if result.rowcount == 0:
             raise UserNotFoundInGroupError()
 
-        # Проверяем, не осталась ли группа пустой
         remaining_members_stmt = select(GroupMember).where(GroupMember.group_id == group_id)
         remaining_members_result = await session.execute(remaining_members_stmt)
         remaining_members = remaining_members_result.scalars().all()
         
         if not remaining_members:
-            # Группа осталась без участников - удаляем её автоматически
             await delete_group_auto(session, group_id)
             raise GroupDeleteError("Группа удалена, так как в ней не осталось участников")
 
         await session.commit()
 
-        # Перезагружаем группу с актуальными данными
         return await get_group_by_id(session, group_id)
 
     except (GroupNotFoundError, InsufficientPermissionsError, UserNotFoundInGroupError):
@@ -324,49 +321,54 @@ async def remove_users_from_group(
         await session.rollback()
         raise GroupUpdateError(f"Не удалось удалить пользователей из группы: {str(e)}")
 
+# Автоматически удалить группу
 async def delete_group_auto(
     session: AsyncSession,
     group_id: int
 ) -> bool:
     try:
-        # Загружаем группу с минимальными отношениями
-        group_stmt = select(Group).where(Group.id == group_id)
+        group_stmt = select(Group).options(
+            selectinload(Group.tasks),
+            selectinload(Group.projects),
+            selectinload(Group.group_members)
+        ).where(Group.id == group_id)
+        
         group_result = await session.execute(group_stmt)
         group = group_result.scalar_one_or_none()
         
         if not group:
-            return True  # Группа уже удалена
+            return True
 
-        # Получаем проекты, связанные с этой группой
-        project_links_stmt = select(project_group_association).where(
-            project_group_association.c.group_id == group_id
-        )
-        project_links_result = await session.execute(project_links_stmt)
-        project_links = project_links_result.all()
-        
-        project_ids = [link.project_id for link in project_links]
+        task_ids = [task.id for task in group.tasks]
+        if task_ids:
+            from core.database.models import TaskHistory
+            delete_history_stmt = delete(TaskHistory).where(
+                TaskHistory.task_id.in_(task_ids)
+            )
+            await session.execute(delete_history_stmt)
 
-        # Удаляем задачи группы через bulk delete
-        delete_tasks_stmt = delete(Task).where(Task.group_id == group_id)
-        await session.execute(delete_tasks_stmt)
+        if task_ids:
+            delete_user_associations_stmt = delete(task_user_association).where(
+                task_user_association.c.task_id.in_(task_ids)
+            )
+            await session.execute(delete_user_associations_stmt)
 
-        # Удаляем связи с проектами через ассоциативную таблицу
+        for task in group.tasks:
+            await session.delete(task)
+
+        project_ids = [project.id for project in group.projects]
+
         delete_project_links_stmt = delete(project_group_association).where(
             project_group_association.c.group_id == group_id
         )
         await session.execute(delete_project_links_stmt)
 
-        # Удаляем членства в группе
-        delete_members_stmt = delete(GroupMember).where(GroupMember.group_id == group_id)
-        await session.execute(delete_members_stmt)
+        for membership in group.group_members:
+            await session.delete(membership)
 
-        # Удаляем саму группу
-        delete_group_stmt = delete(Group).where(Group.id == group_id)
-        await session.execute(delete_group_stmt)
+        await session.delete(group)
 
-        # Проверяем и удаляем проекты, которые остались без групп
         for project_id in project_ids:
-            # Проверяем, остались ли у проекта другие группы
             remaining_groups_stmt = select(project_group_association).where(
                 project_group_association.c.project_id == project_id
             )
@@ -374,7 +376,6 @@ async def delete_group_auto(
             remaining_groups = remaining_groups_result.all()
             
             if not remaining_groups:
-                # Проект остался без групп - удаляем его
                 await delete_project_auto(session, project_id)
 
         await session.commit()
@@ -384,13 +385,13 @@ async def delete_group_auto(
         await session.rollback()
         raise GroupDeleteError(f"Не удалось автоматически удалить группу: {str(e)}")
 
+# Удалить группу
 async def delete_group(
     session: AsyncSession,
     group_id: int,
     current_user: User
 ) -> bool:
     try:
-        # Загружаем группу с минимальными отношениями
         group_stmt = select(Group).where(Group.id == group_id)
         group_result = await session.execute(group_stmt)
         group = group_result.scalar_one_or_none()
@@ -400,7 +401,6 @@ async def delete_group(
 
         await ensure_user_is_admin(session, current_user.id, group_id)
 
-        # Используем автоматическое удаление, но с предварительной проверкой прав
         await delete_group_auto(session, group_id)
         await session.commit()
 

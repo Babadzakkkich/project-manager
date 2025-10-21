@@ -30,7 +30,6 @@ export const CreateGroup = () => {
     updatedGroups[index][field] = value;
     setGroups(updatedGroups);
     
-    // Очищаем ошибки при изменении
     if (errors[`group_${index}_${field}`]) {
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -49,7 +48,6 @@ export const CreateGroup = () => {
       const updatedGroups = groups.filter((_, i) => i !== index);
       setGroups(updatedGroups);
       
-      // Очищаем ошибки для удаленной группы
       setErrors(prev => {
         const newErrors = { ...prev };
         Object.keys(newErrors).forEach(key => {
@@ -93,7 +91,6 @@ export const CreateGroup = () => {
     setCreatedGroups([]);
     
     try {
-      // Создаем группы последовательно
       const created = [];
       const creationErrors = [];
       
@@ -112,14 +109,11 @@ export const CreateGroup = () => {
       setCreatedGroups(created);
       
       if (creationErrors.length > 0) {
-        // Если есть ошибки, показываем их
         if (created.length === 0) {
-          // Если ни одна группа не создана
           const errorMessage = creationErrors.join('; ');
           showError(errorMessage);
           setErrors({ submit: errorMessage });
         } else {
-          // Если часть групп создана успешно
           const successMessage = `Успешно создано ${created.length} из ${groups.length} групп`;
           const errorMessage = `Ошибки: ${creationErrors.join('; ')}`;
           showSuccess(successMessage);
@@ -127,7 +121,6 @@ export const CreateGroup = () => {
           setShowContinueModal(true);
         }
       } else {
-        // Все группы созданы успешно
         const successMessage = created.length === 1 
           ? `Группа "${created[0].name}" успешно создана!` 
           : `Успешно создано ${created.length} групп!`;
@@ -150,7 +143,6 @@ export const CreateGroup = () => {
   };
 
   const handleContinueCreating = () => {
-    // Сбрасываем форму для создания новых групп
     setGroups([{ name: '', description: '' }]);
     setCreatedGroups([]);
     setShowContinueModal(false);
@@ -163,7 +155,6 @@ export const CreateGroup = () => {
 
   return (
     <div className={styles.container}>
-      {/* Уведомление */}
       <Notification
         message={notification.message}
         type={notification.type}
@@ -285,7 +276,6 @@ export const CreateGroup = () => {
         </div>
       </form>
 
-      {/* Модальное окно выбора действий после успешного создания */}
       <ConfirmationModal
         isOpen={showContinueModal}
         onClose={handleCloseContinueModal}

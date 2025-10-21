@@ -3,7 +3,7 @@ import styles from './Notification.module.css';
 
 export const Notification = ({ 
   message, 
-  type = 'info', // 'success', 'error', 'warning', 'info'
+  type = 'info',
   onClose,
   duration = 5000,
   isVisible = false

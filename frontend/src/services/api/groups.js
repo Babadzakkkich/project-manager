@@ -2,19 +2,16 @@ import apiClient from './client';
 import { API_ENDPOINTS } from '../../utils/constants';
 
 export const groupsAPI = {
-  // Получить все группы (только для супер-админа)
   getAll: async () => {
     const response = await apiClient.get(API_ENDPOINTS.GROUPS);
     return response.data;
   },
 
-  // Получить группы текущего пользователя - ОБНОВЛЕНО
   getMyGroups: async () => {
     const response = await apiClient.get(`${API_ENDPOINTS.GROUPS}/my`);
     return response.data;
   },
 
-  // Создать новую группу
   create: async (groupData) => {
     const response = await apiClient.post(API_ENDPOINTS.GROUPS, groupData);
     return response.data;

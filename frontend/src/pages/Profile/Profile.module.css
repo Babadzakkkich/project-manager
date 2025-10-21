@@ -94,7 +94,6 @@
   font-size: 16px;
 }
 
-/* Статистика */
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -132,7 +131,6 @@
   font-weight: 500;
 }
 
-/* Опасная зона */
 .dangerZone {
   border: 2px solid #fed7d7;
   background: #fff5f5;
@@ -188,7 +186,6 @@
   margin-bottom: 16px;
 }
 
-/* Адаптивность */
 @media (max-width: 768px) {
   .container {
     padding: 24px 20px;

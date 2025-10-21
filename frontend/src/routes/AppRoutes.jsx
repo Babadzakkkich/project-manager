@@ -14,6 +14,7 @@ import { CreateTask } from '../pages/TasksPages/CreateTask/CreateTask';
 import { Tasks } from '../pages/TasksPages/Tasks/Tasks';
 import { TaskDetail } from '../pages/TasksPages/TaskDetail/TaskDetail';
 import { Profile } from '../pages/Profile/Profile';
+import { ManagementBoard } from '../pages/ManagementBoard/ManagementBoard';
 
 const LoadingSpinner = () => (
   <div style={{ 
@@ -58,7 +59,6 @@ const PublicRoute = ({ children }) => {
   return !isAuthenticated ? children : <Navigate to="/workspace" replace />;
 };
 
-// Главная страница с автоматической переадресацией
 const HomeRoute = () => {
   const { isAuthenticated, loading, authChecked } = useAuthContext();
   
@@ -66,7 +66,6 @@ const HomeRoute = () => {
     return <LoadingSpinner />;
   }
   
-  // Если авторизован - редирект на workspace, иначе показываем главную
   return isAuthenticated ? <Navigate to="/workspace" replace /> : <Home />;
 };
 
@@ -80,7 +79,6 @@ const DashboardPage = () => (
 export const AppRoutes = () => {
   return (
     <Routes>
-      {/* Главная страница с автоматической переадресацией */}
       <Route path="/" element={<HomeRoute />} />
       
       <Route 
@@ -112,6 +110,14 @@ export const AppRoutes = () => {
         element={
           <PrivateRoute>
             <Workspace />
+          </PrivateRoute>
+        } 
+      />
+      <Route 
+        path="/management"
+        element={
+          <PrivateRoute>
+            <ManagementBoard />
           </PrivateRoute>
         } 
       />
@@ -172,7 +178,6 @@ export const AppRoutes = () => {
         } 
       />
       
-      {/* Маршруты для создания */}
       <Route 
         path="/groups/create" 
         element={
@@ -198,7 +203,6 @@ export const AppRoutes = () => {
         } 
       />
       
-      {/* Резервный маршрут для всех остальных путей */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

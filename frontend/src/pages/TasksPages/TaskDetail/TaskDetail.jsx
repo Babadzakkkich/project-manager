@@ -11,8 +11,19 @@ import { useNotification } from '../../../hooks/useNotification';
 import { 
   handleApiError, 
   formatDate,
+  formatDateForInput
 } from '../../../utils/helpers';
-import {  getTaskStatusTranslation, getTaskStatusColor, isTaskOverdue} from '../../../utils/taskStatus'
+import { 
+  getTaskStatusTranslation, 
+  getTaskStatusColor, 
+  getTaskStatusIcon,
+  getTaskPriorityTranslation,
+  getTaskPriorityColor,
+  getTaskPriorityIcon,
+  isTaskOverdue,
+  TASK_STATUS_OPTIONS,
+  TASK_PRIORITY_OPTIONS
+} from '../../../utils/taskStatus';
 import styles from './TaskDetail.module.css';
 
 export const TaskDetail = () => {
@@ -27,20 +38,21 @@ export const TaskDetail = () => {
     title: '', 
     description: '', 
     status: '',
+    priority: '',
     start_date: '',
-    deadline: ''
+    deadline: '',
+    tags: []
   });
   const [addingUsers, setAddingUsers] = useState(false);
   const [newUserIds, setNewUserIds] = useState([]);
   const [availableUsers, setAvailableUsers] = useState([]);
   const [userRole, setUserRole] = useState('');
   const [showUsersModal, setShowUsersModal] = useState(false);
+  const [customTag, setCustomTag] = useState('');
   
-  // Состояния для модальных окон подтверждения
   const [showDeleteTaskModal, setShowDeleteTaskModal] = useState(false);
   const [showRemoveUserModal, setShowRemoveUserModal] = useState(null);
   
-  // Состояния для загрузки
   const [isDeletingTask, setIsDeletingTask] = useState(false);
   const [isRemovingUser, setIsRemovingUser] = useState(false);
 
@@ -64,8 +76,10 @@ export const TaskDetail = () => {
         title: taskData.title,
         description: taskData.description || '',
         status: taskData.status,
-        start_date: taskData.start_date.split('T')[0],
-        deadline: taskData.deadline.split('T')[0]
+        priority: taskData.priority,
+        start_date: taskData.start_date ? formatDateForInput(new Date(taskData.start_date)) : '',
+        deadline: taskData.deadline ? formatDateForInput(new Date(taskData.deadline)) : '',
+        tags: taskData.tags || []
       });
     } catch (err) {
       console.error('Error loading task:', err);
@@ -76,12 +90,10 @@ export const TaskDetail = () => {
     }
   }, [taskId]);
 
-  // Загружаем доступных пользователей для добавления
   const loadAvailableUsers = useCallback(async () => {
     try {
       if (!task?.group?.id) return;
       
-      // Получаем пользователей группы задачи
       const groupUsers = task.group.users || [];
       setAvailableUsers(groupUsers);
     } catch (err) {
@@ -89,14 +101,11 @@ export const TaskDetail = () => {
     }
   }, [task]);
 
-  // Определяем роль пользователя в задаче
   const determineUserRole = useCallback(() => {
     if (!task || !user) return '';
     
-    // Проверяем, является ли пользователь исполнителем задачи
     const isAssignee = task.assignees?.some(assignee => assignee.id === user.id);
     
-    // Проверяем, является ли пользователь администратором группы
     const isGroupAdmin = task.group?.users?.some(groupUser => 
       groupUser.id === user.id && (groupUser.role === 'admin' || groupUser.role === 'super_admin')
     );
@@ -120,7 +129,6 @@ export const TaskDetail = () => {
     }
   }, [task, loadAvailableUsers, determineUserRole]);
 
-  // Получаем первых 3 исполнителей для компактного отображения
   const getDisplayAssignees = useCallback(() => {
     if (!task?.assignees) return [];
     
@@ -130,8 +138,13 @@ export const TaskDetail = () => {
   const handleUpdateTask = async (e) => {
     e.preventDefault();
     try {
-      await tasksAPI.update(taskId, editForm);
-      // После обновления перезагружаем полные данные задачи
+      const updateData = {
+        ...editForm,
+        start_date: editForm.start_date ? new Date(editForm.start_date).toISOString() : null,
+        deadline: editForm.deadline ? new Date(editForm.deadline).toISOString() : null
+      };
+      
+      await tasksAPI.update(taskId, updateData);
       await loadTask();
       setEditing(false);
       showSuccess('Задача успешно обновлена');
@@ -150,7 +163,7 @@ export const TaskDetail = () => {
       });
       setNewUserIds([]);
       setAddingUsers(false);
-      await loadTask(); // Перезагружаем данные
+      await loadTask();
       showSuccess(`Добавлено ${newUserIds.length} исполнителей`);
     } catch (err) {
       console.error('Error adding users:', err);
@@ -172,7 +185,6 @@ export const TaskDetail = () => {
         user_ids: [showRemoveUserModal.userId]
       });
       
-      // Перезагружаем данные вместо локального обновления
       await loadTask();
       
       showSuccess(`Пользователь "${showRemoveUserModal.userLogin}" удален из задачи`);
@@ -197,7 +209,6 @@ export const TaskDetail = () => {
       
       showSuccess(`Задача "${task.title}" успешно удалена`);
       
-      // Перенаправляем обратно к задачам или проекту
       const projectId = searchParams.get('projectId');
       if (projectId) {
         navigate(`/projects/${projectId}`);
@@ -214,24 +225,42 @@ export const TaskDetail = () => {
     }
   };
 
-  const handleStatusChange = async (newStatus) => {
-    try {
-      await tasksAPI.update(taskId, {
-        status: newStatus
-      });
-      // Перезагружаем полные данные задачи после изменения статуса
-      await loadTask();
-      showSuccess(`Статус задачи изменен на "${getTaskStatusTranslation(newStatus)}"`);
-    } catch (err) {
-      console.error('Error changing task status:', err);
-      const errorMessage = handleApiError(err);
-      showError(`Не удалось изменить статус: ${errorMessage}`);
+  const handleTagToggle = (tag) => {
+    setEditForm(prev => {
+      const currentTags = prev.tags || [];
+      if (currentTags.includes(tag)) {
+        return {
+          ...prev,
+          tags: currentTags.filter(t => t !== tag)
+        };
+      } else {
+        return {
+          ...prev,
+          tags: [...currentTags, tag]
+        };
+      }
+    });
+  };
+
+  const handleAddCustomTag = () => {
+    if (customTag.trim() && !editForm.tags.includes(customTag.trim())) {
+      setEditForm(prev => ({
+        ...prev,
+        tags: [...prev.tags, customTag.trim()]
+      }));
+      setCustomTag('');
     }
   };
 
-  // Обновленные права доступа
+  const handleRemoveTag = (tagToRemove) => {
+    setEditForm(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }));
+  };
+
   const canEdit = userRole === 'admin' || userRole === 'assignee';
-  const canManageUsers = userRole === 'admin'; // Только администраторы могут управлять пользователями
+  const canManageUsers = userRole === 'admin';
   const canDelete = userRole === 'admin';
   const isOverdue = task && isTaskOverdue(task.deadline, task.status);
 
@@ -259,7 +288,6 @@ export const TaskDetail = () => {
 
   return (
     <div className={styles.container}>
-      {/* Уведомление */}
       <Notification
         message={notification.message}
         type={notification.type}
@@ -284,223 +312,334 @@ export const TaskDetail = () => {
           ← Назад
         </Button>
         
-        <div className={styles.headerInfo}>
-          {editing ? (
-            <form onSubmit={handleUpdateTask} className={styles.editForm}>
-              <Input
-                label="Название задачи"
-                value={editForm.title}
-                onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="Название задачи"
-                required
-              />
-              <Input
-                label="Описание задачи"
-                value={editForm.description}
-                onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Описание задачи"
-                multiline
-                rows={4}
-              />
-              <div className={styles.dateFields}>
+        <div className={styles.headerContent}>
+          <div className={styles.headerInfo}>
+            {editing ? (
+              <form onSubmit={handleUpdateTask} className={styles.editForm}>
                 <Input
-                  label="Дата начала"
-                  type="date"
-                  value={editForm.start_date}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, start_date: e.target.value }))}
+                  label="Название задачи"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="Название задачи"
                   required
                 />
                 <Input
-                  label="Срок выполнения"
-                  type="date"
-                  value={editForm.deadline}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, deadline: e.target.value }))}
-                  required
+                  label="Описание задачи"
+                  value={editForm.description}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Описание задачи"
+                  multiline
+                  rows={4}
                 />
-              </div>
-              <div className={styles.statusSelect}>
-                <label>Статус:</label>
-                <select 
-                  value={editForm.status} 
-                  onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
-                >
-                  <option value="planned">Запланирована</option>
-                  <option value="in_progress">В процессе</option>
-                  <option value="on_hold">Приостановлена</option>
-                  <option value="completed">Завершена</option>
-                  <option value="cancelled">Отменена</option>
-                </select>
-              </div>
-              <div className={styles.editActions}>
-                <Button type="submit" variant="primary">Сохранить</Button>
-                <Button 
-                  type="button" 
-                  variant="secondary" 
-                  onClick={() => {
-                    setEditing(false);
-                    setEditForm({
-                      title: task.title,
-                      description: task.description || '',
-                      status: task.status,
-                      start_date: task.start_date.split('T')[0],
-                      deadline: task.deadline.split('T')[0]
-                    });
-                  }}
-                >
-                  Отмена
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <>
-              <div className={styles.titleSection}>
-                <h1 className={styles.title}>{task.title}</h1>
-                <div 
-                  className={styles.statusBadge}
-                  style={{ 
-                    backgroundColor: getTaskStatusColor(task.status),
-                    color: 'white'
-                  }}
-                >
-                  {getTaskStatusTranslation(task.status)}
-                  {isOverdue && (
-                    <span className={styles.overdueIndicator}> 🔥 Просрочена</span>
-                  )}
+                <div className={styles.dateFields}>
+                  <Input
+                    label="Дата начала"
+                    type="date"
+                    value={editForm.start_date}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, start_date: e.target.value }))}
+                  />
+                  <Input
+                    label="Срок выполнения"
+                    type="date"
+                    value={editForm.deadline}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, deadline: e.target.value }))}
+                  />
                 </div>
-              </div>
-              
-              {task.description && (
-                <p className={styles.description}>{task.description}</p>
-              )}
-              
-              <div className={styles.taskMeta}>
-                <div className={styles.metaItem}>
-                  <span className={styles.metaLabel}>Проект:</span>
-                  <span className={styles.metaValue}>
-                    {task.project ? (
-                      <Button 
-                        variant="link" 
-                        onClick={() => navigate(`/projects/${task.project.id}`)}
-                        className={styles.projectLink}
+                <div className={styles.taskProperties}>
+                  <div className={styles.propertyGroup}>
+                    <label>Статус:</label>
+                    <select 
+                      value={editForm.status} 
+                      onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
+                    >
+                      {TASK_STATUS_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className={styles.propertyGroup}>
+                    <label>Приоритет:</label>
+                    <select 
+                      value={editForm.priority} 
+                      onChange={(e) => setEditForm(prev => ({ ...prev, priority: e.target.value }))}
+                    >
+                      {TASK_PRIORITY_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                <div className={styles.tagsSection}>
+                  <label>Теги:</label>
+                  <div className={styles.tagsContainer}>
+                    <div className={styles.availableTags}>
+                      {['feature', 'bug', 'improvement', 'documentation', 'urgent'].map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          className={`${styles.tagButton} ${
+                            editForm.tags.includes(tag) ? styles.tagSelected : ''
+                          }`}
+                          onClick={() => handleTagToggle(tag)}
+                        >
+                          #{tag}
+                          {editForm.tags.includes(tag) && <span className={styles.tagCheck}>✓</span>}
+                        </button>
+                      ))}
+                    </div>
+                    
+                    <div className={styles.customTag}>
+                      <Input
+                        placeholder="Добавить свой тег..."
+                        value={customTag}
+                        onChange={(e) => setCustomTag(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddCustomTag();
+                          }
+                        }}
+                        className={styles.customTagInput}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="small"
+                        onClick={handleAddCustomTag}
+                        disabled={!customTag.trim()}
                       >
-                        {task.project.title}
+                        Добавить
                       </Button>
-                    ) : (
-                      'Не указан'
+                    </div>
+                    
+                    {editForm.tags.length > 0 && (
+                      <div className={styles.selectedTags}>
+                        <span className={styles.selectedTagsLabel}>Выбранные теги:</span>
+                        <div className={styles.selectedTagsList}>
+                          {editForm.tags.map((tag) => (
+                            <span key={tag} className={styles.selectedTag}>
+                              #{tag}
+                              <button
+                                type="button"
+                                className={styles.removeTag}
+                                onClick={() => handleRemoveTag(tag)}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     )}
-                  </span>
+                  </div>
                 </div>
-                <div className={styles.metaItem}>
-                  <span className={styles.metaLabel}>Группа:</span>
-                  <span className={styles.metaValue}>
-                    {task.group ? (
-                      <Button 
-                        variant="link" 
-                        onClick={() => navigate(`/groups/${task.group.id}`)}
-                        className={styles.groupLink}
-                      >
-                        {task.group.name}
-                      </Button>
-                    ) : (
-                      'Не указана'
-                    )}
-                  </span>
+                
+                <div className={styles.editActions}>
+                  <Button type="submit" variant="primary">Сохранить</Button>
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    onClick={() => {
+                      setEditing(false);
+                      setEditForm({
+                        title: task.title,
+                        description: task.description || '',
+                        status: task.status,
+                        priority: task.priority,
+                        start_date: task.start_date ? formatDateForInput(new Date(task.start_date)) : '',
+                        deadline: task.deadline ? formatDateForInput(new Date(task.deadline)) : '',
+                        tags: task.tags || []
+                      });
+                    }}
+                  >
+                    Отмена
+                  </Button>
                 </div>
-                <div className={styles.metaItem}>
-                  <span className={styles.metaLabel}>Дата начала:</span>
-                  <span className={styles.metaValue}>{formatDate(task.start_date)}</span>
+              </form>
+            ) : (
+              <>
+                <div className={styles.titleSection}>
+                  <h1 className={styles.title}>{task.title}</h1>
+                  <div className={styles.taskBadges}>
+                    <div 
+                      className={styles.statusBadge}
+                      style={{ 
+                        backgroundColor: getTaskStatusColor(task.status),
+                        color: 'white'
+                      }}
+                    >
+                      {getTaskStatusIcon(task.status)} {getTaskStatusTranslation(task.status)}
+                      {isOverdue && (
+                        <span className={styles.overdueIndicator}> 🔥 Просрочена</span>
+                      )}
+                    </div>
+                    <div 
+                      className={styles.priorityBadge}
+                      style={{ 
+                        backgroundColor: getTaskPriorityColor(task.priority),
+                        color: 'white'
+                      }}
+                    >
+                      {getTaskPriorityIcon(task.priority)} {getTaskPriorityTranslation(task.priority)}
+                    </div>
+                  </div>
                 </div>
-                <div className={styles.metaItem}>
-                  <span className={styles.metaLabel}>Срок выполнения:</span>
-                  <span className={`${styles.metaValue} ${isOverdue ? styles.overdue : ''}`}>
-                    {formatDate(task.deadline)}
-                    {isOverdue && ' ⚠️'}
-                  </span>
+                
+                {task.description && (
+                  <div className={styles.descriptionSection}>
+                    <h3 className={styles.descriptionTitle}>Описание</h3>
+                    <p className={styles.description}>{task.description}</p>
+                  </div>
+                )}
+                
+                {task.tags && task.tags.length > 0 && (
+                  <div className={styles.taskTags}>
+                    <h3 className={styles.tagsTitle}>Теги</h3>
+                    <div className={styles.tagsList}>
+                      {task.tags.map((tag, index) => (
+                        <span key={index} className={styles.taskTag}>
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <div className={styles.taskMeta}>
+                  <div className={styles.metaGrid}>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Проект:</span>
+                      <span className={styles.metaValue}>
+                        {task.project ? (
+                          <Button 
+                            variant="link" 
+                            onClick={() => navigate(`/projects/${task.project.id}`)}
+                            className={styles.projectLink}
+                          >
+                            {task.project.title}
+                          </Button>
+                        ) : (
+                          'Не указан'
+                        )}
+                      </span>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Группа:</span>
+                      <span className={styles.metaValue}>
+                        {task.group ? (
+                          <Button 
+                            variant="link" 
+                            onClick={() => navigate(`/groups/${task.group.id}`)}
+                            className={styles.groupLink}
+                          >
+                            {task.group.name}
+                          </Button>
+                        ) : (
+                          'Не указана'
+                        )}
+                      </span>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Дата начала:</span>
+                      <span className={styles.metaValue}>
+                        {task.start_date ? formatDate(task.start_date) : 'Не указана'}
+                      </span>
+                    </div>
+                    <div className={styles.metaItem}>
+                      <span className={styles.metaLabel}>Срок выполнения:</span>
+                      <span className={`${styles.metaValue} ${isOverdue ? styles.overdue : ''}`}>
+                        {task.deadline ? formatDate(task.deadline) : 'Не указан'}
+                        {isOverdue && ' ⚠️'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {canEdit && !editing && (
-          <div className={styles.headerActions}>
-            <Button 
-              variant="secondary" 
-              onClick={() => setEditing(true)}
-            >
-              Редактировать
-            </Button>
-            {canDelete && (
-              <Button 
-                variant="secondary" 
-                onClick={handleDeleteTaskClick}
-                className={styles.deleteButton}
-                disabled={isDeletingTask}
-              >
-                {isDeletingTask ? 'Удаление...' : 'Удалить задачу'}
-              </Button>
+              </>
             )}
           </div>
-        )}
+
+          {canEdit && !editing && (
+            <div className={styles.headerActions}>
+              <Button 
+                variant="primary" 
+                onClick={() => setEditing(true)}
+                className={styles.editButton}
+              >
+                Редактировать
+              </Button>
+              {canDelete && (
+                <Button 
+                  variant="danger" 
+                  onClick={handleDeleteTaskClick}
+                  className={styles.deleteButton}
+                  disabled={isDeletingTask}
+                >
+                  {isDeletingTask ? 'Удаление...' : 'Удалить задачу'}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className={styles.content}>
-        {/* Основная информация - левая колонка */}
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
-            <h2>Информация о задаче</h2>
-            {canEdit && !editing && (
-              <div className={styles.quickActions}>
-                <label>Быстрая смена статуса:</label>
-                <select 
-                  value={task.status} 
-                  onChange={(e) => handleStatusChange(e.target.value)}
-                >
-                  <option value="planned">Запланирована</option>
-                  <option value="in_progress">В процессе</option>
-                  <option value="on_hold">Приостановлена</option>
-                  <option value="completed">Завершена</option>
-                  <option value="cancelled">Отменена</option>
-                </select>
-              </div>
-            )}
+            <h2>Детали задачи</h2>
           </div>
 
           <div className={styles.taskDetails}>
             <div className={styles.detailItem}>
-              <strong>Текущий статус:</strong>
+              <strong>Статус:</strong>
               <span 
                 className={styles.statusText}
                 style={{ color: getTaskStatusColor(task.status) }}
               >
-                {getTaskStatusTranslation(task.status)}
+                {getTaskStatusIcon(task.status)} {getTaskStatusTranslation(task.status)}
               </span>
             </div>
             
             <div className={styles.detailItem}>
-              <strong>Оставшееся время:</strong>
-              <span className={isOverdue ? styles.overdue : ''}>
-                {isOverdue ? 'Просрочено' : 'В процессе выполнения'}
+              <strong>Приоритет:</strong>
+              <span 
+                className={styles.priorityText}
+                style={{ color: getTaskPriorityColor(task.priority) }}
+              >
+                {getTaskPriorityIcon(task.priority)} {getTaskPriorityTranslation(task.priority)}
               </span>
             </div>
             
             <div className={styles.detailItem}>
               <strong>Прогресс:</strong>
-              <div className={styles.progressBar}>
-                <div 
-                  className={styles.progressFill}
-                  style={{ 
-                    width: task.status === 'completed' ? '100%' : 
-                           task.status === 'in_progress' ? '50%' : '10%',
-                    backgroundColor: getTaskStatusColor(task.status)
-                  }}
-                ></div>
+              <div className={styles.progressContainer}>
+                <div className={styles.progressBar}>
+                  <div 
+                    className={styles.progressFill}
+                    style={{ 
+                      width: task.status === 'done' ? '100%' : 
+                             task.status === 'review' ? '75%' :
+                             task.status === 'in_progress' ? '50%' : 
+                             task.status === 'todo' ? '25%' : '0%',
+                      backgroundColor: getTaskStatusColor(task.status)
+                    }}
+                  ></div>
+                </div>
+                <span className={styles.progressText}>
+                  {task.status === 'done' ? '100%' : 
+                   task.status === 'review' ? '75%' :
+                   task.status === 'in_progress' ? '50%' : 
+                   task.status === 'todo' ? '25%' : '0%'}
+                </span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Исполнители - правая колонка */}
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Исполнители</h2>
@@ -588,7 +727,6 @@ export const TaskDetail = () => {
                         <div className={styles.assigneeEmail}>{assignee.email}</div>
                       </div>
                     </div>
-                    {/* Убираем кнопку удаления для обычных исполнителей */}
                     {canManageUsers && task.assignees.length > 1 && (
                       <Button 
                         variant="secondary" 
@@ -670,7 +808,6 @@ export const TaskDetail = () => {
         }}
       />
 
-      {/* Модальное окно подтверждения удаления задачи */}
       <ConfirmationModal
         isOpen={showDeleteTaskModal}
         onClose={() => setShowDeleteTaskModal(false)}
@@ -683,7 +820,6 @@ export const TaskDetail = () => {
         isLoading={isDeletingTask}
       />
 
-      {/* Модальное окно подтверждения удаления пользователя */}
       <ConfirmationModal
         isOpen={!!showRemoveUserModal}
         onClose={() => setShowRemoveUserModal(null)}

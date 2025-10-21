@@ -65,9 +65,7 @@ export const ProjectCard = ({
     setShowDeleteModal(false);
   };
 
-  // Безопасное получение количества задач и групп
   const getTasksCount = () => {
-    // Проверяем разные возможные структуры данных
     if (Array.isArray(project.tasks)) {
       return project.tasks.length;
     }
@@ -78,7 +76,6 @@ export const ProjectCard = ({
   };
 
   const getGroupsCount = () => {
-    // Проверяем разные возможные структуры данных
     if (Array.isArray(project.groups)) {
       return project.groups.length;
     }
@@ -121,7 +118,6 @@ export const ProjectCard = ({
           )}
         </div>
 
-        {/* Модальное окно подтверждения удаления */}
         <ConfirmationModal
           isOpen={showDeleteModal}
           onClose={handleCancelDelete}
@@ -205,7 +201,6 @@ export const ProjectCard = ({
         </div>
       </div>
 
-      {/* Модальное окно подтверждения удаления */}
       <ConfirmationModal
         isOpen={showDeleteModal}
         onClose={handleCancelDelete}

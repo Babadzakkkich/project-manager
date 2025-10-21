@@ -31,7 +31,6 @@ export const FilterSort = ({
 
   return (
     <div className={`${styles.container} ${className}`}>
-      {/* Фильтры */}
       {filters.length > 0 && (
         <div className={styles.filtersSection}>
           <h3 className={styles.sectionTitle}>Фильтры</h3>
@@ -67,7 +66,6 @@ export const FilterSort = ({
         </div>
       )}
 
-      {/* Сортировка */}
       {sortOptions.length > 0 && (
         <div className={styles.sortSection}>
           <h3 className={styles.sectionTitle}>Сортировка</h3>

@@ -1,7 +1,6 @@
 services:
-  app:
-    build:
-      dockerfile: DockerfileBackend
+  backend:
+    build: ./backend
     ports:
       - "8000:8000"
     environment:
@@ -11,11 +10,22 @@ services:
       APP_CONFIG__DB__PORT: ${APP_CONFIG__DB__PORT}
       APP_CONFIG__DB__NAME: ${APP_CONFIG__DB__NAME}
       APP_CONFIG__SECURITY__SECRET_KEY: ${APP_CONFIG__SECURITY__SECRET_KEY}
-      APP_CONFIG__SECURITY__TOKEN_EXPIRE_MINUTES: ${APP_CONFIG__SECURITY__TOKEN_EXPIRE_MINUTES}
+      APP_CONFIG__SECURITY__ACCESS_TOKEN_EXPIRE_MINUTES: ${APP_CONFIG__SECURITY__ACCESS_TOKEN_EXPIRE_MINUTES}
+      APP_CONFIG__SECURITY__REFRESH_TOKEN_EXPIRE_DAYS: ${APP_CONFIG__SECURITY__REFRESH_TOKEN_EXPIRE_DAYS}
       APP_CONFIG__SECURITY__ALGORITHM: ${APP_CONFIG__SECURITY__ALGORITHM}
 
     depends_on:
       - db
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    depends_on:
+      - backend
     restart: unless-stopped
 
   db:

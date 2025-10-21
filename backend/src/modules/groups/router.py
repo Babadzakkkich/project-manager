@@ -22,30 +22,29 @@ from .exceptions import (
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
+# Получить все группы (только для супер-админа)
 @router.get("/", response_model=list[GroupReadWithRelations])
 async def get_all_groups(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
-    """Получить все группы (только для супер-админа)"""
     return await groups_service.get_all_groups(session, current_user.id)
 
+# Получить группы текущего пользователя
 @router.get("/my", response_model=list[GroupReadWithRelations])
 async def get_groups(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
-    """Получить группы текущего пользователя"""
     return await groups_service.get_user_groups(session, current_user.id)
 
+# Получить информацию о группе (только для участников группы)
 @router.get("/{group_id}", response_model=GroupReadWithRelations)
 async def get_group(
     group_id: int,
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
-    """Получить информацию о группе (только для участников группы)"""
-    # Проверяем, что пользователь состоит в группе
     from core.utils.dependencies import check_user_in_group
     if not await check_user_in_group(session, current_user.id, group_id):
         raise UserNotInGroupError(user_id=current_user.id, group_id=group_id)
@@ -56,30 +55,31 @@ async def get_group(
     except GroupNotFoundError as e:
         raise e
 
+# Получить свою роль в группе
 @router.get("/{group_id}/my_role", response_model=GetUserRoleResponse)
 async def get_my_role_in_group(
     group_id: int,
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
-    """Получить свою роль в группе"""
     try:
         return await groups_service.get_role_for_user_in_group(session, current_user.id, group_id)
     except UserNotInGroupError as e:
         raise e
 
+# Создать новую группу
 @router.post("/", response_model=GroupReadWithRelations, status_code=status.HTTP_201_CREATED)
 async def create_new_group(
     group_data: GroupCreate, 
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
-    """Создать новую группу"""
     try:
         return await groups_service.create_group(session, group_data, current_user)
     except (GroupAlreadyExistsError, GroupCreationError) as e:
         raise e
 
+# Добавить пользователей в группу (только для администраторов группы)
 @router.post("/{group_id}/add_users", response_model=GroupReadWithRelations)
 async def add_users_to_group(
     group_id: int,
@@ -87,7 +87,6 @@ async def add_users_to_group(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
-    """Добавить пользователей в группу (только для администраторов группы)"""
     try:
         updated_group = await groups_service.add_users_to_group(session, group_id, data, current_user)
         return updated_group
@@ -101,6 +100,7 @@ async def add_users_to_group(
     ) as e:
         raise e
 
+# Обновить информацию о группе (только для администраторов группы)
 @router.put("/{group_id}", response_model=GroupReadWithRelations)
 async def update_group_by_id(
     group_id: int,
@@ -108,7 +108,6 @@ async def update_group_by_id(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
-    """Обновить информацию о группе (только для администраторов группы)"""
     try:
         db_group = await groups_service.get_group_by_id(session, group_id)
         return await groups_service.update_group(session, db_group, group_data, current_user)
@@ -120,6 +119,7 @@ async def update_group_by_id(
     ) as e:
         raise e
 
+# Изменить роль пользователя в группе (только для администраторов группы)
 @router.put("/{group_id}/change_role", status_code=status.HTTP_200_OK)
 async def change_user_role_in_group(
     group_id: int,
@@ -127,7 +127,6 @@ async def change_user_role_in_group(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
-    """Изменить роль пользователя в группе (только для администраторов группы)"""
     try:
         await groups_service.change_user_role(
             session=session,
@@ -145,6 +144,7 @@ async def change_user_role_in_group(
     ) as e:
         raise e
 
+# Удалить пользователей из группы (только для администраторов группы)
 @router.delete("/{group_id}/remove_users", response_model=GroupReadWithRelations)
 async def remove_users_from_group(
     group_id: int,
@@ -152,7 +152,6 @@ async def remove_users_from_group(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
-    """Удалить пользователей из группы (только для администраторов группы)"""
     try:
         updated_group = await groups_service.remove_users_from_group(session, group_id, data, current_user)
         return updated_group
@@ -165,13 +164,13 @@ async def remove_users_from_group(
     ) as e:
         raise e
 
+# Удалить группу (только для администраторов группы)
 @router.delete("/{group_id}", status_code=status.HTTP_200_OK)
 async def delete_group_by_id(
     group_id: int,
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
-    """Удалить группу (только для администраторов группы)"""
     try:
         deleted = await groups_service.delete_group(session, group_id, current_user)
         if not deleted:

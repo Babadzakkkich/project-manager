@@ -1,31 +1,55 @@
-import { TASK_STATUSES, TASK_STATUS_TRANSLATIONS } from './constants';
+import { 
+  TASK_STATUSES, 
+  TASK_STATUS_TRANSLATIONS,
+  TASK_PRIORITIES,
+  TASK_PRIORITY_TRANSLATIONS,
+  PRIORITY_COLORS,
+  PRIORITY_ICONS
+} from './constants';
+
 
 export const getTaskStatusTranslation = (status) => {
   return TASK_STATUS_TRANSLATIONS[status] || status;
 };
 
 export const TASK_STATUS_OPTIONS = [
-  { value: 'planned', label: 'Запланирована' },
+  { value: 'backlog', label: 'Бэклог' },
+  { value: 'todo', label: 'К выполнению' },
   { value: 'in_progress', label: 'В процессе' },
-  { value: 'completed', label: 'Завершена' },
-  { value: 'on_hold', label: 'Приостановлена' },
+  { value: 'review', label: 'На проверке' },
+  { value: 'done', label: 'Выполнена' },
   { value: 'cancelled', label: 'Отменена' },
 ];
 
-// Получение цвета для статуса задачи
 export const getTaskStatusColor = (status) => {
   const colors = {
-    planned: '#3182ce',
-    in_progress: '#dd6b20',
-    completed: '#38a169',
-    on_hold: '#d69e2e',
-    cancelled: '#e53e3e',
+    backlog: '#a0aec0',      
+    todo: '#3182ce',        
+    in_progress: '#dd6b20', 
+    review: '#d69e2e',      
+    done: '#38a169',       
+    cancelled: '#e53e3e',   
   };
   
   return colors[status] || '#a0aec0';
 };
 
+export const getTaskStatusIcon = (status) => {
+  const icons = {
+    backlog: '📥',
+    todo: '📋',
+    in_progress: '🔄',
+    review: '👀',
+    done: '✅',
+    cancelled: '❌',
+  };
+  
+  return icons[status] || '📝';
+};
+
 export const getAutoTaskStatus = (startDate, deadline) => {
+  if (!startDate || !deadline) return TASK_STATUSES.BACKLOG;
+  
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
@@ -36,17 +60,20 @@ export const getAutoTaskStatus = (startDate, deadline) => {
   taskDeadline.setHours(0, 0, 0, 0);
   
   if (taskStartDate > today) {
-    return TASK_STATUSES.PLANNED;
+    return TASK_STATUSES.TODO;
   } else if (taskDeadline < today) {
-    return TASK_STATUSES.COMPLETED;
+    return TASK_STATUSES.DONE;
   } else {
     return TASK_STATUSES.IN_PROGRESS;
   }
 };
 
-// Проверка, является ли задача просроченной
 export const isTaskOverdue = (deadline, status) => {
-  if (status === TASK_STATUSES.COMPLETED || status === TASK_STATUSES.CANCELLED) {
+  if (status === TASK_STATUSES.DONE || status === TASK_STATUSES.CANCELLED) {
+    return false;
+  }
+  
+  if (!deadline) {
     return false;
   }
   
@@ -59,21 +86,59 @@ export const isTaskOverdue = (deadline, status) => {
   return taskDeadline < today;
 };
 
-// Проверка, можно ли изменить статус задачи
 export const canChangeTaskStatus = (currentStatus, newStatus) => {
   const allowedTransitions = {
-    planned: ['in_progress', 'cancelled'],
-    in_progress: ['completed', 'on_hold', 'cancelled'],
-    on_hold: ['in_progress', 'cancelled'],
-    completed: [],
-    cancelled: [],
+    backlog: ['todo', 'cancelled'],
+    todo: ['in_progress', 'backlog', 'cancelled'],
+    in_progress: ['review', 'todo', 'cancelled'],
+    review: ['done', 'in_progress', 'cancelled'],
+    done: ['in_progress', 'review'], 
+    cancelled: ['todo', 'backlog'],
   };
   
   return allowedTransitions[currentStatus]?.includes(newStatus) || false;
 };
 
-// Получение приоритета задачи на основе дедлайна
-export const getTaskPriority = (deadline) => {
+export const getNextStatusOptions = (currentStatus) => {
+  const transitions = {
+    backlog: ['todo', 'cancelled'],
+    todo: ['in_progress', 'backlog', 'cancelled'],
+    in_progress: ['review', 'todo', 'cancelled'],
+    review: ['done', 'in_progress', 'cancelled'],
+    done: ['in_progress', 'review'],
+    cancelled: ['todo', 'backlog'],
+  };
+  
+  return (transitions[currentStatus] || []).map(status => ({
+    value: status,
+    label: getTaskStatusTranslation(status),
+    color: getTaskStatusColor(status)
+  }));
+};
+
+
+export const getTaskPriorityTranslation = (priority) => {
+  return TASK_PRIORITY_TRANSLATIONS[priority] || priority;
+};
+
+export const TASK_PRIORITY_OPTIONS = [
+  { value: 'low', label: 'Низкий' },
+  { value: 'medium', label: 'Средний' },
+  { value: 'high', label: 'Высокий' },
+  { value: 'urgent', label: 'Срочный' },
+];
+
+export const getTaskPriorityColor = (priority) => {
+  return PRIORITY_COLORS[priority] || '#a0aec0';
+};
+
+export const getTaskPriorityIcon = (priority) => {
+  return PRIORITY_ICONS[priority] || '📝';
+};
+
+export const getAutoTaskPriority = (deadline) => {
+  if (!deadline) return TASK_PRIORITIES.MEDIUM;
+  
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
@@ -84,24 +149,103 @@ export const getTaskPriority = (deadline) => {
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   
   if (diffDays < 0) {
-    return 'overdue'; // Просрочено
+    return TASK_PRIORITIES.URGENT; 
   } else if (diffDays <= 1) {
-    return 'high'; // Высокий
+    return TASK_PRIORITIES.URGENT; 
   } else if (diffDays <= 3) {
-    return 'medium'; // Средний
+    return TASK_PRIORITIES.HIGH;  
+  } else if (diffDays <= 7) {
+    return TASK_PRIORITIES.MEDIUM;
   } else {
-    return 'low'; // Низкий
+    return TASK_PRIORITIES.LOW;   
   }
 };
 
-// Получение цвета приоритета задачи
-export const getTaskPriorityColor = (priority) => {
-  const colors = {
-    overdue: '#e53e3e',
-    high: '#dd6b20',
-    medium: '#d69e2e',
-    low: '#38a169',
+
+export const getColumnOrder = () => {
+  return ['backlog', 'todo', 'in_progress', 'review', 'done', 'cancelled'];
+};
+
+export const getColumnByStatus = (status) => {
+  const columns = {
+    backlog: { id: 'backlog', title: 'Бэклог', status: 'backlog' },
+    todo: { id: 'todo', title: 'К выполнению', status: 'todo' },
+    in_progress: { id: 'in_progress', title: 'В процессе', status: 'in_progress' },
+    review: { id: 'review', title: 'На проверке', status: 'review' },
+    done: { id: 'done', title: 'Выполнена', status: 'done' },
+    cancelled: { id: 'cancelled', title: 'Отменена', status: 'cancelled' },
   };
   
-  return colors[priority] || '#a0aec0';
+  return columns[status] || columns.backlog;
+};
+
+export const getAllColumns = () => {
+  return [
+    getColumnByStatus('backlog'),
+    getColumnByStatus('todo'),
+    getColumnByStatus('in_progress'),
+    getColumnByStatus('review'),
+    getColumnByStatus('done'),
+    getColumnByStatus('cancelled'),
+  ];
+};
+
+export const getActiveColumns = () => {
+  return [
+    getColumnByStatus('backlog'),
+    getColumnByStatus('todo'),
+    getColumnByStatus('in_progress'),
+    getColumnByStatus('review'),
+    getColumnByStatus('done'),
+  ];
+};
+
+export const isFinalStatus = (status) => {
+  return status === TASK_STATUSES.DONE || status === TASK_STATUSES.CANCELLED;
+};
+
+export const getTasksProgress = (tasks) => {
+  const total = tasks.length;
+  if (total === 0) return 0;
+  
+  const completed = tasks.filter(task => task.status === TASK_STATUSES.DONE).length;
+  return Math.round((completed / total) * 100);
+};
+
+export const sortTasksByPosition = (tasks) => {
+  return [...tasks].sort((a, b) => a.position - b.position);
+};
+
+export const generateNewPosition = (tasksInColumn) => {
+  if (tasksInColumn.length === 0) {
+    return 0;
+  }
+  
+  const maxPosition = Math.max(...tasksInColumn.map(task => task.position));
+  return maxPosition + 1000;
+};
+
+
+export const filterTasksByStatus = (tasks, status) => {
+  return tasks.filter(task => task.status === status);
+};
+
+export const filterTasksByPriority = (tasks, priority) => {
+  return tasks.filter(task => task.priority === priority);
+};
+
+export const filterTasksByAssignee = (tasks, userId) => {
+  return tasks.filter(task => 
+    task.assignees && task.assignees.some(assignee => assignee.id === userId)
+  );
+};
+
+export const searchTasks = (tasks, searchText) => {
+  if (!searchText) return tasks;
+  
+  const lowerSearch = searchText.toLowerCase();
+  return tasks.filter(task => 
+    task.title.toLowerCase().includes(lowerSearch) ||
+    (task.description && task.description.toLowerCase().includes(lowerSearch))
+  );
 };

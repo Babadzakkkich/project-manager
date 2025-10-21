@@ -42,7 +42,6 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Пропускаем запросы на /auth/login и /auth/refresh чтобы избежать рекурсии
     if (originalRequest.url?.includes('/auth/')) {
       return Promise.reject(error);
     }
@@ -66,7 +65,6 @@ apiClient.interceptors.response.use(
       
       if (!refreshToken) {
         tokenService.clearTokens();
-        // Не делаем автоматический редирект здесь - пусть useAuth обработает
         return Promise.reject(error);
       }
 
@@ -82,7 +80,6 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         tokenService.clearTokens();
-        // Не делаем автоматический редирект здесь
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

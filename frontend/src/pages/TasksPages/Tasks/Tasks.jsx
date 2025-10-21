@@ -398,13 +398,6 @@ export const Tasks = () => {
                   : 'В ваших группах пока нет задач'
                 }
               </p>
-              <Button 
-                to="/tasks/create" 
-                variant="primary" 
-                size="large"
-              >
-                Создать первую задачу
-              </Button>
             </>
           )}
         </div>

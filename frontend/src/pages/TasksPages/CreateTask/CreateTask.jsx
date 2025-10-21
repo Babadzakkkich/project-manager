@@ -10,14 +10,24 @@ import { Notification } from '../../../components/ui/Notification';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { useNotification } from '../../../hooks/useNotification';
 import { 
-  getAutoTaskStatus, 
-  getTaskStatusTranslation
+  getTaskStatusTranslation,
+  getTaskStatusColor,
+  getTaskStatusIcon,
+  getTaskPriorityTranslation,
+  getTaskPriorityColor,
+  getTaskPriorityIcon,
+  TASK_STATUS_OPTIONS,
+  TASK_PRIORITY_OPTIONS,
 } from '../../../utils/taskStatus';
-import { TASK_STATUSES } from '../../../utils/constants';
+import { 
+  TASK_STATUSES, 
+  TASK_PRIORITIES 
+} from '../../../utils/constants';
 import {
   handleApiError,
   formatDateForInput,
-  isValidDateRange 
+  isValidDateRange, 
+  getDefaultTaskTags
 } from '../../../utils/helpers';
 import styles from './CreateTask.module.css';
 
@@ -32,18 +42,22 @@ export const CreateTask = () => {
     description: '',
     start_date: today,
     deadline: '',
-    status: TASK_STATUSES.IN_PROGRESS,
+    status: TASK_STATUSES.BACKLOG,
+    priority: TASK_PRIORITIES.MEDIUM,
     project_id: '',
-    group_id: ''
+    group_id: '',
+    tags: []
   });
   
   const [assigneeIds, setAssigneeIds] = useState([]);
   const [availableProjects, setAvailableProjects] = useState([]);
   const [filteredGroups, setFilteredGroups] = useState([]);
   const [availableUsers, setAvailableUsers] = useState([]);
+  const [availableTags, _setAvailableTags] = useState(getDefaultTaskTags());
+  const [customTag, setCustomTag] = useState('');
   const [loading, setLoading] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(true);
-  const [_usersLoading, setUsersLoading] = useState(false); // Префикс _ для неиспользуемой переменной
+  const [_usersLoading, setUsersLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdTask, setCreatedTask] = useState(null);
@@ -56,7 +70,6 @@ export const CreateTask = () => {
     hideNotification 
   } = useNotification();
 
-  // Загружаем проекты пользователя
   const loadAvailableProjects = useCallback(async () => {
     try {
       setProjectsLoading(true);
@@ -71,7 +84,6 @@ export const CreateTask = () => {
     }
   }, [showError]);
 
-  // Загружаем пользователей группы при выборе группы
   const loadGroupUsers = useCallback(async (groupId) => {
     if (!groupId) {
       setAvailableUsers([]);
@@ -83,12 +95,10 @@ export const CreateTask = () => {
       const groupData = await groupsAPI.getById(groupId);
       setAvailableUsers(groupData.users || []);
       
-      // Проверяем, является ли текущий пользователь администратором
       const currentUserInGroup = groupData.users?.find(u => u.id === user?.id);
-      const isAdmin = currentUserInGroup?.role === 'admin';
+      const isAdmin = currentUserInGroup?.role === 'admin' || currentUserInGroup?.role === 'super_admin';
       setIsAdminMode(isAdmin);
       
-      // Если не админ, автоматически выбираем текущего пользователя
       if (!isAdmin && user) {
         setAssigneeIds([user.id]);
       }
@@ -104,13 +114,11 @@ export const CreateTask = () => {
     loadAvailableProjects();
   }, [loadAvailableProjects]);
 
-  // Фильтруем группы при выборе проекта и загружаем пользователей при выборе группы
   useEffect(() => {
     if (formData.project_id) {
       const selectedProject = availableProjects.find(p => p.id === parseInt(formData.project_id));
       if (selectedProject && selectedProject.groups) {
         setFilteredGroups(selectedProject.groups);
-        // Сбрасываем выбранную группу если она не входит в проект
         if (formData.group_id && !selectedProject.groups.some(g => g.id === parseInt(formData.group_id))) {
           setFormData(prev => ({ ...prev, group_id: '' }));
           setAvailableUsers([]);
@@ -125,7 +133,6 @@ export const CreateTask = () => {
     }
   }, [formData.project_id, formData.group_id, availableProjects]);
 
-  // Загружаем пользователей при изменении группы
   useEffect(() => {
     if (formData.group_id) {
       loadGroupUsers(parseInt(formData.group_id));
@@ -139,35 +146,18 @@ export const CreateTask = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     
-    setFormData(prev => {
-      const newFormData = {
-        ...prev,
-        [name]: value
-      };
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
       
-      // Автоматически определяем статус при изменении даты начала
-      if (name === 'start_date') {
-        const autoStatus = getAutoTaskStatus(value, newFormData.deadline);
-        newFormData.status = autoStatus;
+      if (errors[name]) {
+        setErrors(prev => ({
+          ...prev,
+          [name]: ''
+        }));
       }
-      
-      // Автоматически определяем статус при изменении дедлайна
-      if (name === 'deadline' && newFormData.start_date) {
-        const autoStatus = getAutoTaskStatus(newFormData.start_date, value);
-        newFormData.status = autoStatus;
-      }
-      
-      return newFormData;
-    });
-    
-    // Очищаем ошибку для этого поля
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
-  };
+    };
 
   const handleAssigneeToggle = (userId) => {
     setAssigneeIds(prev => {
@@ -186,6 +176,40 @@ export const CreateTask = () => {
       const allUserIds = availableUsers.map(u => u.id);
       setAssigneeIds(allUserIds);
     }
+  };
+
+  const handleTagToggle = (tag) => {
+    setFormData(prev => {
+      const currentTags = prev.tags || [];
+      if (currentTags.includes(tag)) {
+        return {
+          ...prev,
+          tags: currentTags.filter(t => t !== tag)
+        };
+      } else {
+        return {
+          ...prev,
+          tags: [...currentTags, tag]
+        };
+      }
+    });
+  };
+
+  const handleAddCustomTag = () => {
+    if (customTag.trim() && !formData.tags.includes(customTag.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        tags: [...prev.tags, customTag.trim()]
+      }));
+      setCustomTag('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }));
   };
 
   const validateForm = () => {
@@ -240,25 +264,23 @@ export const CreateTask = () => {
       let createdTask;
       
       if (isAdminMode && assigneeIds.length > 0) {
-        // Используем расширенный эндпоинт для создания задачи с назначением пользователей
         const taskData = {
           ...formData,
           project_id: parseInt(formData.project_id),
           group_id: parseInt(formData.group_id),
           assignee_ids: assigneeIds,
-          start_date: new Date(formData.start_date).toISOString(),
-          deadline: new Date(formData.deadline).toISOString()
+          start_date: formData.start_date ? new Date(formData.start_date).toISOString() : null,
+          deadline: formData.deadline ? new Date(formData.deadline).toISOString() : null
         };
         
         createdTask = await tasksAPI.createForUsers(taskData);
       } else {
-        // Используем обычный эндпоинт
         const taskData = {
           ...formData,
           project_id: parseInt(formData.project_id),
           group_id: parseInt(formData.group_id),
-          start_date: new Date(formData.start_date).toISOString(),
-          deadline: new Date(formData.deadline).toISOString()
+          start_date: formData.start_date ? new Date(formData.start_date).toISOString() : null,
+          deadline: formData.deadline ? new Date(formData.deadline).toISOString() : null
         };
         
         createdTask = await tasksAPI.create(taskData);
@@ -296,28 +318,29 @@ export const CreateTask = () => {
   };
 
   const handleContinueCreating = () => {
-    // Сбрасываем форму для создания новой задачи
     setFormData({
       title: '',
       description: '',
       start_date: today,
       deadline: '',
-      status: TASK_STATUSES.IN_PROGRESS,
+      status: TASK_STATUSES.BACKLOG,
+      priority: TASK_PRIORITIES.MEDIUM,
       project_id: '',
-      group_id: ''
+      group_id: '',
+      tags: []
     });
     setAssigneeIds([]);
     setCreatedTask(null);
     setShowSuccessModal(false);
     setErrors({});
     setIsAdminMode(false);
+    setCustomTag('');
   };
 
   const handleCloseSuccessModal = () => {
     setShowSuccessModal(false);
   };
 
-  // Проверяем, есть ли у пользователя доступные проекты
   const hasAvailableProjects = availableProjects.length > 0 && !projectsLoading;
 
   return (
@@ -392,6 +415,127 @@ export const CreateTask = () => {
         </div>
 
         <div className={styles.formSection}>
+          <h3 className={styles.sectionTitle}>Свойства задачи</h3>
+          
+          <div className={styles.taskProperties}>
+            <div className={styles.propertyGroup}>
+              <label className={styles.label}>Статус</label>
+              <select
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                className={styles.select}
+                disabled={loading}
+              >
+                {TASK_STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <div className={styles.statusPreview}>
+                <span 
+                  className={styles.statusBadge}
+                  style={{ backgroundColor: getTaskStatusColor(formData.status) }}
+                >
+                  {getTaskStatusIcon(formData.status)} {getTaskStatusTranslation(formData.status)}
+                </span>
+              </div>
+            </div>
+
+            <div className={styles.propertyGroup}>
+              <label className={styles.label}>Приоритет</label>
+              <select
+                name="priority"
+                value={formData.priority}
+                onChange={handleChange}
+                className={styles.select}
+                disabled={loading}
+              >
+                {TASK_PRIORITY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <div className={styles.priorityPreview}>
+                <span 
+                  className={styles.priorityBadge}
+                  style={{ backgroundColor: getTaskPriorityColor(formData.priority) }}
+                >
+                  {getTaskPriorityIcon(formData.priority)} {getTaskPriorityTranslation(formData.priority)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.tagsSection}>
+            <label className={styles.label}>Теги</label>
+            <div className={styles.tagsContainer}>
+              <div className={styles.availableTags}>
+                {availableTags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    className={`${styles.tagButton} ${
+                      formData.tags.includes(tag) ? styles.tagSelected : ''
+                    }`}
+                    onClick={() => handleTagToggle(tag)}
+                  >
+                    #{tag}
+                    {formData.tags.includes(tag) && <span className={styles.tagCheck}>✓</span>}
+                  </button>
+                ))}
+              </div>
+              
+              <div className={styles.customTag}>
+                <Input
+                  placeholder="Добавить свой тег..."
+                  value={customTag}
+                  onChange={(e) => setCustomTag(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCustomTag();
+                    }
+                  }}
+                  className={styles.customTagInput}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="small"
+                  onClick={handleAddCustomTag}
+                  disabled={!customTag.trim()}
+                >
+                  Добавить
+                </Button>
+              </div>
+              
+              {formData.tags.length > 0 && (
+                <div className={styles.selectedTags}>
+                  <span className={styles.selectedTagsLabel}>Выбранные теги:</span>
+                  <div className={styles.selectedTagsList}>
+                    {formData.tags.map((tag) => (
+                      <span key={tag} className={styles.selectedTag}>
+                        #{tag}
+                        <button
+                          type="button"
+                          className={styles.removeTag}
+                          onClick={() => handleRemoveTag(tag)}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className={styles.formSection}>
           <h3 className={styles.sectionTitle}>Сроки выполнения</h3>
           
           <div className={styles.dateFields}>
@@ -418,13 +562,6 @@ export const CreateTask = () => {
               min={formData.start_date || today}
               required
             />
-          </div>
-
-          <div className={styles.statusInfo}>
-            <span className={styles.statusLabel}>Автоматический статус:</span>
-            <span className={styles.statusValue}>
-              {getTaskStatusTranslation(formData.status)}
-            </span>
           </div>
         </div>
 
@@ -502,7 +639,6 @@ export const CreateTask = () => {
           )}
         </div>
 
-        {/* Блок выбора исполнителей (только для администраторов) */}
         {isAdminMode && availableUsers.length > 0 && (
           <div className={styles.formSection}>
             <h3 className={styles.sectionTitle}>Назначение исполнителей</h3>
@@ -552,7 +688,7 @@ export const CreateTask = () => {
                       </div>
                       <span className={styles.userEmail}>{userItem.email}</span>
                       <span className={styles.userRole}>
-                        {userItem.role === 'admin' ? 'Администратор' : 'Участник'}
+                        {userItem.role === 'admin' || userItem.role === 'super_admin' ? 'Администратор' : 'Участник'}
                       </span>
                     </div>
                   </div>
@@ -566,7 +702,6 @@ export const CreateTask = () => {
           </div>
         )}
 
-        {/* Информация для обычных пользователей */}
         {!isAdminMode && formData.group_id && (
           <div className={styles.formSection}>
             <h3 className={styles.sectionTitle}>Исполнитель</h3>
@@ -607,7 +742,6 @@ export const CreateTask = () => {
         </div>
       </form>
 
-      {/* Модальное окно выбора действий после успешного создания */}
       <ConfirmationModal
         isOpen={showSuccessModal}
         onClose={handleCloseSuccessModal}

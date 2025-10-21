@@ -1,0 +1,1 @@
+export { ManagementBoard } from './ManagementBoard';

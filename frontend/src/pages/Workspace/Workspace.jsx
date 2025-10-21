@@ -23,10 +23,8 @@ export const Workspace = () => {
     try {
       setProjectsLoading(true);
       
-      // Используем getMyProjects для загрузки проектов пользователя
       const projects = await projectsAPI.getMyProjects();
       
-      // Берем последние 3 проекта (сортируем по дате создания, новые первыми)
       const recent = projects
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
         .slice(0, 3);
@@ -49,7 +47,6 @@ export const Workspace = () => {
       
       const tasks = await tasksAPI.getMyTasks();
       
-      // Берем последние 5 задач
       const recent = tasks
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
         .slice(0, 5);
@@ -94,7 +91,6 @@ export const Workspace = () => {
       </div>
 
       <div className={styles.container}>
-        {/* Левая колонка - Быстрые действия */}
         <div className={styles.leftColumn}>
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>Быстрые действия</h2>
@@ -135,7 +131,6 @@ export const Workspace = () => {
             </div>
           </div>
 
-          {/* Быстрые ссылки */}
           <div className={styles.section}>
             <h2 className={styles.sectionTitle}>Быстрые ссылки</h2>
             <div className={styles.quickLinks}>
@@ -161,9 +156,7 @@ export const Workspace = () => {
           </div>
         </div>
 
-        {/* Правая колонка - Недавние */}
         <div className={styles.rightColumn}>
-          {/* Недавние проекты */}
           <div className={styles.section}>
             <div className={styles.sectionHeader}>
               <h2 className={styles.sectionTitle}>Мои проекты</h2>
@@ -211,7 +204,6 @@ export const Workspace = () => {
             </div>
           </div>
 
-          {/* Недавние задачи */}
           <div className={styles.section}>
             <div className={styles.sectionHeader}>
               <h2 className={styles.sectionTitle}>Мои задачи</h2>

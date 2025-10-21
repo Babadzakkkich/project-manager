@@ -12,7 +12,6 @@ export const PROJECT_STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Отменен' },
 ];
 
-// Получение цвета для статуса проекта
 export const getProjectStatusColor = (status) => {
   const colors = {
     planned: '#3182ce',
@@ -25,7 +24,6 @@ export const getProjectStatusColor = (status) => {
   return colors[status] || '#a0aec0';
 };
 
-// Автоматическое определение статуса проекта на основе дат
 export const getAutoProjectStatus = (startDate, endDate) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -45,7 +43,6 @@ export const getAutoProjectStatus = (startDate, endDate) => {
   }
 };
 
-// Проверка, можно ли изменить статус проекта
 export const canChangeProjectStatus = (currentStatus, newStatus) => {
   const allowedTransitions = {
     planned: ['in_progress', 'cancelled'],

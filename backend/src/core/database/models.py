@@ -1,6 +1,8 @@
+# core/database/models.py - ОБНОВЛЕННАЯ ВЕРСИЯ
+
 from datetime import datetime, timezone
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import Column, ForeignKey, String, DateTime, Table, Text, func, Integer, Enum, UniqueConstraint
+from sqlalchemy import JSON, Column, ForeignKey, String, DateTime, Table, Text, func, Integer, Enum, UniqueConstraint
 from typing import List, Optional
 import enum
 
@@ -12,7 +14,19 @@ class UserRole(enum.Enum):
     ADMIN = "admin"
     MEMBER = "member"
 
-# === Ассоциативные таблицы ===
+class TaskStatus(enum.Enum):
+    BACKLOG = "backlog"
+    TODO = "todo"
+    IN_PROGRESS = "in_progress"
+    REVIEW = "review"
+    DONE = "done"
+    CANCELLED = "cancelled"
+
+class TaskPriority(enum.Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    URGENT = "urgent"
 
 task_user_association = Table(
     "task_user_association",
@@ -27,8 +41,6 @@ project_group_association = Table(
     Column("project_id", Integer, ForeignKey("projects.id"), primary_key=True),
     Column("group_id", Integer, ForeignKey("groups.id"), primary_key=True),
 )
-
-# === Модели ===
 
 class User(Base):
     __tablename__ = "users"
@@ -78,7 +90,6 @@ class Group(Base):
     )
 
 class GroupMember(Base):
-    """Отдельная модель для хранения ролей пользователей в группах"""
     __tablename__ = "group_members"
     
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -89,8 +100,6 @@ class GroupMember(Base):
         DateTime(timezone=True), 
         server_default=func.now()
     )
-    
-    # Уникальный constraint
     __table_args__ = (
         UniqueConstraint('user_id', 'group_id', name='uq_user_group'),
     )
@@ -128,22 +137,55 @@ class Task(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
-    status: Mapped[str] = mapped_column(String)
+    
+    status: Mapped[TaskStatus] = mapped_column(
+        Enum(TaskStatus), 
+        default=TaskStatus.BACKLOG
+    )
+    priority: Mapped[TaskPriority] = mapped_column(
+        Enum(TaskPriority), 
+        default=TaskPriority.MEDIUM
+    )
+    
+    position: Mapped[int] = mapped_column(default=0)
+    
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), 
         server_default=func.now()
     )
-    start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    start_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
-    
     project: Mapped["Project"] = relationship("Project", back_populates="tasks")
+    
     assignees: Mapped[List["User"]] = relationship(
         "User", secondary=task_user_association, back_populates="assigned_tasks"
     )
     group_id: Mapped[Optional[int]] = mapped_column(ForeignKey("groups.id"))
     group: Mapped["Group"] = relationship(back_populates="tasks")
+    
+    tags: Mapped[List[str]] = mapped_column(JSON, default=list, nullable=True)
+
+class TaskHistory(Base):
+    __tablename__ = "task_history"
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    
+    action: Mapped[str] = mapped_column(String)
+    old_value: Mapped[str | None] = mapped_column(String, nullable=True)
+    new_value: Mapped[str | None] = mapped_column(String, nullable=True)
+    details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        server_default=func.now()
+    )
+    
+    task: Mapped["Task"] = relationship("Task")
+    user: Mapped["User"] = relationship("User")
 
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"

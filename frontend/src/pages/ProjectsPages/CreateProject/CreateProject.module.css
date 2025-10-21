@@ -98,7 +98,6 @@
   opacity: 0.6;
 }
 
-/* Groups selection styles */
 .loadingGroups {
   text-align: center;
   padding: 40px 20px;
@@ -263,7 +262,6 @@
   min-width: 200px;
 }
 
-/* Success state */
 .successContainer {
   background: white;
   border-radius: 16px;
@@ -312,7 +310,6 @@
   min-width: 200px;
 }
 
-/* Адаптивность */
 @media (max-width: 768px) {
   .container {
     padding: 24px 20px;

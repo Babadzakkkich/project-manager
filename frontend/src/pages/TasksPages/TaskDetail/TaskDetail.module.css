@@ -7,80 +7,176 @@
 }
 
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 24px;
-  margin-bottom: 40px;
   background: white;
-  padding: 32px;
-  border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  padding: 40px;
+  border-radius: 20px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  margin-bottom: 40px;
+  position: relative;
+  text-align: center;
 }
 
 .backButton {
-  align-self: flex-start;
+  position: absolute;
+  left: 40px;
+  top: 40px;
+  min-width: 100px;
+}
+
+.headerContent {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
 }
 
 .headerInfo {
-  flex: 1;
+  margin-bottom: 30px;
 }
 
 .titleSection {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
+  margin-bottom: 30px;
 }
 
 .title {
   color: #004B23;
-  font-size: 32px;
+  font-size: 36px;
   font-weight: 700;
-  margin: 0;
+  margin: 0 0 20px 0;
+  line-height: 1.2;
+  text-align: center;
 }
 
-.statusBadge {
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 14px;
+.taskBadges {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 30px;
+}
+
+.statusBadge,
+.priorityBadge {
+  padding: 12px 24px;
+  border-radius: 25px;
+  font-size: 16px;
   font-weight: 600;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s ease;
+}
+
+.statusBadge:hover,
+.priorityBadge:hover {
+  transform: translateY(-2px);
 }
 
 .overdueIndicator {
   margin-left: 8px;
   font-weight: 700;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+.descriptionSection {
+  margin-bottom: 30px;
+  text-align: left;
+}
+
+.descriptionTitle {
+  color: #004B23;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  text-align: center;
 }
 
 .description {
-  color: #666;
+  color: #4a5568;
   font-size: 18px;
-  line-height: 1.5;
-  margin-bottom: 20px;
+  line-height: 1.7;
+  text-align: center;
+  padding: 0 20px;
+  margin: 0;
+}
+
+.taskTags {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.tagsTitle {
+  color: #004B23;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.tagsList {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.taskTag {
+  background: linear-gradient(135deg, #004B23, #006400);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.taskTag:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .taskMeta {
+  background: #f8fafc;
+  padding: 30px;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 30px;
+}
+
+.metaGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 16px;
+  gap: 20px;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 .metaItem {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  text-align: center;
 }
 
 .metaLabel {
   font-weight: 600;
   color: #004B23;
   font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .metaValue {
-  color: #666;
+  color: #2d3748;
+  font-size: 16px;
+  font-weight: 500;
 }
 
 .projectLink,
@@ -89,74 +185,50 @@
   height: auto;
   text-decoration: underline;
   color: #006400;
+  font-weight: 500;
+  background: none;
+  border: none;
 }
 
 .projectLink:hover,
 .groupLink:hover {
   color: #004B23;
+  transform: translateX(2px);
+  background: none;
 }
 
 .overdue {
   color: #e53e3e;
   font-weight: 600;
+  animation: shake 0.5s ease-in-out;
 }
 
-.editForm {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-}
-
-.dateFields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.statusSelect {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.statusSelect label {
-  font-weight: 600;
-  color: #004B23;
-}
-
-.statusSelect select {
-  padding: 12px 16px;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 16px;
-  background: white;
-}
-
-.editActions {
-  display: flex;
-  gap: 12px;
-  margin-top: 16px;
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
 }
 
 .headerActions {
   display: flex;
+  flex-direction: column;
   gap: 12px;
-  align-self: flex-start;
-  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 30px;
 }
 
-.completeButton {
-  background: #38a169;
-  color: white;
-  border: 1px solid #2f855a;
-}
-
-.completeButton:hover:not(:disabled) {
-  background: #2f855a;
+.editButton {
+  min-width: 160px;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .deleteButton {
+  min-width: 160px;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
   background: #fed7d7;
   color: #c53030;
   border: 1px solid #feb2b2;
@@ -165,8 +237,193 @@
 .deleteButton:hover:not(:disabled) {
   background: #feb2b2;
   color: #9b2c2c;
+  transform: translateY(-1px);
 }
 
+/* Стили для формы редактирования */
+.editForm {
+  text-align: left;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.dateFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.taskProperties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.propertyGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.propertyGroup label {
+  font-weight: 600;
+  color: #004B23;
+  font-size: 14px;
+}
+
+.propertyGroup select {
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 16px;
+  background: white;
+  transition: border-color 0.2s ease;
+}
+
+.propertyGroup select:focus {
+  outline: none;
+  border-color: #004B23;
+  box-shadow: 0 0 0 3px rgba(0, 75, 35, 0.1);
+}
+
+.tagsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tagsSection label {
+  font-weight: 600;
+  color: #004B23;
+  font-size: 14px;
+  text-align: left;
+}
+
+.tagsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.availableTags {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tagButton {
+  padding: 8px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 20px;
+  background: white;
+  color: #4a5568;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tagButton:hover {
+  border-color: #004B23;
+  transform: translateY(-1px);
+}
+
+.tagSelected {
+  background: #004B23;
+  color: white;
+  border-color: #004B23;
+}
+
+.tagCheck {
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.customTag {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.customTagInput {
+  flex: 1;
+  max-width: 300px;
+}
+
+.selectedTags {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.selectedTagsLabel {
+  font-weight: 600;
+  color: #004B23;
+  font-size: 14px;
+  text-align: center;
+}
+
+.selectedTagsList {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.selectedTag {
+  background: #004B23;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.selectedTag:hover {
+  background: #006400;
+  transform: translateY(-1px);
+}
+
+.removeTag {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  padding: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.removeTag:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.editActions {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* Основной контент */
 .content {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -175,19 +432,26 @@
 
 .section {
   background: white;
-  border-radius: 16px;
-  padding: 28px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  text-align: center;
+}
+
+.section:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
 }
 
 .sectionHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
+  margin-bottom: 28px;
+  padding-bottom: 20px;
   border-bottom: 2px solid #f1f5f9;
   flex-wrap: wrap;
   gap: 16px;
@@ -200,39 +464,26 @@
   margin: 0;
 }
 
-.quickActions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.quickActions label {
-  font-weight: 600;
-  color: #004B23;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.quickActions select {
-  padding: 8px 12px;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  background: white;
-}
-
 .taskDetails {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .detailItem {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 0;
+  padding: 20px 0;
   border-bottom: 1px solid #f1f5f9;
+  transition: background-color 0.2s ease;
+}
+
+.detailItem:hover {
+  background: #f8fafc;
+  margin: 0 -20px;
+  padding: 20px;
+  border-radius: 12px;
 }
 
 .detailItem:last-child {
@@ -242,58 +493,105 @@
 .detailItem strong {
   color: #004B23;
   font-weight: 600;
+  min-width: 120px;
+  text-align: left;
 }
 
-.statusText {
+.statusText,
+.priorityText {
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+}
+
+.progressContainer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  justify-content: flex-end;
 }
 
 .progressBar {
   width: 200px;
-  height: 8px;
+  height: 12px;
   background: #e2e8f0;
-  border-radius: 4px;
+  border-radius: 6px;
   overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
 }
 
 .progressFill {
   height: 100%;
-  border-radius: 4px;
+  border-radius: 6px;
   transition: width 0.3s ease;
+  position: relative;
 }
 
+.progressFill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+.progressText {
+  font-weight: 600;
+  color: #004B23;
+  min-width: 40px;
+  text-align: right;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Стили для исполнителей */
 .assigneesHeaderActions {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .addUsersForm {
   background: #f8fafc;
-  padding: 20px;
-  border-radius: 12px;
-  margin-bottom: 24px;
+  padding: 24px;
+  border-radius: 16px;
+  margin-bottom: 28px;
   border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.addUsersForm:hover {
+  border-color: #004B23;
+  box-shadow: 0 4px 12px rgba(0, 75, 35, 0.1);
 }
 
 .addUsersFields {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .selectUsers {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
 }
 
 .selectUsers label {
   font-weight: 600;
   color: #004B23;
-  font-size: 14px;
-}
-
-.selectUsers small {
-  color: #666;
-  font-size: 12px;
+  font-size: 16px;
+  text-align: center;
 }
 
 .assigneesSection {
@@ -305,98 +603,222 @@
 .assigneesListCompact {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
 .assigneeCard {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
+  padding: 20px;
   background: #f8fafc;
-  border-radius: 12px;
+  border-radius: 16px;
   border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.assigneeCard:hover {
+  border-color: #004B23;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
 }
 
 .assigneeInfo {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+  flex: 1;
 }
 
 .assigneeAvatar {
-  width: 40px;
-  height: 40px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background: #004B23;
+  background: linear-gradient(135deg, #004B23, #006400);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  font-size: 16px;
+  font-size: 20px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .assigneeDetails {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  text-align: left;
 }
 
-.assigneeName {
+.assigneeLogin {
   font-weight: 600;
   color: #004B23;
+  font-size: 18px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .assigneeEmail {
-  font-size: 12px;
+  font-size: 14px;
   color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .removeButton {
   background: #fed7d7;
   color: #c53030;
   border: 1px solid #feb2b2;
-  padding: 6px 12px;
-  font-size: 12px;
+  padding: 8px 16px;
+  font-size: 14px;
+  transition: all 0.2s ease;
 }
 
 .removeButton:hover:not(:disabled) {
   background: #feb2b2;
   color: #9b2c2c;
+  transform: translateY(-1px);
 }
 
 .moreItems {
   text-align: center;
-  padding: 16px;
+  padding: 24px;
   border-top: 1px solid #f1f5f9;
   margin-top: auto;
+  background: #f8fafc;
+  border-radius: 0 0 16px 16px;
 }
 
 .moreItems p {
   color: #666;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  font-size: 16px;
 }
 
 .emptyState {
   text-align: center;
-  padding: 40px 20px;
+  padding: 60px 20px;
   color: #666;
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  background: #f8fafc;
+  border-radius: 16px;
+  border: 2px dashed #e2e8f0;
 }
 
 .emptyState p {
   margin-bottom: 16px;
+  font-size: 16px;
 }
 
 .emptyState p:last-of-type {
   margin-bottom: 24px;
+  font-size: 14px;
+  color: #888;
 }
 
+/* Стили для выбора пользователей */
+.usersGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.userCheckboxItem {
+  display: flex;
+  align-items: center;
+  padding: 20px;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin: 0;
+}
+
+.userCheckboxItem:hover {
+  border-color: #004B23;
+  background: #f8fafc;
+  transform: translateY(-2px);
+}
+
+.userCheckboxItem:has(input:checked) {
+  border-color: #004B23;
+  background: #f0fff4;
+  box-shadow: 0 0 0 3px rgba(0, 75, 35, 0.1);
+}
+
+.userCheckbox {
+  margin-right: 16px;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: #004B23;
+}
+
+.userInfo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.userAvatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #004B23, #006400);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 18px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.userDetails {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.userLogin {
+  font-weight: 600;
+  color: #004B23;
+  font-size: 16px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.userEmail {
+  font-size: 14px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Стили для загрузки и ошибок */
 .loadingContainer,
 .errorContainer {
   display: flex;
@@ -405,17 +827,21 @@
   justify-content: center;
   min-height: calc(100vh - 80px);
   text-align: center;
-  padding: 40px;
+  padding: 60px 40px;
+  background: white;
+  border-radius: 20px;
+  margin: 20px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
+  width: 60px;
+  height: 60px;
   border: 4px solid #f3f3f3;
   border-top: 4px solid #004B23;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
 }
 
 @keyframes spin {
@@ -426,127 +852,26 @@
 .errorContainer h2 {
   color: #c53030;
   margin-bottom: 16px;
+  font-size: 24px;
 }
 
-/* Стили для красивого выбора пользователей */
-.usersGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-  margin-top: 12px;
+/* Анимации */
+.fadeIn {
+  animation: fadeIn 0.3s ease-in-out;
 }
 
-.userCheckboxItem {
-  display: flex;
-  align-items: center;
-  padding: 16px;
-  background: white;
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin: 0;
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.userCheckboxItem:hover {
-  border-color: #004B23;
-  background: #f8fafc;
+.slideIn {
+  animation: slideIn 0.3s ease-out;
 }
 
-.userCheckboxItem:has(input:checked) {
-  border-color: #004B23;
-  background: #f0fff4;
-  box-shadow: 0 0 0 2px rgba(0, 75, 35, 0.1);
-}
-
-.userCheckbox {
-  margin-right: 12px;
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-.userInfo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-}
-
-.userAvatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #004B23, #006400);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 16px;
-  flex-shrink: 0;
-}
-
-.userDetails {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.userName {
-  font-weight: 600;
-  color: #004B23;
-  font-size: 14px;
-}
-
-.userEmail {
-  font-size: 12px;
-  color: #666;
-  margin-top: 2px;
-}
-
-.multiSelect {
-  padding: 12px;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  background: white;
-  min-height: 120px;
-  transition: border-color 0.2s ease;
-}
-
-.multiSelect:focus {
-  outline: none;
-  border-color: #004B23;
-  box-shadow: 0 0 0 3px rgba(0, 75, 35, 0.1);
-}
-
-.multiSelect option {
-  padding: 8px 12px;
-  margin: 4px 0;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.multiSelect option:hover {
-  background: #f8fafc;
-}
-
-.multiSelect option:checked {
-  background: #004B23;
-  color: white;
-}
-
-.userLogin,
-.assigneeLogin {
-  font-weight: 600;
-  color: #333;
-}
-
-.userEmail,
-.assigneeEmail {
-  font-size: 0.875rem;
-  color: #666;
+@keyframes slideIn {
+  from { transform: translateX(-20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
 
 /* Адаптивность */
@@ -555,42 +880,44 @@
     grid-template-columns: 1fr;
     gap: 24px;
   }
+  
+  .taskProperties {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
   .container {
-    padding: 24px 20px;
+    padding: 20px 16px;
   }
   
   .header {
-    flex-direction: column;
-    gap: 16px;
-    padding: 24px;
+    padding: 30px 20px;
   }
   
-  .titleSection {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
+  .backButton {
+    position: static;
+    margin-bottom: 20px;
+  }
+  
+  .title {
+    font-size: 28px;
   }
   
   .section {
-    padding: 20px;
+    padding: 24px;
   }
   
   .sectionHeader {
     flex-direction: column;
     gap: 16px;
-    align-items: flex-start;
+    align-items: center;
+    text-align: center;
   }
   
   .assigneesHeaderActions {
     width: 100%;
-    justify-content: space-between;
-  }
-  
-  .title {
-    font-size: 24px;
+    justify-content: center;
   }
   
   .dateFields {
@@ -598,37 +925,105 @@
   }
   
   .taskMeta {
+    padding: 20px;
+  }
+  
+  .metaGrid {
     grid-template-columns: 1fr;
   }
   
   .headerActions {
     width: 100%;
-    justify-content: space-between;
+    align-items: stretch;
+  }
+  
+  .editButton,
+  .deleteButton {
+    width: 100%;
   }
   
   .detailItem {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: 12px;
+    text-align: left;
+  }
+  
+  .detailItem strong {
+    min-width: auto;
+  }
+  
+  .progressContainer {
+    width: 100%;
+    justify-content: space-between;
   }
   
   .progressBar {
-    width: 100%;
+    width: 150px;
   }
   
   .assigneeCard {
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
     align-items: flex-start;
+    text-align: left;
   }
   
-  .quickActions {
+  .usersGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .customTag {
     flex-direction: column;
-    align-items: flex-start;
-    width: 100%;
+    align-items: stretch;
+    gap: 12px;
   }
   
-  .quickActions select {
+  .editActions {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .editActions button {
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 16px 12px;
+  }
+  
+  .header {
+    padding: 24px 16px;
+  }
+  
+  .title {
+    font-size: 24px;
+  }
+  
+  .description {
+    font-size: 16px;
+    padding: 0 12px;
+  }
+  
+  .section {
+    padding: 20px;
+  }
+  
+  .taskBadges {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .statusBadge,
+  .priorityBadge {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 20px;
+  }
+  
+  .progressBar {
+    width: 120px;
   }
 }

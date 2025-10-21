@@ -15,9 +15,14 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
-.card.overdue {
-  border-left-color: #e53e3e;
+.cardDone {
+  background: #f0fff4;
+  border-left-color: #38a169;
+}
+
+.cardOverdue {
   background: #fff5f5;
+  border-left-color: #e53e3e;
 }
 
 .cardCompact {
@@ -34,9 +39,14 @@
   transform: translateY(-1px);
 }
 
-.cardCompact.overdue {
-  border-left-color: #e53e3e;
+.cardCompact.cardDone {
+  background: #f0fff4;
+  border-left-color: #38a169;
+}
+
+.cardCompact.cardOverdue {
   background: #fff5f5;
+  border-left-color: #e53e3e;
 }
 
 .titleSection {
@@ -112,56 +122,36 @@
   font-weight: 600;
   white-space: nowrap;
   margin-left: 8px;
+  color: white !important;
+}
+
+.statusBacklog {
+  background: #a0aec0 !important;
+}
+
+.statusTodo {
+  background: #3182ce !important;
 }
 
 .statusInProgress {
-  background: #e6f7e9;
-  color: white;
+  background: #dd6b20 !important;
 }
 
-.statusCompleted {
-  background: #d4edda;
-  color: white
+.statusReview {
+  background: #d69e2e !important;
 }
 
-.statusPlanned {
-  background: #e2e8f0;
-  color: white;
-}
-
-.statusOnHold {
-  background: #fff3cd;
-  color: white;
+.statusDone {
+  background: #38a169 !important;
 }
 
 .statusCancelled {
-  background: #f8d7da;
-  color: white;
+  background: #e53e3e !important;
 }
 
 .statusDefault {
-  background: #f7fafc;
-  color: #4a5568;
-}
-
-.description {
-  color: #666;
-  font-size: 14px;
-  line-height: 1.4;
-  margin-bottom: 16px;
-  flex: 1;
-}
-
-.compactDescription {
-  color: #666;
-  font-size: 13px;
-  line-height: 1.3;
-  margin-bottom: 8px;
-  display: -webkit-box;
-  line-clamp: 2;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  background: #f7fafc !important;
+  color: #4a5568 !important;
 }
 
 .projectInfo {
@@ -308,6 +298,7 @@
   border: 1px solid #feb2b2;
   padding: 6px 12px;
   font-size: 12px;
+  margin-left: 12px;
 }
 
 .deleteButton:hover:not(:disabled) {
@@ -315,7 +306,6 @@
   color: #9b2c2c;
 }
 
-/* Стили для секции исполнителей */
 .assigneesSection {
   margin: 16px 0;
   padding: 16px;
@@ -417,7 +407,81 @@
   border: 1px solid #feebc8;
 }
 
-/* Адаптивность для исполнителей */
+.priority {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: white !important;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.priority.low {
+  background: #38a169 !important;
+}
+
+.priority.medium {
+  background: #d69e2e !important;
+}
+
+.priority.high {
+  background: #dd6b20 !important;
+}
+
+.priority.urgent {
+  background: #e53e3e !important;
+}
+
+.headerBadges {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.compactBadges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.tag {
+  background: #f7fafc;
+  color: #4a5568;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid #e2e8f0;
+}
+
+.moreTags {
+  background: #edf2f7;
+  color: #718096;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.clickable {
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.clickable:hover {
+  transform: scale(1.05);
+}
+
 @media (max-width: 480px) {
   .assignee {
     flex-direction: column;
@@ -431,7 +495,6 @@
   }
 }
 
-/* Адаптивность для футера */
 @media (max-width: 480px) {
   .footerActions {
     flex-direction: column;
@@ -444,7 +507,6 @@
   }
 }
 
-/* Адаптивность */
 @media (max-width: 768px) {
   .card {
     padding: 16px;
@@ -484,5 +546,15 @@
   
   .infoLabel {
     min-width: auto;
+  }
+  
+  .headerBadges {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  
+  .compactBadges {
+    flex-wrap: wrap;
   }
 }

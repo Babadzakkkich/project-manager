@@ -40,7 +40,6 @@ export const CreateProject = () => {
     hideNotification 
   } = useNotification();
 
-  // Загружаем группы, где пользователь является администратором
   const loadAvailableGroups = useCallback(async () => {
     try {
       setGroupsLoading(true);
@@ -71,7 +70,6 @@ export const CreateProject = () => {
       [name]: value
     }));
     
-    // Очищаем ошибки при изменении
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -87,7 +85,6 @@ export const CreateProject = () => {
       return { ...prev, group_ids: newGroupIds };
     });
     
-    // Очищаем ошибку групп при изменении
     if (errors.group_ids) {
       setErrors(prev => ({ ...prev, group_ids: '' }));
     }
@@ -134,13 +131,11 @@ export const CreateProject = () => {
     setErrors({});
     
     try {
-      // Автоматически определяем статус проекта на основе дат
       const autoStatus = getAutoProjectStatus(formData.start_date, formData.end_date);
       
-      // Подготавливаем данные для отправки
       const projectData = {
         ...formData,
-        status: autoStatus, // Автоматически определяем статус
+        status: autoStatus,
         start_date: new Date(formData.start_date).toISOString(),
         end_date: new Date(formData.end_date).toISOString(),
       };
@@ -171,7 +166,6 @@ export const CreateProject = () => {
   };
 
   const handleContinueCreating = () => {
-    // Сбрасываем форму для создания нового проекта
     setFormData({
       title: '',
       description: '',
@@ -190,7 +184,6 @@ export const CreateProject = () => {
 
   return (
     <div className={styles.container}>
-      {/* Уведомление */}
       <Notification
         message={notification.message}
         type={notification.type}
@@ -363,7 +356,6 @@ export const CreateProject = () => {
         </div>
       </form>
 
-      {/* Модальное окно выбора действий после успешного создания */}
       <ConfirmationModal
         isOpen={showSuccessModal}
         onClose={handleCloseSuccessModal}

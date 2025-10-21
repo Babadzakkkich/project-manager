@@ -16,11 +16,9 @@ from modules.projects.router import router as projects_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    # startup
     async with db_session.engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
-    # shutdown
     print("dispose engine")
     await db_session.dispose()
 

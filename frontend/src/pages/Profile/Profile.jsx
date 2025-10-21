@@ -60,10 +60,8 @@ export const Profile = () => {
     try {
       setUpdating(true);
       
-      // Обновляем только основные данные
       const updatedUser = await usersAPI.updateProfile(editForm);
       
-      // Сохраняем статистику из предыдущего состояния
       setUser(prevUser => ({
         ...updatedUser,
         groups: prevUser?.groups || [],
@@ -106,7 +104,6 @@ export const Profile = () => {
     });
   };
 
-  // Статистика пользователя
   const getUserStats = () => {
     if (!user) return null;
     
@@ -147,7 +144,6 @@ export const Profile = () => {
 
   return (
     <div className={styles.container}>
-      {/* Уведомление */}
       <Notification
         message={notification.message}
         type={notification.type}
@@ -168,7 +164,6 @@ export const Profile = () => {
       </div>
 
       <div className={styles.content}>
-        {/* Основная информация */}
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Основная информация</h2>
@@ -248,7 +243,6 @@ export const Profile = () => {
           )}
         </div>
 
-        {/* Статистика */}
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Статистика</h2>
@@ -282,7 +276,6 @@ export const Profile = () => {
           )}
         </div>
 
-        {/* Опасная зона */}
         <div className={`${styles.section} ${styles.dangerZone}`}>
           <div className={styles.sectionHeader}>
             <h2>Опасная зона</h2>
@@ -306,7 +299,6 @@ export const Profile = () => {
         </div>
       </div>
 
-      {/* Модальное окно подтверждения удаления */}
       <ConfirmationModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}

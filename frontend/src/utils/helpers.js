@@ -3,15 +3,15 @@ import {
   PROJECT_STATUS_TRANSLATIONS, 
   TASK_STATUS_TRANSLATIONS,
   VALIDATION_PATTERNS,
-  TASK_STATUSES
+  TASK_STATUSES,
+  TASK_PRIORITIES,
+  BOARD_VIEW_MODES 
 } from './constants';
 
-// Функция для объединения классов CSS
 export const classNames = (...classes) => {
   return classes.filter(Boolean).join(' ');
 };
 
-// Форматирование даты для input[type="date"]
 export const formatDateForInput = (date) => {
   if (!date) return '';
   
@@ -27,7 +27,6 @@ export const formatDateForInput = (date) => {
   }
 };
 
-// Форматирование даты
 export const formatDate = (dateString, options = {}) => {
   if (!dateString) return '-';
   
@@ -46,7 +45,6 @@ export const formatDate = (dateString, options = {}) => {
   }
 };
 
-// Форматирование даты и времени
 export const formatDateTime = (dateString) => {
   if (!dateString) return '-';
   
@@ -65,27 +63,44 @@ export const formatDateTime = (dateString) => {
   }
 };
 
-// Относительное время (например, "2 дня назад")
 export const formatRelativeTime = (dateString) => {
   if (!dateString) return '-';
   
   try {
     const date = new Date(dateString);
     const now = new Date();
-    const diffTime = Math.abs(now - date);
+    
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const targetDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    
+    const diffTime = targetDate - today;
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     
     if (diffDays === 0) {
       return 'Сегодня';
     } else if (diffDays === 1) {
+      return 'Завтра';
+    } else if (diffDays === -1) {
       return 'Вчера';
-    } else if (diffDays < 7) {
-      return `${diffDays} дня назад`;
-    } else if (diffDays < 30) {
+    } else if (diffDays > 1 && diffDays < 7) {
+      return `Через ${diffDays} ${getDayWord(diffDays)}`;
+    } else if (diffDays < 0 && diffDays > -7) {
+      return `${Math.abs(diffDays)} ${getDayWord(Math.abs(diffDays))} назад`;
+    } else if (diffDays >= 7 && diffDays < 14) {
+      return 'Через неделю';
+    } else if (diffDays <= -7 && diffDays > -14) {
+      return 'Неделю назад';
+    } else if (diffDays >= 14 && diffDays < 30) {
       const weeks = Math.floor(diffDays / 7);
-      return `${weeks} ${weeks === 1 ? 'неделю' : 'недели'} назад`;
+      return `Через ${weeks} ${getWeekWord(weeks)}`;
+    } else if (diffDays <= -14 && diffDays > -30) {
+      const weeks = Math.floor(Math.abs(diffDays) / 7);
+      return `${weeks} ${getWeekWord(weeks)} назад`;
     } else {
-      return formatDate(dateString);
+      return formatDate(dateString, {
+        day: 'numeric',
+        month: 'short'
+      });
     }
   } catch (error) {
     console.error('Error formatting relative time:', error);
@@ -93,42 +108,46 @@ export const formatRelativeTime = (dateString) => {
   }
 };
 
-// Получение перевода роли пользователя
+const getDayWord = (days) => {
+  if (days === 1) return 'день';
+  if (days >= 2 && days <= 4) return 'дня';
+  return 'дней';
+};
+
+const getWeekWord = (weeks) => {
+  if (weeks === 1) return 'неделю';
+  if (weeks >= 2 && weeks <= 4) return 'недели';
+  return 'недель';
+};
+
 export const getUserRoleTranslation = (role) => {
   return USER_ROLE_TRANSLATIONS[role] || role;
 };
 
-// Получение перевода статуса проекта
 export const getProjectStatusTranslation = (status) => {
   return PROJECT_STATUS_TRANSLATIONS[status] || status;
 };
 
-// Получение перевода статуса задачи
 export const getTaskStatusTranslation = (status) => {
   return TASK_STATUS_TRANSLATIONS[status] || status;
 };
 
-// Валидация email
 export const isValidEmail = (email) => {
   return VALIDATION_PATTERNS.EMAIL.test(email);
 };
 
-// Валидация логина
 export const isValidLogin = (login) => {
   return VALIDATION_PATTERNS.LOGIN.test(login);
 };
 
-// Валидация имени
 export const isValidName = (name) => {
   return VALIDATION_PATTERNS.NAME.test(name);
 };
 
-// Валидация пароля
 export const isValidPassword = (password) => {
   return VALIDATION_PATTERNS.PASSWORD.test(password);
 };
 
-// Валидация диапазона дат
 export const isValidDateRange = (startDate, endDate) => {
   if (!startDate || !endDate) {
     return { isValid: false, error: 'Даты начала и окончания обязательны' };
@@ -144,14 +163,12 @@ export const isValidDateRange = (startDate, endDate) => {
   return { isValid: true };
 };
 
-// Обрезка текста
 export const truncateText = (text, maxLength) => {
   if (!text) return '';
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength) + '...';
 };
 
-// Генерация случайного цвета (для аватаров и т.д.)
 export const generateRandomColor = () => {
   const colors = [
     '#004B23', '#006400', '#007200', '#38B000', '#70E000',
@@ -161,7 +178,6 @@ export const generateRandomColor = () => {
   return colors[Math.floor(Math.random() * colors.length)];
 };
 
-// Получение инициалов для аватара
 export const getInitials = (name) => {
   if (!name) return '?';
   
@@ -173,22 +189,18 @@ export const getInitials = (name) => {
   return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
 };
 
-// Форматирование числа с разделителями тысяч
 export const formatNumber = (number) => {
   return new Intl.NumberFormat('ru-RU').format(number);
 };
 
-// Проверка, является ли пользователь администратором
 export const isAdmin = (role) => {
   return role === 'admin' || role === 'super_admin';
 };
 
-// Проверка, является ли пользователь супер-администратором
 export const isSuperAdmin = (role) => {
   return role === 'super_admin';
 };
 
-// Обработка ошибок API
 export const handleApiError = (error) => {
   console.error('API Error:', error);
   
@@ -219,7 +231,6 @@ export const handleApiError = (error) => {
   return 'Произошла неизвестная ошибка';
 };
 
-// Дебаунс функция
 export const debounce = (func, wait) => {
   let timeout;
   return function executedFunction(...args) {
@@ -232,7 +243,6 @@ export const debounce = (func, wait) => {
   };
 };
 
-// Автоматическое определение статуса задачи
 export const getAutoTaskStatus = (startDate, deadline) => {
   if (!startDate || !deadline) return TASK_STATUSES.PLANNED;
   
@@ -252,4 +262,47 @@ export const getAutoTaskStatus = (startDate, deadline) => {
   } else {
     return TASK_STATUSES.IN_PROGRESS;
   }
+};
+
+export const isTaskAssignee = (task, userId) => {
+  if (!task || !task.assignees) return false;
+  return task.assignees.some(assignee => assignee.id === userId);
+};
+
+export const canEditTask = (task, user, userRoleInGroup) => {
+  if (!task || !user) return false;
+  
+  if (isTaskAssignee(task, user.id)) {
+    return true;
+  }
+  
+  if (userRoleInGroup === 'admin' || userRoleInGroup === 'super_admin') {
+    return true;
+  }
+  
+  return false;
+};
+
+export const getDefaultTaskTags = () => {
+  return ['feature', 'bug', 'improvement', 'documentation', 'urgent'];
+};
+
+export const formatTaskTags = (tags) => {
+  if (!tags || !Array.isArray(tags)) return [];
+  return tags.map(tag => ({
+    value: tag,
+    label: tag.charAt(0) + tag.slice(1)
+  }));
+};
+
+export const isValidTaskStatus = (status) => {
+  return Object.values(TASK_STATUSES).includes(status);
+};
+
+export const isValidTaskPriority = (priority) => {
+  return Object.values(TASK_PRIORITIES).includes(priority);
+};
+
+export const isValidBoardViewMode = (mode) => {
+  return Object.values(BOARD_VIEW_MODES).includes(mode);
 };

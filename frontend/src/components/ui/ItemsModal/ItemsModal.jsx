@@ -5,7 +5,6 @@ import { GroupCard } from '../GroupCard';
 import { TaskCard } from '../TaskCard';
 import styles from './ItemsModal.module.css';
 
-// Конфигурации для разных типов данных
 const ITEM_CONFIGS = {
   projects: {
     filterOptions: [
@@ -130,7 +129,7 @@ const ITEM_CONFIGS = {
     }
   },
   users: {
-    filterOptions: [], // Убираем фильтрацию для пользователей
+    filterOptions: [],
     sortOptions: [
       { value: 'login_asc', label: 'По логину (А-Я)' },
       { value: 'login_desc', label: 'По логину (Я-А)' },
@@ -173,15 +172,13 @@ const ITEM_CONFIGS = {
 
 export const ItemsModal = ({
   items = [],
-  itemType = 'projects', // 'projects', 'groups', 'tasks', 'users'
+  itemType = 'projects',
   isOpen = false,
   onClose,
   title = "",
-  // Дополнительные пропсы для карточек
   currentUserId,
   showDeleteButton = false,
   onDelete,
-  // Кастомные конфигурации (опционально)
   customFilterOptions,
   customSortOptions,
   customRenderItem,
@@ -190,16 +187,13 @@ export const ItemsModal = ({
   const [filters, setFilters] = useState({});
   const [sort, setSort] = useState('');
 
-  // Получаем конфигурацию для типа данных
   const config = ITEM_CONFIGS[itemType] || ITEM_CONFIGS.projects;
   
-  // Используем кастомные настройки если предоставлены
   const filterOptions = customFilterOptions || config.filterOptions;
   const sortOptions = customSortOptions || config.sortOptions;
   const renderItem = customRenderItem || config.renderItem;
   const emptyMessages = customEmptyMessages || config.emptyMessages;
 
-  // Сброс фильтров при закрытии модального окна
   useEffect(() => {
     if (!isOpen) {
       setFilters({});
@@ -207,18 +201,15 @@ export const ItemsModal = ({
     }
   }, [isOpen]);
 
-  // Фильтрация и сортировка элементов
   const filteredAndSortedItems = useMemo(() => {
     let result = [...items];
 
-    // Применяем фильтры
     Object.keys(filters).forEach(key => {
       if (filters[key]) {
         result = result.filter(item => item[key] === filters[key]);
       }
     });
 
-    // Применяем сортировку
     if (sort) {
       switch (sort) {
         case 'title_asc':

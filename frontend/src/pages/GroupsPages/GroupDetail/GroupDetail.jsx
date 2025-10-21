@@ -28,11 +28,9 @@ export const GroupDetail = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [showProjectsModal, setShowProjectsModal] = useState(false);
   
-  // Состояния для модальных окон подтверждения
   const [showDeleteGroupModal, setShowDeleteGroupModal] = useState(false);
   const [showRemoveUserModal, setShowRemoveUserModal] = useState(null);
   
-  // Состояния для загрузки
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const [isRemovingUser, setIsRemovingUser] = useState(false);
 
@@ -50,7 +48,6 @@ export const GroupDetail = () => {
       setError('');
       const groupData = await groupsAPI.getById(groupId);
       
-      // Загружаем детали проектов сразу
       const projectsWithDetails = await Promise.all(
         groupData.projects.map(async (project) => {
           try {
@@ -99,7 +96,6 @@ export const GroupDetail = () => {
     }
   }, [loadGroup, loadUserRole, groupId]);
 
-  // Получаем первые 3 проекта в алфавитном порядке для компактного отображения
   const getDisplayProjects = useCallback(() => {
     if (!group?.projects) return [];
     
@@ -131,7 +127,7 @@ export const GroupDetail = () => {
       setNewUserEmail('');
       setNewUserRole('member');
       setAddingUser(false);
-      await loadGroup(); // Перезагружаем данные
+      await loadGroup();
       showSuccess('Пользователь успешно добавлен в группу');
     } catch (err) {
       console.error('Error adding user:', err);
@@ -152,7 +148,7 @@ export const GroupDetail = () => {
       await groupsAPI.removeUsers(groupId, {
         user_ids: [showRemoveUserModal.userId]
       });
-      await loadGroup(); // Перезагружаем данные
+      await loadGroup();
       showSuccess(`Пользователь ${showRemoveUserModal.userLogin} удален из группы`);
     } catch (err) {
       console.error('Error removing user:', err);
@@ -175,7 +171,7 @@ export const GroupDetail = () => {
       });
       
       setEditingUser(null);
-      await loadGroup(); // Перезагружаем данные
+      await loadGroup();
       showSuccess(`Роль пользователя ${userToUpdate.login} изменена`);
     } catch (err) {
       console.error('Error changing user role:', err);
@@ -202,6 +198,17 @@ export const GroupDetail = () => {
       setIsDeletingGroup(false);
       setShowDeleteGroupModal(false);
     }
+  };
+
+  const handleCreateProject = () => {
+    navigate('/projects/create', { 
+      state: { 
+        preselectedGroup: { 
+          id: group.id, 
+          name: group.name 
+        } 
+      } 
+    });
   };
 
   const isAdmin = userRole === 'admin' || userRole === 'super_admin';
@@ -232,7 +239,6 @@ export const GroupDetail = () => {
 
   return (
     <div className={styles.container}>
-      {/* Уведомление */}
       <Notification
         message={notification.message}
         type={notification.type}
@@ -312,7 +318,6 @@ export const GroupDetail = () => {
       </div>
 
       <div className={styles.content}>
-        {/* Участники группы */}
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Участники группы</h2>
@@ -392,34 +397,25 @@ export const GroupDetail = () => {
                     </span>
                   )}
                   
-                  {isAdmin && (
+                  {isAdmin && !isCurrentUser(userItem) && (
                     <div className={styles.actionButtons}>
-                      {!isCurrentUser(userItem) && (
-                        <>
-                          <Button 
-                            variant="secondary" 
-                            size="small"
-                            onClick={() => setEditingUser(userItem.id)}
-                            className={styles.editRoleButton}
-                          >
-                            Изменить роль
-                          </Button>
-                          <Button 
-                            variant="secondary" 
-                            size="small"
-                            onClick={() => handleRemoveUserClick(userItem.id, userItem.login)}
-                            className={styles.removeButton}
-                            disabled={isRemovingUser}
-                          >
-                            {isRemovingUser ? 'Удаление...' : 'Удалить'}
-                          </Button>
-                        </>
-                      )}
-                      {isCurrentUser(userItem) && (userItem.role === 'admin' || userItem.role === 'super_admin') && (
-                        <span className={styles.selfAdminNote}>
-                          Вы администратор
-                        </span>
-                      )}
+                      <Button 
+                        variant="secondary" 
+                        size="small"
+                        onClick={() => setEditingUser(userItem.id)}
+                        className={styles.editRoleButton}
+                      >
+                        Изменить роль
+                      </Button>
+                      <Button 
+                        variant="secondary" 
+                        size="small"
+                        onClick={() => handleRemoveUserClick(userItem.id, userItem.login)}
+                        className={styles.removeButton}
+                        disabled={isRemovingUser}
+                      >
+                        {isRemovingUser ? 'Удаление...' : 'Удалить'}
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -428,7 +424,6 @@ export const GroupDetail = () => {
           </div>
         </div>
 
-        {/* Проекты группы */}
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Проекты группы</h2>
@@ -462,24 +457,33 @@ export const GroupDetail = () => {
               )}
             </div>
           ) : (
-            <div className={styles.emptyState}>
-              <p>В этой группе пока нет проектов</p>
+            <div className={styles.emptyProjects}>
+              <div className={styles.emptyProjectsIcon}>📁</div>
+              <h3 className={styles.emptyProjectsTitle}>Проектов пока нет</h3>
+              <p className={styles.emptyProjectsDescription}>
+                Создайте первый проект для этой группы, чтобы начать работу
+              </p>
+              <Button 
+                variant="primary" 
+                onClick={handleCreateProject}
+                className={styles.createProjectButton}
+              >
+                Создать проект
+              </Button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Универсальное модальное окно для проектов (без удаления) */}
       <ItemsModal
         items={group.projects || []}
         itemType="projects"
         isOpen={showProjectsModal}
         onClose={() => setShowProjectsModal(false)}
         title={`Проекты группы "${group.name}"`}
-        showDeleteButton={false} // Убрана возможность удаления проектов
+        showDeleteButton={false}
       />
 
-      {/* Модальное окно подтверждения удаления группы */}
       <ConfirmationModal
         isOpen={showDeleteGroupModal}
         onClose={() => setShowDeleteGroupModal(false)}
@@ -492,7 +496,6 @@ export const GroupDetail = () => {
         isLoading={isDeletingGroup}
       />
 
-      {/* Модальное окно подтверждения удаления пользователя */}
       <ConfirmationModal
         isOpen={!!showRemoveUserModal}
         onClose={() => setShowRemoveUserModal(null)}

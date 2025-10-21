@@ -55,11 +55,7 @@ export const Projects = () => {
     loadProjects();
   }, [loadProjects]);
 
-  const handleDeleteProject = async (projectId, projectTitle) => {
-    if (!window.confirm(`Вы уверены, что хотите удалить проект "${projectTitle}"? Это действие нельзя отменить.`)) {
-      return;
-    }
-
+  const handleDeleteProject = async (projectId) => {
     try {
       await projectsAPI.delete(projectId);
       setProjects(prev => prev.filter(project => project.id !== projectId));
@@ -69,11 +65,9 @@ export const Projects = () => {
     }
   };
 
-  // Функция определения роли пользователя в проекте
   const getUserRoleInProject = (project) => {
     if (!user || !project.groups) return 'member';
     
-    // Ищем пользователя в группах проекта
     for (const group of project.groups) {
       const userInGroup = group.users?.find(u => u.id === user.id);
       if (userInGroup) {
@@ -84,7 +78,6 @@ export const Projects = () => {
     return 'member';
   };
 
-  // Проверяем, является ли пользователь администратором хотя бы в одной группе проекта
   const isUserAdminInProject = (project) => {
     if (!user || !project.groups) return false;
     
@@ -93,16 +86,13 @@ export const Projects = () => {
     );
   };
 
-  // Фильтрация и сортировка проектов
   const filteredAndSortedProjects = useMemo(() => {
     let result = [...projects];
 
-    // Применяем фильтры
     if (filters.status) {
       result = result.filter(project => project.status === filters.status);
     }
 
-    // Применяем сортировку
     if (sort) {
       switch (sort) {
         case 'title_asc':
@@ -205,13 +195,6 @@ export const Projects = () => {
             <>
               <h2>У вас пока нет проектов</h2>
               <p>Создайте свой первый проект или попросите добавить вас в существующий</p>
-              <Button 
-                to="/projects/create" 
-                variant="primary" 
-                size="large"
-              >
-                Создать первый проект
-              </Button>
             </>
           )}
         </div>

@@ -32,14 +32,13 @@ class DatabaseConfig(BaseModel):
 
 
 class SecurityConfig(BaseModel):
-    secret_key: str
-    access_token_expire_minutes: int
-    refresh_token_expire_days: int
-    algorithm: str
+    secret_key: str = Field(..., env="APP_CONFIG__SECURITY__SECRET_KEY")
+    access_token_expire_minutes: int = Field(..., env="APP_CONFIG__SECURITY__ACCESS_TOKEN_EXPIRE_MINUTES")
+    refresh_token_expire_days: int = Field(..., env="APP_CONFIG__SECURITY__REFRESH_TOKEN_EXPIRE_DAYS")
+    algorithm: str = Field(..., env="APP_CONFIG__SECURITY__ALGORITHM")
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=("./backend/.env", ".env"),
         case_sensitive=False,
         env_nested_delimiter="__",
         env_prefix="APP_CONFIG__",

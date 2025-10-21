@@ -3,7 +3,20 @@ import { Link } from 'react-router-dom';
 import { Button } from '../Button';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { useNotification } from '../../../hooks/useNotification';
-import { getTaskStatusTranslation, getTaskStatusColor } from '../../../utils/taskStatus';
+import { 
+  getTaskStatusColor, 
+  getTaskStatusIcon,
+  getTaskPriorityColor,
+  getTaskPriorityIcon,
+  isTaskOverdue
+} from '../../../utils/taskStatus';
+import { formatTaskTags } from '../../../utils/helpers';
+import { 
+  USER_ROLE_TRANSLATIONS,
+  TASK_STATUS_TRANSLATIONS,
+  TASK_PRIORITY_TRANSLATIONS,
+  TASK_STATUSES,
+} from '../../../utils/constants';
 import styles from './TaskCard.module.css';
 
 export const TaskCard = ({
@@ -11,37 +24,45 @@ export const TaskCard = ({
   showDetailsButton = true,
   compact = false,
   showDeleteButton = false,
-  userRole, // Для отображения роли пользователя
+  userRole,
   onDelete,
-  currentUserId // Добавляем ID текущего пользователя для выделения
+  currentUserId,
+  showPriority = true,
+  showTags = true,
+  onStatusClick,
+  onPriorityClick
 }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { showSuccess, showError } = useNotification();
 
   const formatDate = (dateString) => {
+    if (!dateString) return 'Не указано';
     return new Date(dateString).toLocaleDateString('ru-RU');
   };
 
   const getStatusClass = (status) => {
     const statusClasses = {
-      'in_progress': styles.statusInProgress,
-      'completed': styles.statusCompleted,
-      'planned': styles.statusPlanned,
-      'on_hold': styles.statusOnHold,
-      'cancelled': styles.statusCancelled
+      [TASK_STATUSES.BACKLOG]: styles.statusBacklog,
+      [TASK_STATUSES.TODO]: styles.statusTodo,
+      [TASK_STATUSES.IN_PROGRESS]: styles.statusInProgress,
+      [TASK_STATUSES.REVIEW]: styles.statusReview,
+      [TASK_STATUSES.DONE]: styles.statusDone,
+      [TASK_STATUSES.CANCELLED]: styles.statusCancelled
     };
     return statusClasses[status] || styles.statusDefault;
   };
 
   const getRoleTranslation = (role) => {
-    const roleTranslations = {
-      'admin': 'Администратор',
+    return USER_ROLE_TRANSLATIONS[role] || role;
+  };
+
+  const getTaskRoleTranslation = (role) => {
+    const taskRoleTranslations = {
       'assignee': 'Исполнитель',
-      'member': 'Участник',
       'viewer': 'Наблюдатель'
     };
-    return roleTranslations[role] || role;
+    return taskRoleTranslations[role] || getRoleTranslation(role);
   };
 
   const handleDeleteClick = (e) => {
@@ -68,49 +89,96 @@ export const TaskCard = ({
     setShowDeleteModal(false);
   };
 
-  // Проверяем, просрочена ли задача
-  const isOverdue = () => {
-    if (!task.deadline) return false;
-    const deadline = new Date(task.deadline);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    deadline.setHours(0, 0, 0, 0);
-    return deadline < today && task.status !== 'completed' && task.status !== 'cancelled';
+  const handleStatusClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onStatusClick) {
+      onStatusClick(task);
+    }
   };
 
-  // Функция для получения роли пользователя в группе задачи
+  const handlePriorityClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onPriorityClick) {
+      onPriorityClick(task);
+    }
+  };
+
+  const overdue = isTaskOverdue(task.deadline, task.status);
+
   const getUserRoleInGroup = (userId) => {
     if (!task.group?.users) return null;
     const userInGroup = task.group.users.find(u => u.id === userId);
     return userInGroup?.role || null;
   };
 
-  // Получаем цвет статуса задачи
   const statusColor = getTaskStatusColor(task.status);
+  const statusIcon = getTaskStatusIcon(task.status);
+  
+  const priorityColor = getTaskPriorityColor(task.priority);
+  const priorityIcon = getTaskPriorityIcon(task.priority);
+
+  const formattedTags = task.tags ? formatTaskTags(task.tags) : [];
+
+  const getCardBackgroundClass = () => {
+    if (task.status === TASK_STATUSES.DONE) {
+      return styles.cardDone;
+    }
+    if (overdue) {
+      return styles.cardOverdue;
+    }
+    return '';
+  };
 
   if (compact) {
     return (
       <>
-        <div className={`${styles.cardCompact} ${isOverdue() ? styles.overdue : ''}`}>
+        <div className={`${styles.cardCompact} ${getCardBackgroundClass()}`}>
           <div className={styles.compactHeader}>
             <div className={styles.compactTitleSection}>
               <h4 className={styles.compactTitle}>{task.title}</h4>
               {userRole && (
                 <span className={`${styles.userRole} ${styles[userRole]}`}>
-                  {getRoleTranslation(userRole)}
+                  {getTaskRoleTranslation(userRole)}
                 </span>
               )}
             </div>
-            <span 
-              className={`${styles.status} ${getStatusClass(task.status)}`}
-              style={{ backgroundColor: statusColor }}
-            >
-              {getTaskStatusTranslation(task.status)}
-            </span>
+            <div className={styles.compactBadges}>
+              <span 
+                className={`${styles.status} ${getStatusClass(task.status)} ${onStatusClick ? styles.clickable : ''}`}
+                style={{ backgroundColor: statusColor }}
+                onClick={handleStatusClick}
+                title={TASK_STATUS_TRANSLATIONS[task.status] || task.status}
+              >
+                {statusIcon} {TASK_STATUS_TRANSLATIONS[task.status] || task.status}
+              </span>
+              {showPriority && task.priority && (
+                <span 
+                  className={`${styles.priority} ${styles[task.priority]} ${onPriorityClick ? styles.clickable : ''}`}
+                  style={{ backgroundColor: priorityColor }}
+                  onClick={handlePriorityClick}
+                  title={TASK_PRIORITY_TRANSLATIONS[task.priority] || task.priority}
+                >
+                  {priorityIcon} {TASK_PRIORITY_TRANSLATIONS[task.priority] || task.priority}
+                </span>
+              )}
+            </div>
           </div>
-          {task.description && (
-            <p className={styles.compactDescription}>{task.description}</p>
+        
+          {showTags && formattedTags.length > 0 && (
+            <div className={styles.tags}>
+              {formattedTags.slice(0, 3).map((tag, index) => (
+                <span key={index} className={styles.tag}>
+                  #{tag.label}
+                </span>
+              ))}
+              {formattedTags.length > 3 && (
+                <span className={styles.moreTags}>+{formattedTags.length - 3}</span>
+              )}
+            </div>
           )}
+          
           <div className={styles.compactInfo}>
             <div className={styles.compactProject}>
               <span className={styles.infoLabel}>Проект:</span>
@@ -118,14 +186,13 @@ export const TaskCard = ({
             </div>
             <div className={styles.compactDeadline}>
               <span className={styles.infoLabel}>Срок:</span>
-              <span className={`${styles.infoValue} ${isOverdue() ? styles.overdueText : ''}`}>
-                {task.deadline ? formatDate(task.deadline) : 'Не указан'}
-                {isOverdue() && <span className={styles.overdueIndicator}> ⚠️</span>}
+              <span className={`${styles.infoValue} ${overdue ? styles.overdueText : ''}`}>
+                {formatDate(task.deadline)}
+                {overdue && <span className={styles.overdueIndicator}> ⚠️</span>}
               </span>
             </div>
           </div>
           
-          {/* Исполнители с ролями */}
           {task.assignees && task.assignees.length > 0 && (
             <div className={styles.assigneesSection}>
               <span className={styles.assigneesLabel}>Исполнители:</span>
@@ -141,7 +208,7 @@ export const TaskCard = ({
                       </span>
                       {assigneeRole && (
                         <span className={`${styles.assigneeRole} ${styles[assigneeRole]}`}>
-                          {getRoleTranslation(assigneeRole)}
+                          {getTaskRoleTranslation(assigneeRole)}
                         </span>
                       )}
                     </div>
@@ -179,7 +246,6 @@ export const TaskCard = ({
           </div>
         </div>
 
-        {/* Модальное окно подтверждения удаления */}
         <ConfirmationModal
           isOpen={showDeleteModal}
           onClose={handleCancelDelete}
@@ -197,27 +263,46 @@ export const TaskCard = ({
 
   return (
     <>
-      <div className={`${styles.card} ${isOverdue() ? styles.overdue : ''}`}>
+      <div className={`${styles.card} ${getCardBackgroundClass()}`}>
         <div className={styles.header}>
           <div className={styles.titleSection}>
             <h3 className={styles.title}>{task.title}</h3>
             {userRole && (
               <span className={`${styles.userRole} ${styles[userRole]}`}>
-                {getRoleTranslation(userRole)}
+                {getTaskRoleTranslation(userRole)}
               </span>
             )}
           </div>
-          <span 
-            className={`${styles.status} ${getStatusClass(task.status)}`}
-            style={{ backgroundColor: statusColor }}
-          >
-            {getTaskStatusTranslation(task.status)}
-            {isOverdue() && <span className={styles.overdueBadge}>Просрочено</span>}
-          </span>
+          <div className={styles.headerBadges}>
+            <span 
+              className={`${styles.status} ${getStatusClass(task.status)} ${onStatusClick ? styles.clickable : ''}`}
+              style={{ backgroundColor: statusColor }}
+              onClick={handleStatusClick}
+            >
+              {statusIcon} {TASK_STATUS_TRANSLATIONS[task.status] || task.status}
+              {overdue && <span className={styles.overdueBadge}>Просрочено</span>}
+            </span>
+            {showPriority && task.priority && (
+              <span 
+                className={`${styles.priority} ${styles[task.priority]} ${onPriorityClick ? styles.clickable : ''}`}
+                style={{ backgroundColor: priorityColor }}
+                onClick={handlePriorityClick}
+                title={TASK_PRIORITY_TRANSLATIONS[task.priority] || task.priority}
+              >
+                {priorityIcon} {TASK_PRIORITY_TRANSLATIONS[task.priority] || task.priority}
+              </span>
+            )}
+          </div>
         </div>
         
-        {task.description && (
-          <p className={styles.description}>{task.description}</p>
+        {showTags && formattedTags.length > 0 && (
+          <div className={styles.tags}>
+            {formattedTags.map((tag, index) => (
+              <span key={index} className={styles.tag}>
+                #{tag.label}
+              </span>
+            ))}
+          </div>
         )}
         
         <div className={styles.projectInfo}>
@@ -251,19 +336,18 @@ export const TaskCard = ({
           <div className={styles.dateItem}>
             <span className={styles.dateLabel}>Начало:</span>
             <span className={styles.dateValue}>
-              {task.start_date ? formatDate(task.start_date) : 'Не указана'}
+              {formatDate(task.start_date)}
             </span>
           </div>
           <div className={styles.dateItem}>
             <span className={styles.dateLabel}>Срок:</span>
-            <span className={`${styles.dateValue} ${isOverdue() ? styles.overdueText : ''}`}>
-              {task.deadline ? formatDate(task.deadline) : 'Не указан'}
-              {isOverdue() && <span className={styles.overdueIndicator}> ⚠️ Просрочено</span>}
+            <span className={`${styles.dateValue} ${overdue ? styles.overdueText : ''}`}>
+              {formatDate(task.deadline)}
+              {overdue && <span className={styles.overdueIndicator}> ⚠️ Просрочено</span>}
             </span>
           </div>
         </div>
         
-        {/* Исполнители с ролями */}
         {task.assignees && task.assignees.length > 0 && (
           <div className={styles.assigneesSection}>
             <h4 className={styles.assigneesTitle}>Исполнители:</h4>
@@ -282,7 +366,7 @@ export const TaskCard = ({
                     </div>
                     {assigneeRole && (
                       <span className={`${styles.assigneeRole} ${styles[assigneeRole]}`}>
-                        {getRoleTranslation(assigneeRole)}
+                        {getTaskRoleTranslation(assigneeRole)}
                       </span>
                     )}
                   </div>
@@ -333,7 +417,6 @@ export const TaskCard = ({
         </div>
       </div>
 
-      {/* Модальное окно подтверждения удаления */}
       <ConfirmationModal
         isOpen={showDeleteModal}
         onClose={handleCancelDelete}

@@ -18,16 +18,17 @@ from .exceptions import (
 
 router = APIRouter()
 
+# Получить всех пользователей (только для супер-админа)
 @router.get("/", response_model=list[UserRead])
 async def get_users(
     session: AsyncSession = Depends(db_session.session_getter), 
     current_user: User = Depends(get_current_user)
 ):
-    # Только супер-админ может видеть всех пользователей
     await ensure_user_is_super_admin_global(session, current_user.id)
     users = await users_service.get_all_users(session)
     return users
 
+# Получить профиль текущего пользователя
 @router.get("/me", response_model=UserWithRelations)
 async def get_current_user_profile(
     current_user: User = Depends(get_current_user),
@@ -38,13 +39,13 @@ async def get_current_user_profile(
         raise UserNotFoundError(user_id=current_user.id)
     return user
 
+# Получить пользователя по ID
 @router.get("/{user_id}", response_model=UserWithRelations)
 async def get_user_by_id(
     user_id: int, 
     session: AsyncSession = Depends(db_session.session_getter), 
     current_user: User = Depends(get_current_user)
 ):
-    # Можно смотреть только своих данных или данные пользователей из своих групп
     if user_id != current_user.id:
         in_same_group = await check_users_in_same_group(session, current_user.id, user_id)
         if not in_same_group:
@@ -55,6 +56,7 @@ async def get_user_by_id(
         raise UserNotFoundError(user_id=user_id)
     return user
 
+# Создать нового пользователя
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def create_new_user(
     user_data: UserCreate,
@@ -66,6 +68,7 @@ async def create_new_user(
     except (UserAlreadyExistsError, UserCreationError) as e:
         raise e
 
+# Обновить профиль текущего пользователя
 @router.put("/me", response_model=UserRead)
 async def update_current_user_profile(
     user_update: UserUpdate,
@@ -78,6 +81,7 @@ async def update_current_user_profile(
     except (UserNotFoundError, UserAlreadyExistsError, UserUpdateError) as e:
         raise e
 
+# Удалить текущего пользователя
 @router.delete("/me", status_code=status.HTTP_200_OK)
 async def delete_current_user(
     current_user: User = Depends(get_current_user),
@@ -91,6 +95,7 @@ async def delete_current_user(
     except (UserNotFoundError, UserDeleteError) as e:
         raise e
 
+# Обновить пользователя по ID
 @router.put("/{user_id}", response_model=UserRead)
 async def update_user_by_id(
     user_id: int,
@@ -99,12 +104,12 @@ async def update_user_by_id(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        # Только супер-админ может обновлять других пользователей
         updated_user = await users_service.update_user(session, user_id, user_update, current_user.id)
         return updated_user
     except (UserNotFoundError, UserAlreadyExistsError, UserUpdateError) as e:
         raise e
 
+# Удалить пользователя по ID
 @router.delete("/{user_id}", status_code=status.HTTP_200_OK)
 async def delete_user_by_id(
     user_id: int, 
@@ -112,7 +117,6 @@ async def delete_user_by_id(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        # Только супер-админ может удалять других пользователей
         deleted = await users_service.delete_user(session, user_id, current_user.id)
         if not deleted:
             raise UserNotFoundError(user_id=user_id)

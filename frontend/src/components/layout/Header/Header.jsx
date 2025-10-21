@@ -11,7 +11,6 @@ export const Header = () => {
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
 
-  // Закрытие dropdown при клике вне его
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -40,7 +39,6 @@ const handleProfileClick = () => {
   setIsDropdownOpen(false);
 };
 
-  // Не показываем header если пользователь не авторизован
   if (!isAuthenticated) {
     return null;
   }
@@ -61,6 +59,9 @@ const handleProfileClick = () => {
           </Link>
           <Link to="/tasks" className={styles.navLink}>
             Задачи
+          </Link>
+          <Link to="/management" className={styles.navLink}>
+            Управление
           </Link>
         </nav>
       </div>

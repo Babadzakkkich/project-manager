@@ -73,7 +73,6 @@
   padding: 3px 6px;
 }
 
-/* Улучшенное отображение роли пользователя в компактном режиме */
 .cardCompact .userRole {
   font-size: 10px;
   padding: 2px 6px;
@@ -91,7 +90,6 @@
   margin-bottom: 12px;
 }
 
-/* Гарантируем, что заголовок не будет слишком большим */
 .compactTitle {
   color: #004B23;
   font-size: 16px;
@@ -104,7 +102,6 @@
   overflow: hidden;
 }
 
-/* Улучшаем отступы для компактного режима */
 .compactHeader {
   display: flex;
   justify-content: space-between;
@@ -290,7 +287,6 @@
   color: #9b2c2c;
 }
 
-/* Адаптивность для футера */
 @media (max-width: 480px) {
   .footerActions {
     flex-direction: column;
@@ -303,7 +299,6 @@
   }
 }
 
-/* Адаптивность */
 @media (max-width: 768px) {
   .card {
     padding: 16px;

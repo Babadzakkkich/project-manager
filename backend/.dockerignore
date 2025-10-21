@@ -7,3 +7,4 @@ public/
 .git
 .pytest_cache/
 tests/
+.env.template
