@@ -1,5 +1,3 @@
-# core/database/models.py - ОБНОВЛЕННАЯ ВЕРСИЯ
-
 from datetime import datetime, timezone
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import JSON, Column, ForeignKey, String, DateTime, Table, Text, func, Integer, Enum, UniqueConstraint
@@ -115,8 +113,7 @@ class Project(Base):
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     start_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), 
-        server_default=func.now(), 
-        nullable=True
+        server_default=func.now()
     )
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String)
@@ -153,8 +150,8 @@ class Task(Base):
         DateTime(timezone=True), 
         server_default=func.now()
     )
-    start_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    start_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
     project: Mapped["Project"] = relationship("Project", back_populates="tasks")
