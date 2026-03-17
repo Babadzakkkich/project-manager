@@ -18,8 +18,7 @@ export const projectsAPI = {
   },
 
   create: async (projectData) => {
-    // Добавляем слеш для избежания редиректа 307
-    const response = await apiClient.post(`${API_ENDPOINTS.PROJECTS}/`, projectData);
+    const response = await apiClient.post(API_ENDPOINTS.PROJECTS, projectData);
     return response.data;
   },
 

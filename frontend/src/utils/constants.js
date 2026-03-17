@@ -1,4 +1,6 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// utils/constants.js - ОБНОВЛЕННАЯ ВЕРСИЯ
+
+export const API_BASE_URL = 'http://localhost:8000';
 
 export const COLORS = {
   primary: '#004B23',

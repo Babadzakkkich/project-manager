@@ -13,8 +13,7 @@ export const groupsAPI = {
   },
 
   create: async (groupData) => {
-    // Добавляем слеш для избежания редиректа 307
-    const response = await apiClient.post(`${API_ENDPOINTS.GROUPS}/`, groupData);
+    const response = await apiClient.post(API_ENDPOINTS.GROUPS, groupData);
     return response.data;
   },
 
