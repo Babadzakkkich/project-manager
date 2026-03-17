@@ -3,7 +3,8 @@ import { API_ENDPOINTS } from '../../utils/constants';
 
 export const usersAPI = {
   register: async (userData) => {
-    const response = await apiClient.post(API_ENDPOINTS.USERS, userData);
+    // Добавляем слеш для избежания редиректа 307
+    const response = await apiClient.post(`${API_ENDPOINTS.USERS}/`, userData);
     return response.data;
   },
 

@@ -1,4 +1,3 @@
-// frontend/src/services/api/tasks.js
 import apiClient from './client';
 import { API_ENDPOINTS } from '../../utils/constants';
 
@@ -24,7 +23,7 @@ export const tasksAPI = {
   },
 
   create: async (taskData) => {
-    const response = await apiClient.post(API_ENDPOINTS.TASKS, taskData);
+    const response = await apiClient.post(`${API_ENDPOINTS.TASKS}/`, taskData);
     return response.data;
   },
 
@@ -70,10 +69,8 @@ export const tasksAPI = {
 
   updateTaskStatus: async (taskId, status) => {
     const response = await apiClient.put(
-      `${API_ENDPOINTS.TASKS}/${taskId}`,
-      { 
-        status: status.value || status
-      }
+      `${API_ENDPOINTS.TASKS}/${taskId}/status`,
+      { status_update: status.value || status }
     );
     return response.data;
   },
@@ -86,10 +83,9 @@ export const tasksAPI = {
   },
 
   updateTaskPriority: async (taskId, priority) => {
-    // Согласно бэкенду, это PUT эндпоинт с параметром в пути
     const response = await apiClient.put(
       `${API_ENDPOINTS.TASKS}/${taskId}/priority`,
-      { priority_update: priority }
+      { priority_update: priority.value || priority }
     );
     return response.data;
   },
