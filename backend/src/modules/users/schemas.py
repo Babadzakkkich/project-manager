@@ -1,11 +1,9 @@
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional, List
+from typing import Optional, List
 
-if TYPE_CHECKING:
-    from modules.groups.schemas import GroupRead
-    from modules.tasks.schemas import TaskRead
+from shared.schemas import BaseGroupInfo, BaseTaskInfo
 
 class UserCreate(BaseModel):
     login: str = Field(..., min_length=3, max_length=50)
@@ -34,10 +32,7 @@ class UserWithRole(UserRead):
     model_config = ConfigDict(from_attributes=True)
 
 class UserWithRelations(UserRead):
-    groups: List[GroupRead] = []
-    assigned_tasks: List[TaskRead] = []
+    groups: List[BaseGroupInfo] = []
+    assigned_tasks: List[BaseTaskInfo] = []
     
     model_config = ConfigDict(from_attributes=True)
-        
-from modules.groups.schemas import GroupRead
-from modules.tasks.schemas import TaskRead   

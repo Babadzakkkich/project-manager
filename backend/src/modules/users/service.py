@@ -35,7 +35,7 @@ async def get_all_users(session: AsyncSession) -> list[User]:
     result = await session.scalars(stmt)
     return result.all()
 
-# Получить пользователя по ID
+# Получить пользователя по id
 async def get_user_by_id(session: AsyncSession, user_id: int) -> Optional[User]:
     stmt = select(User).options(
         selectinload(User.group_memberships).selectinload(GroupMember.group),
@@ -46,7 +46,26 @@ async def get_user_by_id(session: AsyncSession, user_id: int) -> Optional[User]:
     user = result.scalar_one_or_none()
     
     if user:
-        user.groups = [membership.group for membership in user.group_memberships]
+        user.groups = [
+            {
+                "id": membership.group.id,
+                "name": membership.group.name,
+                "description": membership.group.description,
+                "created_at": membership.group.created_at
+            }
+            for membership in user.group_memberships
+        ]
+        
+        user.assigned_tasks = [
+            {
+                "id": task.id,
+                "title": task.title,
+                "status": task.status.value if hasattr(task.status, 'value') else task.status,
+                "priority": task.priority.value if hasattr(task.priority, 'value') else task.priority,
+                "deadline": task.deadline
+            }
+            for task in user.assigned_tasks
+        ]
     
     return user
 
