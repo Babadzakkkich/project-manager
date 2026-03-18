@@ -6,12 +6,13 @@ from core.utils.dependencies import check_user_in_group
 from core.database.models import User, TaskStatus, TaskPriority
 from modules.auth.dependencies import get_current_user
 from core.database.session import db_session
+from core.logger import logger
+from .service import TaskService
 from .schemas import (
     AddRemoveUsersToTask, TaskCreate, TaskCreateExtended, TaskRead, 
     TaskUpdate, TaskReadWithRelations, TaskBulkUpdate, BoardViewRequest,
     TaskHistoryRead
 )
-from . import service as tasks_service
 from .exceptions import (
     TaskNotFoundError,
     TaskCreationError,
@@ -34,7 +35,9 @@ async def get_tasks(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
-    return await tasks_service.get_all_tasks(session, current_user.id)
+    logger.info(f"GET /tasks requested by user {current_user.id}")
+    task_service = TaskService(session)
+    return await task_service.get_all_tasks(current_user.id)
 
 # Получить задачи текущего пользователя
 @router.get("/my", response_model=list[TaskReadWithRelations])
@@ -42,9 +45,12 @@ async def get_my_tasks(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"GET /tasks/my requested by user {current_user.id}")
     try:
-        return await tasks_service.get_user_tasks(session, current_user.id)
+        task_service = TaskService(session)
+        return await task_service.get_user_tasks(current_user.id)
     except Exception as e:
+        logger.error(f"Error getting user tasks: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Не удалось загрузить задачи пользователя: {str(e)}"
@@ -56,9 +62,12 @@ async def get_team_tasks(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"GET /tasks/team requested by user {current_user.id}")
     try:
-        return await tasks_service.get_team_tasks(session, current_user.id)
+        task_service = TaskService(session)
+        return await task_service.get_team_tasks(current_user.id)
     except Exception as e:
+        logger.error(f"Error getting team tasks: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Не удалось загрузить задачи команды: {str(e)}"
@@ -71,15 +80,20 @@ async def get_task(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"GET /tasks/{task_id} requested by user {current_user.id}")
+    
     try:
-        task = await tasks_service.get_task_by_id(session, task_id)
+        task_service = TaskService(session)
+        task = await task_service.get_task_by_id(task_id)
         
         from core.utils.dependencies import check_user_in_group
         if not await check_user_in_group(session, current_user.id, task.group_id):
+            logger.warning(f"User {current_user.id} tried to access task {task_id} without permission")
             raise TaskAccessDeniedError("Нет доступа к задаче")
             
         return task
     except (TaskNotFoundError, TaskAccessDeniedError) as e:
+        logger.error(f"Error getting task {task_id}: {e.detail}")
         raise e
 
 # Создать новую задачу
@@ -89,9 +103,13 @@ async def create_new_task(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"POST /tasks - creating new task '{task_data.title}' by user {current_user.id}")
+    task_service = TaskService(session)
+    
     try:
-        return await tasks_service.create_task(session, task_data, current_user)
+        return await task_service.create_task(task_data, current_user)
     except (ProjectNotFoundError, GroupNotFoundError, GroupNotInProjectError, TaskCreationError, TaskAccessDeniedError) as e:
+        logger.error(f"Error creating task: {e.detail}")
         raise e
     
 # Создать задачу для указанных пользователей
@@ -101,6 +119,8 @@ async def create_task_for_users(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"POST /tasks/create_for_users by user {current_user.id}")
+    
     try:
         base_task_data = TaskCreate(
             title=task_data.title,
@@ -114,14 +134,15 @@ async def create_task_for_users(
             tags=task_data.tags
         )
         
-        return await tasks_service.create_task_for_users(
-            session, 
+        task_service = TaskService(session)
+        return await task_service.create_task_for_users(
             base_task_data,
             task_data.assignee_ids,
             current_user
         )
     except (ProjectNotFoundError, GroupNotFoundError, GroupNotInProjectError, 
             TaskCreationError, TaskAccessDeniedError, UsersNotInGroupError) as e:
+        logger.error(f"Error creating task for users: {e.detail}")
         raise e
 
 # Добавить пользователей в задачу (только для исполнителей или администраторов)
@@ -132,10 +153,14 @@ async def add_users_to_task_route(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"POST /tasks/{task_id}/add_users by user {current_user.id}")
+    task_service = TaskService(session)
+    
     try:
-        task = await tasks_service.add_users_to_task(session, task_id, data, current_user)
+        task = await task_service.add_users_to_task(task_id, data, current_user)
         return task
     except (TaskNotFoundError, TaskAccessDeniedError, UsersNotInGroupError, TaskUpdateError) as e:
+        logger.error(f"Error adding users to task {task_id}: {e.detail}")
         raise e
 
 # Обновить задачу (только для исполнителей или администраторов)
@@ -146,10 +171,14 @@ async def update_task_by_id(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"PUT /tasks/{task_id} by user {current_user.id}")
+    task_service = TaskService(session)
+    
     try:
-        db_task = await tasks_service.get_task_by_id(session, task_id)
-        return await tasks_service.update_task(session, db_task, task_data, current_user)
+        db_task = await task_service.get_task_by_id(task_id)
+        return await task_service.update_task(db_task, task_data, current_user)
     except (TaskNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
+        logger.error(f"Error updating task {task_id}: {e.detail}")
         raise e
 
 # Удалить пользователей из задачи (только для исполнителей или администраторов)
@@ -160,10 +189,14 @@ async def remove_users_from_task_route(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"DELETE /tasks/{task_id}/remove_users by user {current_user.id}")
+    task_service = TaskService(session)
+    
     try:
-        result = await tasks_service.remove_users_from_task(session, task_id, data, current_user)
+        result = await task_service.remove_users_from_task(task_id, data, current_user)
         return result
     except (TaskNotFoundError, TaskNoGroupError, TaskAccessDeniedError, UsersNotInTaskError, TaskUpdateError) as e:
+        logger.error(f"Error removing users from task {task_id}: {e.detail}")
         raise e
 
 # Удалить задачу (только для исполнителей или администраторов)
@@ -173,12 +206,18 @@ async def delete_task_by_id(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"DELETE /tasks/{task_id} by user {current_user.id}")
+    task_service = TaskService(session)
+    
     try:
-        deleted = await tasks_service.delete_task(session, task_id, current_user)
+        deleted = await task_service.delete_task(task_id, current_user)
         if not deleted:
+            logger.warning(f"Task {task_id} not found for deletion")
             raise TaskNotFoundError(task_id)
+        logger.info(f"Task {task_id} deleted successfully")
         return {"detail": "Задача успешно удалена"}
     except (TaskNotFoundError, TaskNoGroupError, TaskAccessDeniedError, TaskDeleteError) as e:
+        logger.error(f"Error deleting task {task_id}: {e.detail}")
         raise e
     
 # Получить задачи для Kanban доски проекта
@@ -190,13 +229,18 @@ async def get_project_board(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"GET /tasks/board/project/{project_id}?group_id={group_id}&view_mode={view_mode} by user {current_user.id}")
+    task_service = TaskService(session)
+    
     try:
-        return await tasks_service.get_project_board_tasks(
-            session, project_id, group_id, view_mode, current_user
+        return await task_service.get_project_board_tasks(
+            project_id, group_id, view_mode, current_user
         )
     except (ProjectNotFoundError, GroupNotFoundError, GroupNotInProjectError, TaskAccessDeniedError) as e:
+        logger.error(f"Error getting board: {e.detail}")
         raise e
     except Exception as e:
+        logger.error(f"Unexpected error getting board: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Не удалось загрузить доску проекта: {str(e)}"
@@ -210,11 +254,13 @@ async def update_task_status(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"PUT /tasks/{task_id}/status to {status_update.value} by user {current_user.id}")
+    task_service = TaskService(session)
+    
     try:
-        return await tasks_service.update_task_status(
-            session, task_id, status_update, current_user
-        )
+        return await task_service.update_task_status(task_id, status_update, current_user)
     except (TaskNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
+        logger.error(f"Error updating task status: {e.detail}")
         raise e
 
 # Обновить позицию задачи в колонке
@@ -225,11 +271,13 @@ async def update_task_position(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"PUT /tasks/{task_id}/position to {position} by user {current_user.id}")
+    task_service = TaskService(session)
+    
     try:
-        return await tasks_service.update_task_position(
-            session, task_id, position, current_user
-        )
+        return await task_service.update_task_position(task_id, position, current_user)
     except (TaskNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
+        logger.error(f"Error updating task position: {e.detail}")
         raise e
 
 # Обновить приоритет задачи
@@ -240,11 +288,13 @@ async def update_task_priority(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"PUT /tasks/{task_id}/priority to {priority_update.value} by user {current_user.id}")
+    task_service = TaskService(session)
+    
     try:
-        return await tasks_service.update_task_priority(
-            session, task_id, priority_update, current_user
-        )
+        return await task_service.update_task_priority(task_id, priority_update, current_user)
     except (TaskNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
+        logger.error(f"Error updating task priority: {e.detail}")
         raise e
 
 # Массовое обновление задач (для drag & drop)
@@ -254,11 +304,13 @@ async def bulk_update_tasks(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"POST /tasks/bulk_update with {len(updates)} updates by user {current_user.id}")
+    task_service = TaskService(session)
+    
     try:
-        return await tasks_service.bulk_update_tasks(
-            session, updates, current_user
-        )
+        return await task_service.bulk_update_tasks(updates, current_user)
     except (TaskNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
+        logger.error(f"Error in bulk update: {e.detail}")
         raise e
 
 # Получить историю изменений задачи
@@ -268,14 +320,19 @@ async def get_task_history(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"GET /tasks/{task_id}/history by user {current_user.id}")
+    task_service = TaskService(session)
+    
     try:
-        task = await tasks_service.get_task_by_id(session, task_id)
+        task = await task_service.get_task_by_id(task_id)
         
         if not await check_user_in_group(session, current_user.id, task.group_id):
+            logger.warning(f"User {current_user.id} tried to access history of task {task_id} without permission")
             raise TaskAccessDeniedError("Нет доступа к истории задачи")
             
-        return await tasks_service.get_task_history(session, task_id)
+        return await task_service.get_task_history(task_id)
     except (TaskNotFoundError, TaskAccessDeniedError) as e:
+        logger.error(f"Error getting task history: {e.detail}")
         raise e
 
 # Быстрое создание задачи
@@ -285,9 +342,11 @@ async def quick_create_task(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
+    logger.info(f"POST /tasks/quick_create by user {current_user.id}")
+    task_service = TaskService(session)
+    
     try:
-        return await tasks_service.quick_create_task(
-            session, task_data, current_user
-        )
+        return await task_service.quick_create_task(task_data, current_user)
     except (ProjectNotFoundError, GroupNotFoundError, GroupNotInProjectError, TaskCreationError, TaskAccessDeniedError) as e:
+        logger.error(f"Error in quick create task: {e.detail}")
         raise e

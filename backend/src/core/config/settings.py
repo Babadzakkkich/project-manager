@@ -5,6 +5,7 @@ from urllib.parse import quote_plus
 class RunConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
+    debug: bool = Field(True, env="APP_CONFIG__RUN__DEBUG")
 
 class ApiPrefix(BaseModel):
     auth: str = "/auth"
@@ -48,5 +49,9 @@ class Settings(BaseSettings):
     api: ApiPrefix = ApiPrefix()
     db: DatabaseConfig = Field(...)
     security: SecurityConfig = Field(...)
+    
+    @property
+    def debug(self) -> bool:
+        return self.run.debug
 
 settings = Settings()

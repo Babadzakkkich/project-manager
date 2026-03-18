@@ -1,5 +1,3 @@
-# core/database/models.py - ОБНОВЛЕННАЯ ВЕРСИЯ
-
 from datetime import datetime, timezone
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import JSON, Column, ForeignKey, String, DateTime, Table, Text, func, Integer, Enum, UniqueConstraint
