@@ -6,6 +6,9 @@ class RunConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = Field(True, env="APP_CONFIG__RUN__DEBUG")
+    
+    cookie_secure: bool = Field(False, env="APP_CONFIG__RUN__COOKIE_SECURE")
+    cookie_samesite: str = Field("lax", env="APP_CONFIG__RUN__COOKIE_SAMESITE")
 
 class ApiPrefix(BaseModel):
     auth: str = "/auth"

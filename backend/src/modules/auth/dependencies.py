@@ -1,6 +1,5 @@
-from fastapi import Depends
+from fastapi import Depends, Request
 from typing import Optional
-from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,16 +9,19 @@ from core.logger import logger
 from ..users.service import UserService
 from .exceptions import TokenValidationError
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
-optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
-
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    request: Request,
     session: AsyncSession = Depends(db_session.session_getter), 
 ):
     """
-    Получение текущего пользователя по токену
+    Получение текущего пользователя по токену из httpOnly cookie
     """
+    token = request.cookies.get("access_token")
+    
+    if not token:
+        logger.warning("No access token found in cookies")
+        raise TokenValidationError("Токен не найден")
+    
     try:
         payload = jwt.decode(
             token, 
@@ -27,6 +29,7 @@ async def get_current_user(
             algorithms=[settings.security.algorithm]
         )
         
+        # Проверяем тип токена
         if payload.get("type") != "access":
             logger.warning("Token validation failed: not an access token")
             raise TokenValidationError("Требуется access токен")
@@ -40,20 +43,28 @@ async def get_current_user(
             logger.warning(f"User with ID {user_id} not found")
             raise TokenValidationError("Пользователь не найден")
         
-        logger.debug(f"User {user_id} authenticated successfully")
+        logger.debug(f"User {user_id} authenticated successfully via cookie")
         return user
             
+    except jwt.ExpiredSignatureError:
+        logger.warning("Token has expired")
+        raise TokenValidationError("Срок действия токена истек")
+    except jwt.JWTError as e:
+        logger.error(f"JWT validation error: {e}")
+        raise TokenValidationError("Невалидный токен")
     except Exception as e:
         logger.error(f"Token validation error: {e}")
         raise TokenValidationError(str(e))
 
 async def get_optional_current_user(
-    token: str = Depends(optional_oauth2_scheme),
+    request: Request,
     session: AsyncSession = Depends(db_session.session_getter), 
 ) -> Optional[dict]:
     """
-    Получение текущего пользователя по токену (опционально)
+    Получение текущего пользователя по токену из cookie (опционально)
     """
+    token = request.cookies.get("access_token")
+    
     if not token:
         return None
         

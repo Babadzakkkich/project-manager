@@ -1,103 +1,143 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { authAPI } from '../services/api/auth';
 import { usersAPI } from '../services/api/users';
-import { tokenService } from '../services/auth/tokenService';
 
 export const useAuth = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
-  const refreshIntervalRef = useRef();
+  const mountedRef = useRef(true);
 
-  const checkAuth = async () => {
-    const token = tokenService.getToken();
-    
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      setAuthChecked(true);
-      return;
-    }
-
+  const checkAuth = useCallback(async () => {
     try {
-      const userProfile = await usersAPI.getProfile();
-      setUser({ 
-        isAuthenticated: true,
-        ...userProfile 
-      });
-    } catch (error) {
-      console.warn('Auth check failed, clearing tokens:', error);
+      setLoading(true);
       
-      if (error.response?.status === 401) {
-        tokenService.clearTokens();
+      // Сначала проверяем статус аутентификации
+      const authStatus = await authAPI.checkAuth();
+      
+      if (authStatus.authenticated && authStatus.user) {
+        // Если пользователь аутентифицирован, устанавливаем его данные
+        if (mountedRef.current) {
+          setUser({ 
+            isAuthenticated: true,
+            ...authStatus.user 
+          });
+        }
+      } else {
+        // Пробуем загрузить полный профиль (для обратной совместимости)
+        try {
+          const userProfile = await usersAPI.getProfile();
+          if (mountedRef.current) {
+            setUser({ 
+              isAuthenticated: true,
+              ...userProfile 
+            });
+          }
+        } catch {
+          // Если не удалось загрузить профиль, значит пользователь не аутентифицирован
+          if (mountedRef.current) {
+            setUser(null);
+          }
+        }
       }
-      
-      setUser(null);
+    } catch (error) {
+      console.warn('Auth check failed:', error);
+      if (mountedRef.current) {
+        setUser(null);
+      }
     } finally {
-      setLoading(false);
-      setAuthChecked(true);
+      if (mountedRef.current) {
+        setLoading(false);
+        setAuthChecked(true);
+      }
     }
-  };
-
-  useEffect(() => {
-    checkAuth();
   }, []);
 
   useEffect(() => {
-    const checkTokenPeriodically = () => {
-      if (user?.isAuthenticated && tokenService.shouldRefreshToken()) {
-        const refreshToken = tokenService.getRefreshToken();
-        if (refreshToken) {
-          authAPI.refresh(refreshToken)
-            .then((data) => {
-              tokenService.setTokens(data.access_token, data.refresh_token);
-              console.log('Token silently refreshed');
-            })
-            .catch((error) => {
-              console.warn('Silent refresh failed:', error);
-              if (error.response?.status === 401) {
-                tokenService.clearTokens();
-                setUser(null);
-              }
-            });
-        }
+    mountedRef.current = true;
+    checkAuth();
+
+    // Подписываемся на событие неавторизованного доступа
+    const handleUnauthorized = () => {
+      if (mountedRef.current) {
+        setUser(null);
+        setAuthChecked(true);
       }
     };
 
-    refreshIntervalRef.current = setInterval(checkTokenPeriodically, 60000);
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
 
     return () => {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-      }
+      mountedRef.current = false;
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
     };
-  }, [user]);
+  }, [checkAuth]);
 
-  const login = async (credentials) => {
+  const login = useCallback(async (credentials) => {
     try {
-      tokenService.clearTokens();
-      
-      const data = await authAPI.login(credentials);
-      tokenService.setTokens(data.access_token, data.refresh_token);
-      
-      const userProfile = await usersAPI.getProfile();
-      setUser({ 
-        isAuthenticated: true,
-        ...userProfile 
-      });
-      
-      return { success: true };
-    } catch (error) {
-      tokenService.clearTokens();
+      // Очищаем предыдущее состояние
       setUser(null);
       
-      const errorDetail = error.response?.data?.detail;
+      // Отправляем запрос на логин
+      const response = await authAPI.login(credentials);
+      
+      // Проверяем, что получили refresh token (опционально)
+      if (!response.refresh_token) {
+        console.warn('No refresh token received, but login successful');
+      }
+      
+      // После успешного логина проверяем статус аутентификации
+      // Бэкенд сам установил cookie, нам нужно только получить профиль
+      const authStatus = await authAPI.checkAuth();
+      
+      if (authStatus.authenticated && authStatus.user) {
+        if (mountedRef.current) {
+          setUser({ 
+            isAuthenticated: true,
+            ...authStatus.user 
+          });
+        }
+        return { success: true };
+      } else {
+        // Если аутентификация не подтвердилась, пробуем загрузить профиль напрямую
+        try {
+          const userProfile = await usersAPI.getProfile();
+          if (mountedRef.current) {
+            setUser({ 
+              isAuthenticated: true,
+              ...userProfile 
+            });
+          }
+          return { success: true };
+        } catch (profileError) {
+          console.error('Failed to load profile after login:', profileError);
+          if (mountedRef.current) {
+            setUser(null);
+          }
+          return { 
+            success: false, 
+            error: 'Не удалось загрузить профиль после авторизации' 
+          };
+        }
+      }
+      
+    } catch (error) {
+      console.error('Login error:', error);
+      
+      // Очищаем состояние при ошибке
+      if (mountedRef.current) {
+        setUser(null);
+      }
+      
+      // Форматируем сообщение об ошибке
       let errorMessage = 'Ошибка авторизации';
       
-      if (typeof errorDetail === 'string') {
-        errorMessage = errorDetail;
-      } else if (Array.isArray(errorDetail)) {
-        errorMessage = errorDetail.map(err => err.msg).join(', ');
+      if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       
       return {
@@ -105,22 +145,20 @@ export const useAuth = () => {
         error: errorMessage,
       };
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await authAPI.logout();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      tokenService.clearTokens();
-      setUser(null);
-      
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
+      // Всегда очищаем состояние, даже если запрос не удался
+      if (mountedRef.current) {
+        setUser(null);
       }
     }
-  };
+  }, []);
 
   return {
     user,
@@ -128,6 +166,6 @@ export const useAuth = () => {
     authChecked,
     login,
     logout,
-    isAuthenticated: !!user?.isAuthenticated,
+    isAuthenticated: !!user,
   };
 };

@@ -1,14 +1,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+from typing import Dict
 
 from core.utils.password_hasher import verify_password
 from core.logger import logger
 from ..users.service import UserService
 from .jwt import create_access_token, create_refresh_token
-from .schemas import Token, TokenPayload
+from .schemas import TokenPayload
 from .exceptions import InvalidCredentialsError
-from ..users.exceptions import UserNotFoundError
-
 
 class AuthService:
     """Сервис для аутентификации"""
@@ -34,8 +32,11 @@ class AuthService:
         self.logger.debug(f"User {login} authenticated successfully")
         return user
     
-    async def login_user(self, login: str, password: str) -> Token:
-        """Вход пользователя в систему"""
+    async def login_user(self, login: str, password: str) -> Dict[str, str]:
+        """
+        Вход пользователя в систему.
+        Возвращает словарь с access и refresh токенами.
+        """
         self.logger.info(f"Login attempt for user: {login}")
         
         user = await self.authenticate_user(login, password)
@@ -54,8 +55,7 @@ class AuthService:
         
         self.logger.info(f"User {user.id} logged in successfully")
         
-        return Token(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            token_type="bearer"
-        )
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token
+        }
