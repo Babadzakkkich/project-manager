@@ -2,21 +2,24 @@
   min-height: 100vh;
   background: linear-gradient(135deg, #004B23 0%, #006400 50%, #007200 100%);
   color: white;
+  overflow-x: hidden; /* Запрещаем горизонтальный скролл на всём контейнере */
 }
 
 .hero {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 80px 20px;
+  padding: 60px 20px;
   min-height: 80vh;
+  gap: 40px;
+  overflow-x: hidden; /* Запрещаем горизонтальный скролл в hero */
 }
 
 .content {
   flex: 1;
-  max-width: 600px;
+  max-width: 500px;
 }
 
 .title {
@@ -43,46 +46,162 @@
   flex-wrap: wrap;
 }
 
-.graphic {
-  flex: 1;
-  position: relative;
-  height: 400px;
+/* Стили для контейнера Swiper */
+.swiperContainer {
+  flex: 1.2;
+  max-width: 700px;
+  height: 550px;
   display: flex;
   align-items: center;
   justify-content: center;
+  perspective: 1000px;
+  overflow: visible; /* Оставляем visible для эффекта, но контролируем через родителя */
+  position: relative;
+  left: -20px; /* Сдвигаем контейнер влево, чтобы компенсировать выезд карт */
 }
 
-.circle, .square, .triangle {
-  position: absolute;
-  background: rgba(56, 176, 0, 0.3);
-  border-radius: 50%;
+.mySwiper {
+  width: 100%;
+  height: 100%;
+  padding: 20px 0 50px 0;
+  overflow: visible; /* Важно: оставляем visible для теней */
 }
 
-.circle {
-  width: 200px;
-  height: 200px;
-  top: 50px;
-  right: 100px;
+/* Исправляем позиционирование слайдов */
+.swiperSlide {
+  width: 320px;
+  height: 450px;
+  border-radius: 24px;
+  overflow: visible;
+  transition: transform 0.3s ease;
+  /* Центрируем стопку */
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-.square {
-  width: 150px;
-  height: 150px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  bottom: 80px;
-  right: 50px;
+/* Стили для контейнера карт */
+:global(.swiper-cards) {
+  overflow: visible;
 }
 
-.triangle {
-  width: 0;
-  height: 0;
-  border-left: 80px solid transparent;
-  border-right: 80px solid transparent;
-  border-bottom: 140px solid rgba(255, 255, 255, 0.1);
-  background: none;
-  top: 100px;
-  left: 50px;
+/* Исправляем позицию первого слайда */
+:global(.swiper-slide:first-child) {
+  margin-left: 0 !important;
+}
+
+/* Корректировка трансформаций для эффекта cards */
+:global(.swiper-cards .swiper-slide) {
+  transform-origin: center center !important; /* Меняем точку трансформации на центр */
+}
+
+.cardContent {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  padding: 30px 20px;
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    0 0 0 2px rgba(255, 255, 255, 0.1) inset;
+  text-align: center;
+  transition: all 0.3s ease;
+  position: relative;
+  backdrop-filter: blur(10px);
+  /* Добавляем margin для компенсации */
+  margin: 0 auto;
+}
+
+.cardContent:hover {
+  transform: translateY(-10px) scale(1.02);
+  box-shadow: 
+    0 30px 60px rgba(0, 0, 0, 0.5),
+    0 0 0 3px rgba(255, 255, 255, 0.2) inset;
+}
+
+.cardIcon {
+  font-size: 64px;
+  margin-bottom: 20px;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.cardTitle {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.cardDescription {
+  font-size: 16px;
+  line-height: 1.6;
+  margin-bottom: 24px;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  max-width: 260px;
+}
+
+.cardFooter {
+  margin-top: auto;
+  width: 100%;
+}
+
+.cardFeature {
+  display: inline-block;
+  padding: 8px 20px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 30px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.cardFeature:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateX(5px);
+}
+
+/* Кастомные стили для пагинации */
+.mySwiper :global(.swiper-pagination) {
+  bottom: 10px !important; /* Поднимаем пагинацию выше */
+}
+
+.mySwiper :global(.swiper-pagination-bullet) {
+  width: 10px;
+  height: 10px;
+  background: white;
+  opacity: 0.5;
+  transition: all 0.3s ease;
+}
+
+.mySwiper :global(.swiper-pagination-bullet-active) {
+  background: #38B000;
+  opacity: 1;
+  width: 20px;
+  border-radius: 10px;
+}
+
+.mySwiper :global(.swiper-pagination-bullet-active-dynamic) {
+  transform: scale(1.2);
+}
+
+/* Стили для теней карт */
+.mySwiper :global(.swiper-slide-shadow-cards) {
+  border-radius: 24px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
 }
 
 .features {
@@ -95,6 +214,7 @@
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
+  overflow-x: hidden; /* Запрещаем горизонтальный скролл */
 }
 
 .feature {
@@ -112,23 +232,80 @@
   line-height: 1.6;
 }
 
-@media (max-width: 768px) {
+/* Адаптивность */
+@media (max-width: 1024px) {
   .hero {
     flex-direction: column;
     text-align: center;
     padding: 40px 20px;
   }
   
+  .content {
+    max-width: 100%;
+  }
+  
+  .swiperContainer {
+    width: 100%;
+    max-width: 600px;
+    height: 500px;
+    left: 0; /* Убираем сдвиг на мобильных */
+  }
+  
   .title {
-    font-size: 36px;
+    font-size: 42px;
   }
   
   .buttons {
     justify-content: center;
   }
+}
+
+@media (max-width: 768px) {
+  .title {
+    font-size: 36px;
+  }
   
-  .graphic {
-    height: 200px;
-    margin-top: 40px;
+  .swiperContainer {
+    height: 450px;
+  }
+  
+  .swiperSlide {
+    width: 280px;
+    height: 400px;
+  }
+  
+  .cardIcon {
+    font-size: 54px;
+  }
+  
+  .cardTitle {
+    font-size: 24px;
+  }
+  
+  .cardDescription {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .swiperContainer {
+    height: 400px;
+  }
+  
+  .swiperSlide {
+    width: 260px;
+    height: 380px;
+  }
+  
+  .cardIcon {
+    font-size: 48px;
+  }
+  
+  .cardTitle {
+    font-size: 22px;
+  }
+  
+  .cardDescription {
+    font-size: 13px;
   }
 }
