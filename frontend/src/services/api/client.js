@@ -9,56 +9,85 @@ const apiClient = axios.create({
   withCredentials: true,
 });
 
-// Переменная для отслеживания состояния редиректа
-let isRedirecting = false;
+// Переменная для отслеживания состояния обновления
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
 
 // Функция для перенаправления на страницу входа
 const redirectToLogin = () => {
-  if (isRedirecting) return;
-  isRedirecting = true;
-  
-  // Очищаем состояние пользователя через событие
   window.dispatchEvent(new CustomEvent('auth:unauthorized'));
   
-  // Перенаправляем на страницу входа, если мы не там уже
   if (!window.location.pathname.includes('/login') && 
       !window.location.pathname.includes('/register') &&
-      !window.location.pathname.includes('/')) {
+      !window.location.pathname !== '/') {
     window.location.href = '/login';
   }
-  
-  // Сбрасываем флаг через некоторое время
-  setTimeout(() => {
-    isRedirecting = false;
-  }, 1000);
 };
 
-// Request interceptor больше не нужен, так как токен автоматически отправляется в cookies
-
-// Response interceptor для обработки ошибок
+// Response interceptor с автоматическим обновлением
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // Игнорируем ошибки валидации (400) - они обрабатываются в компонентах
+    // Игнорируем ошибки валидации
     if (error.response?.status === 400) {
       return Promise.reject(error);
     }
 
-    // Если ошибка 401 (неавторизован) и это не повторный запрос
+    // Если ошибка 401 и это не запрос на обновление
     if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
+      // Проверяем, не является ли это запросом на проверку auth
+      const isCheckEndpoint = originalRequest.url?.includes('/auth/check');
+      const isRefreshEndpoint = originalRequest.url?.includes('/auth/refresh');
       
-      // Проверяем, не является ли это запросом на логин или проверку auth
-      const isAuthEndpoint = originalRequest.url?.includes('/auth/');
-      
-      if (!isAuthEndpoint) {
-        // Для всех защищенных эндпоинтов перенаправляем на логин
+      if (isRefreshEndpoint || isCheckEndpoint) {
+        // Если refresh не сработал или check вернул 401, перенаправляем на логин
         redirectToLogin();
+        return Promise.reject(error);
       }
-      
-      return Promise.reject(error);
+
+      if (isRefreshing) {
+        // Если уже идет обновление, добавляем в очередь
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then(() => {
+            return apiClient(originalRequest);
+          })
+          .catch(err => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        // Пытаемся обновить токены
+        await apiClient.post('/auth/refresh');
+        
+        // Обрабатываем очередь запросов
+        processQueue(null);
+        
+        // Повторяем оригинальный запрос
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        redirectToLogin();
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
     }
 
     // Обработка других ошибок
