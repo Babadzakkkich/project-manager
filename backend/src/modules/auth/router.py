@@ -1,67 +1,21 @@
 from fastapi import APIRouter, Depends, Response, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
 from jose import jwt
 
 from core.config import settings
-from core.database.models import User
 from core.database.session import db_session
 from core.logger import logger
-from .dependencies import get_current_user, get_optional_current_user
 from .service import AuthService
 from .jwt import verify_refresh_token, create_access_token, create_refresh_token
 from .refresh_token import revoke_all_user_tokens
 from ..users.service import UserService
-from .schemas import Token, TokenRefresh, TokenPayload, RefreshTokenResponse
+from .schemas import TokenPayload
 from .exceptions import RefreshTokenError
 from ..users.exceptions import UserNotFoundError
+from .utils.cookie_management import set_auth_cookies, clear_auth_cookies
 
 router = APIRouter()
-
-def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
-    """
-    Устанавливает оба токена в httpOnly cookies
-    """
-    # Access token cookie - доступен для всех путей
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=settings.run.cookie_secure,
-        samesite=settings.run.cookie_samesite,
-        max_age=settings.security.access_token_expire_minutes * 60,
-        path="/",
-    )
-    
-    # Refresh token cookie - также доступен для всех путей, но используется только для /auth/refresh
-    # Убираем ограничение по пути, чтобы кука была видна
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=settings.run.cookie_secure,
-        samesite=settings.run.cookie_samesite,
-        max_age=settings.security.refresh_token_expire_days * 24 * 60 * 60,
-        path="/",  # Изменяем на /, чтобы кука была доступна для всех путей
-    )
-
-def clear_auth_cookies(response: Response) -> None:
-    """
-    Очищает cookies с токенами
-    """
-    response.delete_cookie(
-        key="access_token",
-        path="/",
-        secure=settings.run.cookie_secure,
-        samesite=settings.run.cookie_samesite,
-    )
-    response.delete_cookie(
-        key="refresh_token",
-        path="/",
-        secure=settings.run.cookie_secure,
-        samesite=settings.run.cookie_samesite,
-    )
 
 @router.post("/login", response_model=dict)
 async def login_for_access_token(

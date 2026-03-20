@@ -689,10 +689,9 @@ class TaskService:
         
         try:
             return await self.create_task_for_users(
-                self.session, 
-                task_data, 
-                [current_user.id], 
-                current_user
+                task_data,          
+                [current_user.id],  
+                current_user    
             )
             
         except Exception as e:
