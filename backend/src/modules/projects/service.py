@@ -3,7 +3,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 
-from core.utils.dependencies import ensure_user_is_admin, ensure_user_is_super_admin_global
+from shared.dependencies import ensure_user_is_admin, ensure_user_is_super_admin_global
 from core.database.models import Project, Group, User, GroupMember, Task, project_group_association, task_user_association
 from core.logger import logger
 from .schemas import (

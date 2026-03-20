@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from core.database.models import TaskPriority, TaskStatus
 
@@ -28,6 +28,7 @@ class BaseTaskInfo(BaseModel):
     title: str
     status: TaskStatus
     priority: TaskPriority
+    deadline: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)
 

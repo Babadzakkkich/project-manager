@@ -4,7 +4,7 @@ from sqlalchemy import delete, select, and_
 from sqlalchemy.orm import selectinload
 
 from modules.groups.exceptions import InsufficientPermissionsError
-from core.utils.dependencies import ensure_user_is_admin, check_user_in_group, ensure_user_is_super_admin_global
+from shared.dependencies import ensure_user_is_admin, check_user_in_group, ensure_user_is_super_admin_global
 from core.database.models import Task, Project, User, Group, GroupMember, TaskHistory, TaskStatus, TaskPriority
 from core.logger import logger
 from .schemas import AddRemoveUsersToTask, TaskCreate, TaskReadWithRelations, TaskUpdate, TaskRead, TaskBulkUpdate

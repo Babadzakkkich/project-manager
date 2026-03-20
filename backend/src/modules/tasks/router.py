@@ -2,7 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.utils.dependencies import check_user_in_group
+from shared.dependencies import check_user_in_group
 from core.database.models import User, TaskStatus, TaskPriority
 from modules.auth.dependencies import get_current_user
 from core.database.session import db_session
@@ -86,7 +86,6 @@ async def get_task(
         task_service = TaskService(session)
         task = await task_service.get_task_by_id(task_id)
         
-        from core.utils.dependencies import check_user_in_group
         if not await check_user_in_group(session, current_user.id, task.group_id):
             logger.warning(f"User {current_user.id} tried to access task {task_id} without permission")
             raise TaskAccessDeniedError("Нет доступа к задаче")

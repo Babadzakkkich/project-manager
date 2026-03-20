@@ -4,6 +4,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database.models import Project, User
+from shared.dependencies import check_user_in_project
 from modules.auth.dependencies import get_current_user
 from core.database.session import db_session
 from core.logger import logger
@@ -50,7 +51,6 @@ async def get_project(
 ):
     logger.info(f"GET /projects/{project_id} requested by user {current_user.id}")
     
-    from core.utils.dependencies import check_user_in_project
     if not await check_user_in_project(session, current_user.id, project_id):
         logger.warning(f"User {current_user.id} tried to access project {project_id} without permission")
         raise InsufficientProjectPermissionsError("Нет доступа к проекту")

@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from modules.projects.service import ProjectService
 from core.database.models import Group, User, GroupMember, UserRole, Task, project_group_association, task_user_association
-from core.utils.dependencies import ensure_user_is_admin, get_user_group_role, ensure_user_is_super_admin_global
+from shared.dependencies import ensure_user_is_admin, get_user_group_role, ensure_user_is_super_admin_global
 from core.logger import logger
 from .schemas import AddUsersToGroup, GetUserRoleResponse, RemoveUsersFromGroup, GroupCreate, GroupRead, GroupReadWithRelations, GroupUpdate
 from .exceptions import (

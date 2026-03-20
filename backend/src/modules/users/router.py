@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database.models import User
 from core.database.session import db_session
 from modules.auth.dependencies import get_current_user
-from core.utils.dependencies import ensure_user_is_super_admin_global, check_users_in_same_group
+from shared.dependencies import ensure_user_is_super_admin_global, check_users_in_same_group
 from core.logger import logger
 from .service import UserService
 from .schemas import UserRead, UserCreate, UserUpdate, UserWithRelations
@@ -39,11 +39,11 @@ async def get_current_user_profile(
 ):
     logger.info(f"GET /users/me requested by user {current_user.id}")
     user_service = UserService(session)
-    user = await user_service.get_user_by_id(current_user.id)
-    if not user:
+    user_data = await user_service.get_user_with_relations(current_user.id)
+    if not user_data:
         logger.error(f"Current user {current_user.id} not found in database")
         raise UserNotFoundError(user_id=current_user.id)
-    return user
+    return user_data
 
 # Получить пользователя по ID
 @router.get("/{user_id}", response_model=UserWithRelations)
@@ -61,11 +61,11 @@ async def get_user_by_id(
             raise UserAccessDeniedError("Нет доступа к информации о пользователе")
     
     user_service = UserService(session)
-    user = await user_service.get_user_by_id(user_id)
-    if not user:
+    user_data = await user_service.get_user_with_relations(user_id)
+    if not user_data:
         logger.warning(f"User {user_id} not found")
         raise UserNotFoundError(user_id=user_id)
-    return user
+    return user_data
 
 # Создать нового пользователя
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)

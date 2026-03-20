@@ -4,11 +4,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.schemas import BaseGroupInfo, BaseTaskInfo
 from core.utils.password_hasher import hash_password
-from core.utils.dependencies import ensure_user_is_super_admin_global
-from core.database.models import Task, User, GroupMember
+from shared.dependencies import ensure_user_is_super_admin_global
+from core.database.models import RefreshToken, Task, TaskHistory, User, GroupMember
 from core.logger import logger
-from .schemas import UserCreate, UserUpdate
+from .schemas import UserCreate, UserUpdate, UserWithRelations
+from modules.groups.service import GroupService
 from .exceptions import (
     UserNotFoundError,
     UserAlreadyExistsError,
@@ -47,7 +49,7 @@ class UserService:
         return users
     
     async def get_user_by_id(self, user_id: int) -> Optional[User]:
-        """Получение пользователя по ID"""
+        """Получение пользователя по ID (только модель SQLAlchemy)"""
         self.logger.debug(f"Fetching user by ID: {user_id}")
         stmt = select(User).options(
             selectinload(User.group_memberships).selectinload(GroupMember.group),
@@ -57,33 +59,46 @@ class UserService:
         result = await self.session.execute(stmt)
         user = result.scalar_one_or_none()
         
-        if user:
-            user.groups = [
-                {
-                    "id": membership.group.id,
-                    "name": membership.group.name,
-                    "description": membership.group.description,
-                    "created_at": membership.group.created_at
-                }
-                for membership in user.group_memberships
-            ]
-            
-            user.assigned_tasks = [
-                {
-                    "id": task.id,
-                    "title": task.title,
-                    "status": task.status.value if hasattr(task.status, 'value') else task.status,
-                    "priority": task.priority.value if hasattr(task.priority, 'value') else task.priority,
-                    "deadline": task.deadline
-                }
-                for task in user.assigned_tasks
-            ]
-            self.logger.debug(f"User found: {user.login}")
-        else:
-            self.logger.debug(f"User with ID {user_id} not found")
-        
         return user
     
+    async def get_user_with_relations(self, user_id: int) -> Optional[UserWithRelations]:
+        """Получение пользователя со связанными данными"""
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            return None
+        
+        # Преобразуем группы в BaseGroupInfo
+        groups = []
+        for membership in user.group_memberships:
+            groups.append(BaseGroupInfo(
+                id=membership.group.id,
+                name=membership.group.name,
+                description=membership.group.description,
+                created_at=membership.group.created_at
+            ))
+        
+        # Преобразуем задачи в BaseTaskInfo
+        assigned_tasks = []
+        for task in user.assigned_tasks:
+            assigned_tasks.append(BaseTaskInfo(
+                id=task.id,
+                title=task.title,
+                status=task.status,
+                priority=task.priority,
+                deadline=task.deadline  # deadline теперь есть в BaseTaskInfo
+            ))
+        
+        # Создаем UserWithRelations
+        return UserWithRelations(
+            id=user.id,
+            login=user.login,
+            email=user.email,
+            name=user.name,
+            created_at=user.created_at,
+            groups=groups,
+            assigned_tasks=assigned_tasks
+        )
+        
     async def get_user_by_login(self, login: str) -> Optional[User]:
         """Получение пользователя по логину"""
         self.logger.debug(f"Fetching user by login: {login}")
@@ -215,13 +230,11 @@ class UserService:
             if current_user_id and user_id != current_user_id:
                 await ensure_user_is_super_admin_global(self.session, current_user_id)
 
-            # Получаем группы пользователя
             user_groups_stmt = select(GroupMember).where(GroupMember.user_id == user_id)
             user_groups_result = await self.session.execute(user_groups_stmt)
             user_groups = user_groups_result.scalars().all()
             group_ids = [ug.group_id for ug in user_groups]
 
-            # Получаем задачи пользователя
             user_tasks_stmt = select(Task).options(
                 selectinload(Task.assignees)
             ).join(
@@ -233,18 +246,14 @@ class UserService:
             user_tasks = user_tasks_result.scalars().all()
 
             if user_tasks:
-                from core.database.models import TaskHistory
                 delete_user_history_stmt = delete(TaskHistory).where(
                     TaskHistory.user_id == user_id
                 )
                 await self.session.execute(delete_user_history_stmt)
 
-            # Удаляем refresh токены
-            from core.database.models import RefreshToken
             stmt_tokens = delete(RefreshToken).where(RefreshToken.user_id == user_id)
             await self.session.execute(stmt_tokens)
 
-            # Обрабатываем задачи
             tasks_to_delete = []
             for task in user_tasks:
                 if user in task.assignees:
@@ -260,23 +269,26 @@ class UserService:
                 await self.session.execute(delete_task_history_stmt)
                 await self.session.delete(task)
 
-            # Удаляем членства в группах
             delete_memberships_stmt = delete(GroupMember).where(GroupMember.user_id == user_id)
             await self.session.execute(delete_memberships_stmt)
 
-            # Удаляем пользователя
             await self.session.delete(user)
 
-            # Проверяем группы на пустоту
-            from modules.groups.service import GroupService
-            for group_id in group_ids:
-                remaining_members_stmt = select(GroupMember).where(GroupMember.group_id == group_id)
-                remaining_members_result = await self.session.execute(remaining_members_stmt)
-                remaining_members = remaining_members_result.scalars().all()
+            if group_ids:
                 
-                if not remaining_members:
-                    group_service = GroupService(self.session)
-                    await group_service.delete_group_auto(group_id)
+                from sqlalchemy import func
+                members_count_stmt = (
+                    select(GroupMember.group_id, func.count(GroupMember.id))
+                    .where(GroupMember.group_id.in_(group_ids))
+                    .group_by(GroupMember.group_id)
+                )
+                members_count_result = await self.session.execute(members_count_stmt)
+                members_counts = dict(members_count_result.all())
+                
+                group_service = GroupService(self.session)
+                for group_id in group_ids:
+                    if members_counts.get(group_id, 0) == 0:
+                        await group_service.delete_group_auto(group_id)
 
             await self.session.commit()
             self.logger.info(f"User {user_id} deleted successfully")

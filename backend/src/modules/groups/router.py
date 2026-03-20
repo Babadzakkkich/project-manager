@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.dependencies import check_user_in_group
 from core.database.models import User
 from modules.auth.dependencies import get_current_user
 from core.database.session import db_session
@@ -52,7 +53,6 @@ async def get_group(
 ):
     logger.info(f"GET /groups/{group_id} requested by user {current_user.id}")
     
-    from core.utils.dependencies import check_user_in_group
     if not await check_user_in_group(session, current_user.id, group_id):
         logger.warning(f"User {current_user.id} tried to access group {group_id} without membership")
         raise UserNotInGroupError(user_id=current_user.id, group_id=group_id)
