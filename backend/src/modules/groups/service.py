@@ -1,13 +1,12 @@
+from typing import Optional, List, TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
-from typing import List, Optional
 
-from modules.projects.service import ProjectService
 from core.database.models import Group, User, GroupMember, UserRole, Task, project_group_association, task_user_association
 from shared.dependencies import ensure_user_is_admin, get_user_group_role, ensure_user_is_super_admin_global
 from core.logger import logger
-from .schemas import AddUsersToGroup, GetUserRoleResponse, RemoveUsersFromGroup, GroupCreate, GroupRead, GroupReadWithRelations, GroupUpdate
+from .schemas import AddUsersToGroup, GetUserRoleResponse, RemoveUsersFromGroup, GroupCreate, GroupReadWithRelations, GroupUpdate
 from .exceptions import (
     GroupNotFoundError,
     GroupAlreadyExistsError,
@@ -21,13 +20,27 @@ from .exceptions import (
     InsufficientPermissionsError,
 )
 
+if TYPE_CHECKING:
+    from core.services import ServiceFactory
+    from modules.projects.service import ProjectService
+
 
 class GroupService:
     """Сервис для работы с группами"""
     
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, service_factory: Optional['ServiceFactory'] = None):
         self.session = session
         self.logger = logger
+        self.service_factory = service_factory
+        self._project_service = None
+    
+    @property
+    def project_service(self) -> Optional['ProjectService']:
+        """Ленивая загрузка ProjectService через фабрику"""
+        if self._project_service is None and self.service_factory:
+            from modules.projects.service import ProjectService
+            self._project_service = self.service_factory.get_or_create('project', ProjectService)
+        return self._project_service
     
     async def get_all_groups(self, current_user_id: int) -> List[Group]:
         """Получение всех групп (только для супер-админа)"""
@@ -403,17 +416,17 @@ class GroupService:
             # Удаляем группу
             await self.session.delete(group)
 
-            # Проверяем проекты на пустоту
-            project_service = ProjectService(self.session)
-            for project_id in project_ids:
-                remaining_groups_stmt = select(project_group_association).where(
-                    project_group_association.c.project_id == project_id
-                )
-                remaining_groups_result = await self.session.execute(remaining_groups_stmt)
-                remaining_groups = remaining_groups_result.all()
-                
-                if not remaining_groups:
-                    await project_service.delete_project_auto(project_id)
+            # Проверяем проекты на пустоту через ProjectService
+            if self.project_service:
+                for project_id in project_ids:
+                    remaining_groups_stmt = select(project_group_association).where(
+                        project_group_association.c.project_id == project_id
+                    )
+                    remaining_groups_result = await self.session.execute(remaining_groups_stmt)
+                    remaining_groups = remaining_groups_result.all()
+                    
+                    if not remaining_groups:
+                        await self.project_service.delete_project_auto(project_id)
 
             await self.session.commit()
             self.logger.info(f"Group {group_id} auto-deleted successfully")

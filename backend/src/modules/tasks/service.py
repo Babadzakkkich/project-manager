@@ -1,4 +1,4 @@
-from typing import List
+from typing import Optional, List, TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete, select, and_
 from sqlalchemy.orm import selectinload
@@ -22,13 +22,27 @@ from .exceptions import (
     TaskAccessDeniedError
 )
 
+if TYPE_CHECKING:
+    from core.services import ServiceFactory
+    from modules.groups.service import GroupService
+
 
 class TaskService:
     """Сервис для работы с задачами"""
     
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, service_factory: Optional['ServiceFactory'] = None):
         self.session = session
         self.logger = logger
+        self.service_factory = service_factory
+        self._group_service = None
+    
+    @property
+    def group_service(self) -> Optional['GroupService']:
+        """Ленивая загрузка GroupService через фабрику"""
+        if self._group_service is None and self.service_factory:
+            from modules.groups.service import GroupService
+            self._group_service = self.service_factory.get_or_create('group', GroupService)
+        return self._group_service
     
     async def get_all_tasks(self, current_user_id: int) -> List[TaskRead]:
         """Получение всех задач (только для супер-админа)"""
@@ -73,9 +87,12 @@ class TaskService:
         """Получение задач команд, где пользователь администратор"""
         self.logger.debug(f"Fetching team tasks for user {user_id}")
         
-        from modules.groups.service import GroupService
-        group_service = GroupService(self.session)
-        user_groups = await group_service.get_user_groups(user_id)
+        # Используем GroupService через фабрику
+        if not self.group_service:
+            self.logger.warning("GroupService not available")
+            return []
+        
+        user_groups = await self.group_service.get_user_groups(user_id)
         
         admin_groups = []
         for group in user_groups:

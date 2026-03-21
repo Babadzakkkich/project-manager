@@ -1,9 +1,38 @@
+from typing import AsyncGenerator
+from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from core.database.session import db_session
 from core.database.models import GroupMember, Project, UserRole
+from core.services import ServiceFactory
 from modules.groups.exceptions import InsufficientPermissionsError, UserNotInGroupError
+
+async def get_service_factory(
+    session: AsyncSession = Depends(db_session.session_getter)
+) -> AsyncGenerator[ServiceFactory, None]:
+    """
+    Получение фабрики сервисов.
+    Фабрика автоматически очищается после завершения запроса.
+    """
+    factory = ServiceFactory(session)
+    
+    # Регистрируем сервисы в фабрике
+    from modules.groups.service import GroupService
+    from modules.projects.service import ProjectService
+    from modules.tasks.service import TaskService
+    from modules.users.service import UserService
+    
+    factory.register('group', lambda s, f: GroupService(s, f))
+    factory.register('project', lambda s, f: ProjectService(s, f))
+    factory.register('task', lambda s, f: TaskService(s, f))
+    factory.register('user', lambda s, f: UserService(s, f))
+    
+    try:
+        yield factory
+    finally:
+        factory.clear()
 
 # Получить роль пользователя в группе
 async def get_user_group_role(session: AsyncSession, user_id: int, group_id: int) -> UserRole | None:

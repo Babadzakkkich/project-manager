@@ -1,7 +1,7 @@
+from typing import Optional, List, TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
-from typing import List, Optional
 
 from shared.dependencies import ensure_user_is_admin, ensure_user_is_super_admin_global
 from core.database.models import Project, Group, User, GroupMember, Task, project_group_association, task_user_association
@@ -24,13 +24,27 @@ from .exceptions import (
     InsufficientProjectPermissionsError,
 )
 
+if TYPE_CHECKING:
+    from core.services import ServiceFactory
+    from modules.groups.service import GroupService
+
 
 class ProjectService:
     """Сервис для работы с проектами"""
     
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, service_factory: Optional['ServiceFactory'] = None):
         self.session = session
         self.logger = logger
+        self.service_factory = service_factory
+        self._group_service = None
+    
+    @property
+    def group_service(self) -> Optional['GroupService']:
+        """Ленивая загрузка GroupService через фабрику"""
+        if self._group_service is None and self.service_factory:
+            from modules.groups.service import GroupService
+            self._group_service = self.service_factory.get_or_create('group', GroupService)
+        return self._group_service
     
     async def get_all_projects(self, current_user_id: int) -> List[ProjectRead]:
         """Получение всех проектов (только для супер-админа)"""
