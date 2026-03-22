@@ -14,38 +14,28 @@ export const NotificationBell = () => {
     markAllAsRead,
     getNotificationLink,
     getNotificationIcon,
-    refreshUnreadCount,
-    loadNotifications
+    forceRefresh
   } = useNotifications();
   
   const dropdownRef = useRef(null);
   const buttonRef = useRef(null);
-  const isDataLoadedRef = useRef(false);
 
-  // Обновляем счётчик при открытии дропдауна (всегда)
+  // При открытии дропдауна принудительно обновляем данные
   useEffect(() => {
     if (isOpen) {
-      refreshUnreadCount();
+      forceRefresh();
     }
-  }, [isOpen, refreshUnreadCount]);
+  }, [isOpen, forceRefresh]);
 
-  // Загружаем данные только при первом открытии
+  // Слушаем событие синхронизации для обновления данных
   useEffect(() => {
-    if (isOpen && !isDataLoadedRef.current) {
-      isDataLoadedRef.current = true;
-      loadNotifications();
-    }
-  }, [isOpen, loadNotifications]);
-
-  // Обновляем счётчик при фокусе окна
-  useEffect(() => {
-    const handleFocus = () => {
-      refreshUnreadCount();
+    const handleSync = () => {
+      forceRefresh();
     };
     
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [refreshUnreadCount]);
+    window.addEventListener('notifications:sync', handleSync);
+    return () => window.removeEventListener('notifications:sync', handleSync);
+  }, [forceRefresh]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -56,8 +46,6 @@ export const NotificationBell = () => {
         !buttonRef.current.contains(event.target)
       ) {
         setIsOpen(false);
-        // Сбрасываем флаг при закрытии, чтобы при следующем открытии снова загрузились данные
-        isDataLoadedRef.current = false;
       }
     };
     

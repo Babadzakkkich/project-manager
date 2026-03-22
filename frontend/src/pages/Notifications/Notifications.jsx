@@ -16,26 +16,33 @@ export const Notifications = () => {
     getNotificationLink,
     getNotificationIcon,
     formatTime,
-    refreshUnreadCount,
-    loadNotifications
+    forceRefresh
   } = useNotifications();
 
-  // Загружаем данные при монтировании
+  // Загружаем данные при монтировании и при возвращении на страницу
   useEffect(() => {
-    loadNotifications();
-    refreshUnreadCount();
-  }, [loadNotifications, refreshUnreadCount]);
+    forceRefresh();
+  }, [forceRefresh]);
 
-  // Обновляем счётчик при фокусе окна
+  // Обновляем данные при фокусе окна
   useEffect(() => {
     const handleFocus = () => {
-      refreshUnreadCount();
-      loadNotifications();
+      forceRefresh();
     };
     
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [refreshUnreadCount, loadNotifications]);
+  }, [forceRefresh]);
+
+  // Слушаем событие синхронизации
+  useEffect(() => {
+    const handleSync = () => {
+      forceRefresh();
+    };
+    
+    window.addEventListener('notifications:sync', handleSync);
+    return () => window.removeEventListener('notifications:sync', handleSync);
+  }, [forceRefresh]);
 
   useEffect(() => {
     if (activeFilter === 'all') {
@@ -60,11 +67,15 @@ export const Notifications = () => {
   const handleNotificationClick = async (notification) => {
     if (!notification.is_read) {
       await markAsRead(notification.id);
+      // После отметки принудительно синхронизируем
+      forceRefresh();
     }
   };
 
   const handleMarkAllAsRead = async () => {
     await markAllAsRead();
+    // После отметки всех принудительно синхронизируем
+    forceRefresh();
   };
 
   const getPriorityClass = (priority) => {

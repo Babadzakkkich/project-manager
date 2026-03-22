@@ -12,6 +12,7 @@ export const useNotifications = () => {
   const maxReconnectAttempts = 5;
   const isMountedRef = useRef(true);
   const isInitializedRef = useRef(false);
+  const updateCounterRef = useRef(0); // Для принудительного обновления
 
   // Загрузка истории уведомлений
   const loadNotifications = useCallback(async () => {
@@ -44,6 +45,15 @@ export const useNotifications = () => {
     }
   }, []);
 
+  // Принудительное обновление всех данных
+  const forceRefresh = useCallback(async () => {
+    updateCounterRef.current += 1;
+    await Promise.all([
+      loadNotifications(),
+      refreshUnreadCount()
+    ]);
+  }, [loadNotifications, refreshUnreadCount]);
+
   // Подключение к WebSocket
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -70,10 +80,10 @@ export const useNotifications = () => {
       
       wsRef.current.pingInterval = pingInterval;
       
-      // Принудительно обновляем счётчик после подключения
+      // Принудительно обновляем данные после подключения
       setTimeout(() => {
         if (isMountedRef.current) {
-          refreshUnreadCount();
+          forceRefresh();
         }
       }, 1000);
     };
@@ -98,9 +108,9 @@ export const useNotifications = () => {
           showToastNotification(data);
         }
         
-        // После отметки о прочтении — обновляем счётчик
+        // После отметки о прочтении — обновляем все данные
         if (data.type === 'marked_read' || data.type === 'marked_all_read') {
-          refreshUnreadCount();
+          forceRefresh();
         }
         
         if (data.type === 'unread_count') {
@@ -131,7 +141,7 @@ export const useNotifications = () => {
     wsRef.current.onerror = (error) => {
       console.error('WebSocket error:', error);
     };
-  }, [refreshUnreadCount]);
+  }, [forceRefresh]);
 
   const showToastNotification = (notification) => {
     const event = new CustomEvent('toast:show', {
@@ -166,8 +176,8 @@ export const useNotifications = () => {
         return updated;
       });
       
-      // Обновляем счётчик
-      await refreshUnreadCount();
+      // Обновляем счётчик и перезагружаем данные для синхронизации
+      await forceRefresh();
       
       // Отправляем через WebSocket для синхронизации других вкладок
       if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -180,7 +190,7 @@ export const useNotifications = () => {
     } catch (error) {
       console.error('Failed to mark as read:', error);
     }
-  }, [refreshUnreadCount]);
+  }, [forceRefresh]);
 
   // Отметить все как прочитанные
   const markAllAsRead = useCallback(async () => {
@@ -192,8 +202,8 @@ export const useNotifications = () => {
         prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
       );
       
-      // Обновляем счётчик
-      await refreshUnreadCount();
+      // Обновляем счётчик и перезагружаем данные для синхронизации
+      await forceRefresh();
       
       // Отправляем через WebSocket
       if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -203,7 +213,7 @@ export const useNotifications = () => {
     } catch (error) {
       console.error('Failed to mark all as read:', error);
     }
-  }, [refreshUnreadCount]);
+  }, [forceRefresh]);
 
   // Получить ссылку для уведомления
   const getNotificationLink = useCallback((notification) => {
@@ -259,7 +269,19 @@ export const useNotifications = () => {
     return date.toLocaleDateString('ru-RU');
   }, []);
 
-  // Инициализация — ТОЛЬКО ОДИН РАЗ
+  // Слушаем событие синхронизации
+  useEffect(() => {
+    const handleSync = () => {
+      if (isMountedRef.current) {
+        forceRefresh();
+      }
+    };
+    
+    window.addEventListener('notifications:sync', handleSync);
+    return () => window.removeEventListener('notifications:sync', handleSync);
+  }, [forceRefresh]);
+
+  // Инициализация
   useEffect(() => {
     if (isInitializedRef.current) return;
     isInitializedRef.current = true;
@@ -267,15 +289,15 @@ export const useNotifications = () => {
     isMountedRef.current = true;
     
     // Загружаем данные
-    loadNotifications();
+    forceRefresh();
     
     // Подключаем WebSocket
     connectWebSocket();
     
-    // Обновляем счётчик при фокусе окна
+    // Обновляем данные при фокусе окна
     const handleFocus = () => {
       if (isMountedRef.current) {
-        refreshUnreadCount();
+        forceRefresh();
       }
     };
     
@@ -295,7 +317,7 @@ export const useNotifications = () => {
         wsRef.current.close();
       }
     };
-  }, [loadNotifications, connectWebSocket, refreshUnreadCount]);
+  }, [connectWebSocket, forceRefresh]);
 
   return {
     notifications,
@@ -308,6 +330,7 @@ export const useNotifications = () => {
     getNotificationIcon,
     formatTime,
     refreshUnreadCount,
-    loadNotifications
+    loadNotifications,
+    forceRefresh
   };
 };
