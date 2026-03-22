@@ -15,6 +15,7 @@ import { Tasks } from '../pages/TasksPages/Tasks/Tasks';
 import { TaskDetail } from '../pages/TasksPages/TaskDetail/TaskDetail';
 import { Profile } from '../pages/Profile/Profile';
 import { ManagementBoard } from '../pages/ManagementBoard/ManagementBoard';
+import { Notifications } from '../pages/Notifications/Notifications';
 
 const LoadingSpinner = () => (
   <div style={{ 
@@ -102,6 +103,14 @@ export const AppRoutes = () => {
         element={
           <PrivateRoute>
             <Profile />
+          </PrivateRoute>
+        } 
+      />
+      <Route 
+        path="/notifications" 
+        element={
+          <PrivateRoute>
+            <Notifications />
           </PrivateRoute>
         } 
       />

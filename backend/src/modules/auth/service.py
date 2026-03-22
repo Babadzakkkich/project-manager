@@ -1,3 +1,4 @@
+from typing import Optional, TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict
 
@@ -8,13 +9,18 @@ from .jwt import create_access_token, create_refresh_token
 from .schemas import TokenPayload
 from .exceptions import InvalidCredentialsError
 
+if TYPE_CHECKING:
+    from core.services import ServiceFactory
+
+
 class AuthService:
     """Сервис для аутентификации"""
     
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, service_factory: Optional['ServiceFactory'] = None):
         self.session = session
+        self.service_factory = service_factory
         self.logger = logger
-        self.user_service = UserService(session)
+        self.user_service = UserService(session, service_factory)
     
     async def authenticate_user(self, login: str, password: str):
         """Аутентификация пользователя"""

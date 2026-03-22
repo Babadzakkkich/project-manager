@@ -16,6 +16,7 @@ class ApiPrefix(BaseModel):
     groups: str = "/groups"
     projects: str = "/projects"
     tasks: str = "/tasks"
+    notifications: str = "/notifications"
 
 class DatabaseConfig(BaseModel):
     user: str = Field(..., env="APP_CONFIG__DB__USER")
@@ -41,6 +42,23 @@ class SecurityConfig(BaseModel):
     refresh_token_expire_days: int = Field(..., env="APP_CONFIG__SECURITY__REFRESH_TOKEN_EXPIRE_DAYS")
     algorithm: str = Field(..., env="APP_CONFIG__SECURITY__ALGORITHM")
 
+
+class RedisConfig(BaseModel):
+    """Конфигурация Redis"""
+    host: str = Field("localhost", env="APP_CONFIG__REDIS__HOST")
+    port: int = Field(6379, env="APP_CONFIG__REDIS__PORT")
+    db: int = Field(0, env="APP_CONFIG__REDIS__DB")
+    password: str | None = Field(None, env="APP_CONFIG__REDIS__PASSWORD")
+    max_connections: int = Field(10, env="APP_CONFIG__REDIS__MAX_CONNECTIONS")
+    
+    @property
+    def url(self) -> str:
+        """Формирует URL для подключения к Redis"""
+        if self.password:
+            return f"redis://:{self.password}@{self.host}:{self.port}/{self.db}"
+        return f"redis://{self.host}:{self.port}/{self.db}"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         case_sensitive=False,
@@ -52,9 +70,15 @@ class Settings(BaseSettings):
     api: ApiPrefix = ApiPrefix()
     db: DatabaseConfig = Field(...)
     security: SecurityConfig = Field(...)
+    redis: RedisConfig = RedisConfig()
     
     @property
     def debug(self) -> bool:
         return self.run.debug
+    
+    @property
+    def redis_url(self) -> str:
+        """Удобное свойство для доступа к URL Redis"""
+        return self.redis.url
 
 settings = Settings()

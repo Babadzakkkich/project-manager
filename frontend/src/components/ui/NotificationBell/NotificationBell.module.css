@@ -1,0 +1,313 @@
+.bellContainer {
+  position: relative;
+}
+
+.bellButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.bellButton:hover {
+  background: rgba(0, 75, 35, 0.1);
+}
+
+.bellIcon {
+  width: 24px;
+  height: 24px;
+  color: #004B23;
+}
+
+.badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: #e53e3e;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  transform: translate(25%, -25%);
+}
+
+.dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  width: 380px;
+  max-width: calc(100vw - 20px);
+  z-index: 1000;
+  overflow: hidden;
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #004B23;
+}
+
+.markAllReadButton {
+  background: none;
+  border: none;
+  color: #006400;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.markAllReadButton:hover {
+  background: rgba(0, 100, 0, 0.1);
+}
+
+.list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.loadingState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+.spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #004B23;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  color: #a0aec0;
+}
+
+.emptyIcon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.emptyState p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.notificationLink {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.notificationWrapper {
+  cursor: pointer;
+  display: block;
+}
+
+.notification {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 0.2s ease;
+  position: relative;
+}
+
+.notification:hover {
+  background: #f8fafc;
+}
+
+.notification.unread {
+  background: #f0fff4;
+}
+
+.notification.unread:hover {
+  background: #e6f7e9;
+}
+
+.priorityLow {
+  border-left: 3px solid #718096;
+}
+
+.priorityMedium {
+  border-left: 3px solid #3182ce;
+}
+
+.priorityHigh {
+  border-left: 3px solid #dd6b20;
+}
+
+.priorityUrgent {
+  border-left: 3px solid #e53e3e;
+}
+
+.icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-weight: 600;
+  color: #2d3748;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.message {
+  color: #718096;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.time {
+  color: #a0aec0;
+  font-size: 11px;
+}
+
+.unreadDot {
+  width: 8px;
+  height: 8px;
+  background: #38a169;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.footer {
+  padding: 12px 20px;
+  border-top: 1px solid #e2e8f0;
+  text-align: center;
+  background: #f8fafc;
+}
+
+.viewAllLink {
+  color: #006400;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.viewAllLink:hover {
+  color: #004B23;
+  text-decoration: underline;
+}
+
+/* Стили для скроллбара */
+.list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.list::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.list::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 3px;
+}
+
+.list::-webkit-scrollbar-thumb:hover {
+  background: #a0aec0;
+}
+
+/* Адаптивность */
+@media (max-width: 480px) {
+  .dropdown {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    border-radius: 16px 16px 0 0;
+    animation: slideUp 0.3s ease;
+  }
+  
+  @keyframes slideUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+  
+  .header {
+    padding: 14px 16px;
+  }
+  
+  .notification {
+    padding: 14px 16px;
+  }
+  
+  .list {
+    max-height: 60vh;
+  }
+}

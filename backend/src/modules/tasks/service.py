@@ -1,4 +1,4 @@
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete, select, and_
 from sqlalchemy.orm import selectinload
@@ -25,6 +25,7 @@ from .exceptions import (
 if TYPE_CHECKING:
     from core.services import ServiceFactory
     from modules.groups.service import GroupService
+    from modules.notifications.service import NotificationTriggerService
 
 
 class TaskService:
@@ -35,6 +36,7 @@ class TaskService:
         self.logger = logger
         self.service_factory = service_factory
         self._group_service = None
+        self._notification_trigger = None
     
     @property
     def group_service(self) -> Optional['GroupService']:
@@ -43,6 +45,13 @@ class TaskService:
             from modules.groups.service import GroupService
             self._group_service = self.service_factory.get_or_create('group', GroupService)
         return self._group_service
+    
+    @property
+    def notification_trigger(self) -> Optional['NotificationTriggerService']:
+        """Ленивая загрузка NotificationTriggerService через фабрику"""
+        if self._notification_trigger is None and self.service_factory:
+            self._notification_trigger = self.service_factory.get('notification_trigger')
+        return self._notification_trigger
     
     async def get_all_tasks(self, current_user_id: int) -> List[TaskRead]:
         """Получение всех задач (только для супер-админа)"""
@@ -208,6 +217,15 @@ class TaskService:
             await self.session.commit()
             
             self.logger.info(f"Task created successfully with ID: {new_task.id}")
+            
+            # Отправляем уведомления
+            if self.notification_trigger:
+                await self.notification_trigger.on_task_created(
+                    task=new_task,
+                    created_by=current_user,
+                    assignee_ids=[current_user.id]
+                )
+            
             return await self.get_task_by_id(new_task.id)
 
         except (ProjectNotFoundError, GroupNotFoundError, GroupNotInProjectError, TaskAccessDeniedError):
@@ -283,6 +301,7 @@ class TaskService:
                 tags=task_data.tags
             )
 
+            assigned_users = []
             if assignee_ids:
                 users_stmt = select(User).where(User.id.in_(assignee_ids))
                 users_result = await self.session.execute(users_stmt)
@@ -290,13 +309,24 @@ class TaskService:
                 
                 for user in users:
                     new_task.assignees.append(user)
+                    assigned_users.append(user)
             else:
                 new_task.assignees.append(current_user)
+                assigned_users.append(current_user)
 
             self.session.add(new_task)
             await self.session.commit()
             
             self.logger.info(f"Task for users created successfully with ID: {new_task.id}")
+            
+            # Отправляем уведомления
+            if self.notification_trigger:
+                await self.notification_trigger.on_task_created(
+                    task=new_task,
+                    created_by=current_user,
+                    assignee_ids=[u.id for u in assigned_users]
+                )
+            
             return await self.get_task_by_id(new_task.id)
 
         except (ProjectNotFoundError, GroupNotFoundError, GroupNotInProjectError, 
@@ -338,12 +368,22 @@ class TaskService:
             users_result = await self.session.execute(users_stmt)
             users = users_result.scalars().all()
 
+            added_users = []
             for user in users:
                 if user not in task.assignees:
                     task.assignees.append(user)
+                    added_users.append(user)
 
             await self.session.commit()
             self.logger.info(f"Users added to task {task_id} successfully")
+            
+            # Отправляем уведомления
+            if self.notification_trigger and added_users:
+                await self.notification_trigger.on_users_assigned_to_task(
+                    task=task,
+                    assigned_users=added_users,
+                    assigned_by=current_user
+                )
             
             return await self.get_task_by_id(task_id)
 
@@ -364,6 +404,28 @@ class TaskService:
             
             if not is_assignee:
                 await ensure_user_is_admin(self.session, current_user.id, db_task.group_id)
+            
+            changes = {}
+            
+            if task_update.title and task_update.title != db_task.title:
+                changes['title'] = {'old': db_task.title, 'new': task_update.title}
+            
+            if task_update.description is not None and task_update.description != db_task.description:
+                changes['description'] = {'old': db_task.description, 'new': task_update.description}
+            
+            if task_update.priority and task_update.priority != db_task.priority:
+                changes['priority'] = {'old': db_task.priority.value, 'new': task_update.priority.value}
+            
+            if task_update.start_date and task_update.start_date != db_task.start_date:
+                changes['start_date'] = {'old': db_task.start_date.isoformat() if db_task.start_date else None,
+                                          'new': task_update.start_date.isoformat()}
+            
+            if task_update.deadline and task_update.deadline != db_task.deadline:
+                changes['deadline'] = {'old': db_task.deadline.isoformat() if db_task.deadline else None,
+                                        'new': task_update.deadline.isoformat()}
+            
+            if task_update.tags is not None and set(task_update.tags) != set(db_task.tags or []):
+                changes['tags'] = {'old': db_task.tags, 'new': task_update.tags}
 
             for key, value in task_update.model_dump(exclude_unset=True).items():
                 setattr(db_task, key, value)
@@ -372,6 +434,11 @@ class TaskService:
             await self.session.refresh(db_task)
             
             self.logger.info(f"Task {db_task.id} updated successfully")
+            
+            # Отправляем уведомления, если есть изменения
+            if changes and self.notification_trigger:
+                await self.notification_trigger.on_task_updated(db_task, current_user, changes)
+            
             return db_task
 
         except (TaskAccessDeniedError, TaskNotFoundError):
@@ -411,10 +478,23 @@ class TaskService:
                 await self.session.delete(task)
                 await self.session.commit()
                 self.logger.info(f"Task {task_id} deleted as it has no assignees")
+                
+                # Отправляем уведомления о удалении задачи
+                if self.notification_trigger:
+                    await self.notification_trigger.on_task_deleted(task, current_user)
+                
                 return {"detail": "Задача удалена, так как не осталось исполнителей"}
 
             await self.session.commit()
             self.logger.info(f"Users removed from task {task_id} successfully")
+            
+            # Отправляем уведомления
+            if self.notification_trigger:
+                await self.notification_trigger.on_users_unassigned_from_task(
+                    task=task,
+                    unassigned_users=users_to_remove,
+                    unassigned_by=current_user
+                )
             
             return {"detail": "Пользователи успешно удалены из задачи"}
 
@@ -453,6 +533,11 @@ class TaskService:
             await self.session.commit()
             
             self.logger.info(f"Task {task_id} deleted successfully")
+            
+            # Отправляем уведомления
+            if self.notification_trigger:
+                await self.notification_trigger.on_task_deleted(db_task, current_user)
+            
             return True
 
         except (TaskNotFoundError, TaskNoGroupError, TaskAccessDeniedError):
@@ -461,6 +546,208 @@ class TaskService:
             await self.session.rollback()
             self.logger.error(f"Error deleting task {task_id}: {e}", exc_info=True)
             raise TaskDeleteError(f"Не удалось удалить задачу: {str(e)}")
+    
+    async def update_task_status(self, task_id: int, new_status: TaskStatus, current_user: User) -> TaskRead:
+        """Обновление статуса задачи"""
+        self.logger.info(f"Updating status of task {task_id} to {new_status.value}")
+        
+        try:
+            task = await self.get_task_by_id(task_id)
+
+            # Проверяем права (админ или исполнитель)
+            is_assignee = any(u.id == current_user.id for u in task.assignees)
+            if not is_assignee:
+                await ensure_user_is_admin(self.session, current_user.id, task.group_id)
+
+            old_status = task.status
+            task.status = new_status
+
+            # Создаем запись в истории
+            history_entry = TaskHistory(
+                task_id=task_id,
+                user_id=current_user.id,
+                action="status_change",
+                old_value=old_status.value,
+                new_value=new_status.value
+            )
+            self.session.add(history_entry)
+
+            await self.session.commit()
+            await self.session.refresh(task)
+            
+            self.logger.info(f"Task {task_id} status updated from {old_status.value} to {new_status.value}")
+            
+            # Отправляем уведомления
+            if self.notification_trigger:
+                await self.notification_trigger.on_task_status_changed(
+                    task=task,
+                    changed_by=current_user,
+                    old_status=old_status.value,
+                    new_status=new_status.value
+                )
+            
+            return task
+
+        except (TaskNotFoundError, TaskAccessDeniedError):
+            raise
+        except Exception as e:
+            await self.session.rollback()
+            self.logger.error(f"Error updating task status: {e}", exc_info=True)
+            raise TaskUpdateError(f"Не удалось обновить статус задачи: {str(e)}")
+    
+    async def update_task_priority(self, task_id: int, new_priority: TaskPriority, current_user: User) -> TaskRead:
+        """Обновление приоритета задачи"""
+        self.logger.info(f"Updating priority of task {task_id} to {new_priority.value}")
+        
+        try:
+            task = await self.get_task_by_id(task_id)
+
+            # Проверяем права (админ или исполнитель)
+            is_assignee = any(u.id == current_user.id for u in task.assignees)
+            if not is_assignee:
+                await ensure_user_is_admin(self.session, current_user.id, task.group_id)
+
+            old_priority = task.priority
+            task.priority = new_priority
+
+            # Создаем запись в истории
+            history_entry = TaskHistory(
+                task_id=task_id,
+                user_id=current_user.id,
+                action="priority_change",
+                old_value=old_priority.value,
+                new_value=new_priority.value
+            )
+            self.session.add(history_entry)
+
+            await self.session.commit()
+            await self.session.refresh(task)
+            
+            self.logger.info(f"Task {task_id} priority updated from {old_priority.value} to {new_priority.value}")
+            
+            # Отправляем уведомления
+            if self.notification_trigger:
+                await self.notification_trigger.on_task_priority_changed(
+                    task=task,
+                    changed_by=current_user,
+                    old_priority=old_priority.value,
+                    new_priority=new_priority.value
+                )
+            
+            return task
+
+        except (TaskNotFoundError, TaskAccessDeniedError):
+            raise
+        except Exception as e:
+            await self.session.rollback()
+            self.logger.error(f"Error updating task priority: {e}", exc_info=True)
+            raise TaskUpdateError(f"Не удалось обновить приоритет задачи: {str(e)}")
+    
+    async def update_task_position(self, task_id: int, new_position: int, current_user: User) -> TaskRead:
+        """Обновление позиции задачи"""
+        self.logger.info(f"Updating position of task {task_id} to {new_position}")
+        
+        try:
+            task = await self.get_task_by_id(task_id)
+
+            # Проверяем права (админ или исполнитель)
+            is_assignee = any(u.id == current_user.id for u in task.assignees)
+            if not is_assignee:
+                await ensure_user_is_admin(self.session, current_user.id, task.group_id)
+
+            task.position = new_position
+
+            await self.session.commit()
+            await self.session.refresh(task)
+            
+            self.logger.info(f"Task {task_id} position updated to {new_position}")
+            return task
+
+        except (TaskNotFoundError, TaskAccessDeniedError):
+            raise
+        except Exception as e:
+            await self.session.rollback()
+            self.logger.error(f"Error updating task position: {e}", exc_info=True)
+            raise TaskUpdateError(f"Не удалось обновить позицию задачи: {str(e)}")
+    
+    async def bulk_update_tasks(self, updates: List[TaskBulkUpdate], current_user: User) -> List[TaskRead]:
+        """Массовое обновление задач (для drag & drop)"""
+        self.logger.info(f"Bulk updating {len(updates)} tasks")
+        
+        try:
+            updated_tasks = []
+            
+            for update in updates:
+                task = await self.get_task_by_id(update.task_id)
+
+                # Проверяем права (админ или исполнитель)
+                is_assignee = any(u.id == current_user.id for u in task.assignees)
+                if not is_assignee:
+                    await ensure_user_is_admin(self.session, current_user.id, task.group_id)
+
+                if update.status is not None and update.status != task.status:
+                    old_status = task.status
+                    task.status = update.status
+                    
+                    history_entry = TaskHistory(
+                        task_id=task.id,
+                        user_id=current_user.id,
+                        action="status_change",
+                        old_value=old_status.value,
+                        new_value=update.status.value
+                    )
+                    self.session.add(history_entry)
+                    
+                    # Отправляем уведомление
+                    if self.notification_trigger:
+                        await self.notification_trigger.on_task_status_changed(
+                            task=task,
+                            changed_by=current_user,
+                            old_status=old_status.value,
+                            new_status=update.status.value
+                        )
+
+                if update.position is not None:
+                    task.position = update.position
+
+                if update.priority is not None and update.priority != task.priority:
+                    old_priority = task.priority
+                    task.priority = update.priority
+                    
+                    history_entry = TaskHistory(
+                        task_id=task.id,
+                        user_id=current_user.id,
+                        action="priority_change",
+                        old_value=old_priority.value,
+                        new_value=update.priority.value
+                    )
+                    self.session.add(history_entry)
+                    
+                    # Отправляем уведомление
+                    if self.notification_trigger:
+                        await self.notification_trigger.on_task_priority_changed(
+                            task=task,
+                            changed_by=current_user,
+                            old_priority=old_priority.value,
+                            new_priority=update.priority.value
+                        )
+
+                updated_tasks.append(task)
+
+            await self.session.commit()
+            
+            for task in updated_tasks:
+                await self.session.refresh(task)
+            
+            self.logger.info(f"Bulk update completed for {len(updated_tasks)} tasks")
+            return updated_tasks
+
+        except (TaskNotFoundError, TaskAccessDeniedError):
+            raise
+        except Exception as e:
+            await self.session.rollback()
+            self.logger.error(f"Error in bulk update: {e}", exc_info=True)
+            raise TaskUpdateError(f"Не удалось выполнить массовое обновление: {str(e)}")
     
     async def get_project_board_tasks(self, project_id: int, group_id: int, view_mode: str, current_user: User) -> List[TaskReadWithRelations]:
         """Получение задач для Kanban доски проекта"""
@@ -535,170 +822,6 @@ class TaskService:
         except Exception as e:
             self.logger.error(f"Error fetching board tasks: {e}", exc_info=True)
             raise TaskUpdateError(f"Не удалось загрузить доску проекта: {str(e)}")
-    
-    async def update_task_status(self, task_id: int, new_status: TaskStatus, current_user: User) -> TaskRead:
-        """Обновление статуса задачи"""
-        self.logger.info(f"Updating status of task {task_id} to {new_status.value}")
-        
-        try:
-            task = await self.get_task_by_id(task_id)
-
-            # Проверяем права (админ или исполнитель)
-            is_assignee = any(u.id == current_user.id for u in task.assignees)
-            if not is_assignee:
-                await ensure_user_is_admin(self.session, current_user.id, task.group_id)
-
-            old_status = task.status
-            task.status = new_status
-
-            # Создаем запись в истории
-            history_entry = TaskHistory(
-                task_id=task_id,
-                user_id=current_user.id,
-                action="status_change",
-                old_value=old_status.value,
-                new_value=new_status.value
-            )
-            self.session.add(history_entry)
-
-            await self.session.commit()
-            await self.session.refresh(task)
-            
-            self.logger.info(f"Task {task_id} status updated from {old_status.value} to {new_status.value}")
-            return task
-
-        except (TaskNotFoundError, TaskAccessDeniedError):
-            raise
-        except Exception as e:
-            await self.session.rollback()
-            self.logger.error(f"Error updating task status: {e}", exc_info=True)
-            raise TaskUpdateError(f"Не удалось обновить статус задачи: {str(e)}")
-    
-    async def update_task_position(self, task_id: int, new_position: int, current_user: User) -> TaskRead:
-        """Обновление позиции задачи"""
-        self.logger.info(f"Updating position of task {task_id} to {new_position}")
-        
-        try:
-            task = await self.get_task_by_id(task_id)
-
-            # Проверяем права (админ или исполнитель)
-            is_assignee = any(u.id == current_user.id for u in task.assignees)
-            if not is_assignee:
-                await ensure_user_is_admin(self.session, current_user.id, task.group_id)
-
-            task.position = new_position
-
-            await self.session.commit()
-            await self.session.refresh(task)
-            
-            self.logger.info(f"Task {task_id} position updated to {new_position}")
-            return task
-
-        except (TaskNotFoundError, TaskAccessDeniedError):
-            raise
-        except Exception as e:
-            await self.session.rollback()
-            self.logger.error(f"Error updating task position: {e}", exc_info=True)
-            raise TaskUpdateError(f"Не удалось обновить позицию задачи: {str(e)}")
-    
-    async def update_task_priority(self, task_id: int, new_priority: TaskPriority, current_user: User) -> TaskRead:
-        """Обновление приоритета задачи"""
-        self.logger.info(f"Updating priority of task {task_id} to {new_priority.value}")
-        
-        try:
-            task = await self.get_task_by_id(task_id)
-
-            # Проверяем права (админ или исполнитель)
-            is_assignee = any(u.id == current_user.id for u in task.assignees)
-            if not is_assignee:
-                await ensure_user_is_admin(self.session, current_user.id, task.group_id)
-
-            old_priority = task.priority
-            task.priority = new_priority
-
-            # Создаем запись в истории
-            history_entry = TaskHistory(
-                task_id=task_id,
-                user_id=current_user.id,
-                action="priority_change",
-                old_value=old_priority.value,
-                new_value=new_priority.value
-            )
-            self.session.add(history_entry)
-
-            await self.session.commit()
-            await self.session.refresh(task)
-            
-            self.logger.info(f"Task {task_id} priority updated from {old_priority.value} to {new_priority.value}")
-            return task
-
-        except (TaskNotFoundError, TaskAccessDeniedError):
-            raise
-        except Exception as e:
-            await self.session.rollback()
-            self.logger.error(f"Error updating task priority: {e}", exc_info=True)
-            raise TaskUpdateError(f"Не удалось обновить приоритет задачи: {str(e)}")
-    
-    async def bulk_update_tasks(self, updates: List[TaskBulkUpdate], current_user: User) -> List[TaskRead]:
-        """Массовое обновление задач (для drag & drop)"""
-        self.logger.info(f"Bulk updating {len(updates)} tasks")
-        
-        try:
-            updated_tasks = []
-            
-            for update in updates:
-                task = await self.get_task_by_id(update.task_id)
-
-                # Проверяем права (админ или исполнитель)
-                is_assignee = any(u.id == current_user.id for u in task.assignees)
-                if not is_assignee:
-                    await ensure_user_is_admin(self.session, current_user.id, task.group_id)
-
-                if update.status is not None:
-                    old_status = task.status
-                    task.status = update.status
-                    
-                    history_entry = TaskHistory(
-                        task_id=task.id,
-                        user_id=current_user.id,
-                        action="status_change",
-                        old_value=old_status.value,
-                        new_value=update.status.value
-                    )
-                    self.session.add(history_entry)
-
-                if update.position is not None:
-                    task.position = update.position
-
-                if update.priority is not None:
-                    old_priority = task.priority
-                    task.priority = update.priority
-                    
-                    history_entry = TaskHistory(
-                        task_id=task.id,
-                        user_id=current_user.id,
-                        action="priority_change",
-                        old_value=old_priority.value,
-                        new_value=update.priority.value
-                    )
-                    self.session.add(history_entry)
-
-                updated_tasks.append(task)
-
-            await self.session.commit()
-            
-            for task in updated_tasks:
-                await self.session.refresh(task)
-            
-            self.logger.info(f"Bulk update completed for {len(updated_tasks)} tasks")
-            return updated_tasks
-
-        except (TaskNotFoundError, TaskAccessDeniedError):
-            raise
-        except Exception as e:
-            await self.session.rollback()
-            self.logger.error(f"Error in bulk update: {e}", exc_info=True)
-            raise TaskUpdateError(f"Не удалось выполнить массовое обновление: {str(e)}")
     
     async def quick_create_task(self, task_data: TaskCreate, current_user: User) -> TaskReadWithRelations:
         """Быстрое создание задачи"""

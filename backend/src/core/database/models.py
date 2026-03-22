@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import JSON, Column, ForeignKey, String, DateTime, Table, Text, func, Integer, Enum, UniqueConstraint
-from typing import List, Optional
+from sqlalchemy import JSON, Boolean, Column, ForeignKey, String, DateTime, Table, Text, func, Integer, Enum, UniqueConstraint
+from sqlalchemy import Enum as SQLEnum
+from typing import Any, Dict, List, Optional
 import enum
 
 class Base(DeclarativeBase):
@@ -26,6 +27,39 @@ class TaskPriority(enum.Enum):
     HIGH = "high"
     URGENT = "urgent"
 
+class NotificationType(enum.Enum):
+    # Групповые уведомления
+    GROUP_CREATED = "group_created"
+    GROUP_UPDATED = "group_updated"
+    GROUP_DELETED = "group_deleted"
+    USER_ADDED_TO_GROUP = "user_added_to_group"
+    USER_REMOVED_FROM_GROUP = "user_removed_from_group"
+    USER_ROLE_CHANGED = "user_role_changed"
+    
+    # Проектные уведомления
+    PROJECT_CREATED = "project_created"
+    PROJECT_UPDATED = "project_updated"
+    PROJECT_DELETED = "project_deleted"
+    GROUP_ADDED_TO_PROJECT = "group_added_to_project"
+    GROUP_REMOVED_FROM_PROJECT = "group_removed_from_project"
+    
+    # Задачные уведомления
+    TASK_CREATED = "task_created"
+    TASK_UPDATED = "task_updated"
+    TASK_DELETED = "task_deleted"
+    TASK_STATUS_CHANGED = "task_status_changed"
+    TASK_PRIORITY_CHANGED = "task_priority_changed"
+    USER_ASSIGNED_TO_TASK = "user_assigned_to_task"
+    USER_UNASSIGNED_FROM_TASK = "user_unassigned_from_task"
+    TASK_DEADLINE_APPROACHING = "task_deadline_approaching"
+    TASK_OVERDUE = "task_overdue"
+
+class NotificationPriority(enum.Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    URGENT = "urgent"
+
 task_user_association = Table(
     "task_user_association",
     Base.metadata,
@@ -39,6 +73,30 @@ project_group_association = Table(
     Column("project_id", Integer, ForeignKey("projects.id"), primary_key=True),
     Column("group_id", Integer, ForeignKey("groups.id"), primary_key=True),
 )
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    type: Mapped[NotificationType] = mapped_column(SQLEnum(NotificationType))
+    priority: Mapped[NotificationPriority] = mapped_column(SQLEnum(NotificationPriority), default=NotificationPriority.MEDIUM)
+    title: Mapped[str] = mapped_column(String(200))
+    content: Mapped[str] = mapped_column(String(500))
+    
+    # Дополнительные данные в JSON
+    data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        server_default=func.now(),
+        default=lambda: datetime.now(timezone.utc)
+    )
+    
+    # Связи
+    user: Mapped["User"] = relationship("User", back_populates="notifications")
 
 class User(Base):
     __tablename__ = "users"
@@ -60,6 +118,12 @@ class User(Base):
     
     assigned_tasks: Mapped[List["Task"]] = relationship(
         "Task", secondary=task_user_association, back_populates="assignees"
+    )
+    
+    notifications: Mapped[List["Notification"]] = relationship(
+        "Notification", 
+        back_populates="user",
+        cascade="all, delete-orphan"
     )
 
 class Group(Base):

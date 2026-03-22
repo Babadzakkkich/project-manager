@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from pydantic import ValidationError
 from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
@@ -19,12 +19,26 @@ from .exceptions import (
     UserDeleteError
 )
 
+if TYPE_CHECKING:
+    from core.services import ServiceFactory
+
+
 class UserService:
     """Сервис для работы с пользователями"""
     
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, service_factory: Optional['ServiceFactory'] = None):
         self.session = session
+        self.service_factory = service_factory
         self.logger = logger
+        self._group_service = None
+    
+    @property
+    def group_service(self):
+        """Ленивая загрузка GroupService через фабрику"""
+        if self._group_service is None and self.service_factory:
+            from modules.groups.service import GroupService
+            self._group_service = self.service_factory.get_or_create('group', GroupService)
+        return self._group_service
     
     async def check_user_exists(self, login: str, email: str) -> tuple[bool, bool]:
         """Проверка существования пользователя по логину и email"""
@@ -85,7 +99,7 @@ class UserService:
                 title=task.title,
                 status=task.status,
                 priority=task.priority,
-                deadline=task.deadline  # deadline теперь есть в BaseTaskInfo
+                deadline=task.deadline
             ))
         
         # Создаем UserWithRelations
@@ -275,7 +289,6 @@ class UserService:
             await self.session.delete(user)
 
             if group_ids:
-                
                 from sqlalchemy import func
                 members_count_stmt = (
                     select(GroupMember.group_id, func.count(GroupMember.id))
@@ -285,10 +298,11 @@ class UserService:
                 members_count_result = await self.session.execute(members_count_stmt)
                 members_counts = dict(members_count_result.all())
                 
-                group_service = GroupService(self.session)
-                for group_id in group_ids:
-                    if members_counts.get(group_id, 0) == 0:
-                        await group_service.delete_group_auto(group_id)
+                # Используем group_service через свойство
+                if self.group_service:
+                    for group_id in group_ids:
+                        if members_counts.get(group_id, 0) == 0:
+                            await self.group_service.delete_group_auto(group_id)
 
             await self.session.commit()
             self.logger.info(f"User {user_id} deleted successfully")

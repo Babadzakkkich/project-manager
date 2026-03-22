@@ -35,6 +35,73 @@ export const API_ENDPOINTS = {
   GROUPS: '/groups',
   PROJECTS: '/projects',
   TASKS: '/tasks',
+  NOTIFICATIONS: '/notifications',
+};
+
+// Добавляем типы уведомлений
+export const NOTIFICATION_TYPES = {
+  // Групповые
+  GROUP_CREATED: 'group_created',
+  GROUP_UPDATED: 'group_updated',
+  GROUP_DELETED: 'group_deleted',
+  USER_ADDED_TO_GROUP: 'user_added_to_group',
+  USER_REMOVED_FROM_GROUP: 'user_removed_from_group',
+  USER_ROLE_CHANGED: 'user_role_changed',
+  
+  // Проектные
+  PROJECT_CREATED: 'project_created',
+  PROJECT_UPDATED: 'project_updated',
+  PROJECT_DELETED: 'project_deleted',
+  GROUP_ADDED_TO_PROJECT: 'group_added_to_project',
+  GROUP_REMOVED_FROM_PROJECT: 'group_removed_from_project',
+  
+  // Задачные
+  TASK_CREATED: 'task_created',
+  TASK_UPDATED: 'task_updated',
+  TASK_DELETED: 'task_deleted',
+  TASK_STATUS_CHANGED: 'task_status_changed',
+  TASK_PRIORITY_CHANGED: 'task_priority_changed',
+  USER_ASSIGNED_TO_TASK: 'user_assigned_to_task',
+  USER_UNASSIGNED_FROM_TASK: 'user_unassigned_from_task',
+  TASK_DEADLINE_APPROACHING: 'task_deadline_approaching',
+  TASK_OVERDUE: 'task_overdue'
+};
+
+export const NOTIFICATION_PRIORITIES = {
+  LOW: 'low',
+  MEDIUM: 'medium',
+  HIGH: 'high',
+  URGENT: 'urgent'
+};
+
+export const NOTIFICATION_ICONS = {
+  [NOTIFICATION_TYPES.GROUP_CREATED]: '👥',
+  [NOTIFICATION_TYPES.GROUP_UPDATED]: '✏️',
+  [NOTIFICATION_TYPES.GROUP_DELETED]: '🗑️',
+  [NOTIFICATION_TYPES.USER_ADDED_TO_GROUP]: '➕',
+  [NOTIFICATION_TYPES.USER_REMOVED_FROM_GROUP]: '➖',
+  [NOTIFICATION_TYPES.USER_ROLE_CHANGED]: '🔄',
+  [NOTIFICATION_TYPES.PROJECT_CREATED]: '📁',
+  [NOTIFICATION_TYPES.PROJECT_UPDATED]: '📝',
+  [NOTIFICATION_TYPES.PROJECT_DELETED]: '🗑️',
+  [NOTIFICATION_TYPES.GROUP_ADDED_TO_PROJECT]: '🔗',
+  [NOTIFICATION_TYPES.GROUP_REMOVED_FROM_PROJECT]: '🔗',
+  [NOTIFICATION_TYPES.TASK_CREATED]: '✅',
+  [NOTIFICATION_TYPES.TASK_UPDATED]: '✏️',
+  [NOTIFICATION_TYPES.TASK_DELETED]: '🗑️',
+  [NOTIFICATION_TYPES.TASK_STATUS_CHANGED]: '🔄',
+  [NOTIFICATION_TYPES.TASK_PRIORITY_CHANGED]: '⚡',
+  [NOTIFICATION_TYPES.USER_ASSIGNED_TO_TASK]: '👤',
+  [NOTIFICATION_TYPES.USER_UNASSIGNED_FROM_TASK]: '👤',
+  [NOTIFICATION_TYPES.TASK_DEADLINE_APPROACHING]: '⏰',
+  [NOTIFICATION_TYPES.TASK_OVERDUE]: '⚠️'
+};
+
+export const NOTIFICATION_PRIORITY_COLORS = {
+  low: '#718096',
+  medium: '#3182ce',
+  high: '#dd6b20',
+  urgent: '#e53e3e'
 };
 
 export const USER_ROLES = {

@@ -1,4 +1,4 @@
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
@@ -27,6 +27,7 @@ from .exceptions import (
 if TYPE_CHECKING:
     from core.services import ServiceFactory
     from modules.groups.service import GroupService
+    from modules.notifications.service import NotificationTriggerService
 
 
 class ProjectService:
@@ -37,6 +38,7 @@ class ProjectService:
         self.logger = logger
         self.service_factory = service_factory
         self._group_service = None
+        self._notification_trigger = None
     
     @property
     def group_service(self) -> Optional['GroupService']:
@@ -45,6 +47,13 @@ class ProjectService:
             from modules.groups.service import GroupService
             self._group_service = self.service_factory.get_or_create('group', GroupService)
         return self._group_service
+    
+    @property
+    def notification_trigger(self) -> Optional['NotificationTriggerService']:
+        """Ленивая загрузка NotificationTriggerService через фабрику"""
+        if self._notification_trigger is None and self.service_factory:
+            self._notification_trigger = self.service_factory.get('notification_trigger')
+        return self._notification_trigger
     
     async def get_all_projects(self, current_user_id: int) -> List[ProjectRead]:
         """Получение всех проектов (только для супер-админа)"""
@@ -230,6 +239,15 @@ class ProjectService:
             await self.session.commit()
             
             self.logger.info(f"Project created successfully with ID: {new_project.id}")
+            
+            # Отправляем уведомления участникам всех групп
+            if self.notification_trigger:
+                await self.notification_trigger.on_project_created(
+                    project=new_project,
+                    created_by=current_user,
+                    group_ids=project_data.group_ids
+                )
+            
             return await self.get_project_by_id(new_project.id)
 
         except Exception as e:
@@ -245,6 +263,25 @@ class ProjectService:
             # Проверяем права на все группы проекта
             for group in db_project.groups:
                 await ensure_user_is_admin(self.session, current_user.id, group.id)
+            
+            changes = {}
+            
+            if project_update.title and project_update.title != db_project.title:
+                changes['title'] = {'old': db_project.title, 'new': project_update.title}
+            
+            if project_update.description is not None and project_update.description != db_project.description:
+                changes['description'] = {'old': db_project.description, 'new': project_update.description}
+            
+            if project_update.status and project_update.status != db_project.status:
+                changes['status'] = {'old': db_project.status, 'new': project_update.status}
+            
+            if project_update.start_date and project_update.start_date != db_project.start_date:
+                changes['start_date'] = {'old': db_project.start_date.isoformat() if db_project.start_date else None, 
+                                          'new': project_update.start_date.isoformat()}
+            
+            if project_update.end_date and project_update.end_date != db_project.end_date:
+                changes['end_date'] = {'old': db_project.end_date.isoformat() if db_project.end_date else None,
+                                        'new': project_update.end_date.isoformat()}
 
             for key, value in project_update.model_dump(exclude_unset=True).items():
                 setattr(db_project, key, value)
@@ -253,6 +290,11 @@ class ProjectService:
             await self.session.refresh(db_project)
             
             self.logger.info(f"Project {db_project.id} updated successfully")
+            
+            # Отправляем уведомление, если есть изменения
+            if changes and self.notification_trigger:
+                await self.notification_trigger.on_project_updated(db_project, current_user, changes)
+            
             return await self.get_project_by_id(db_project.id)
 
         except Exception as e:
@@ -284,14 +326,27 @@ class ProjectService:
                 self.logger.warning(f"Groups not found: {missing_ids}")
                 raise GroupsNotFoundError(list(missing_ids))
 
+            added_groups = []
+            
             # Проверяем права на добавляемые группы
             for group in groups:
                 await ensure_user_is_admin(self.session, current_user.id, group.id)
                 if group not in project.groups:
                     project.groups.append(group)
+                    added_groups.append(group)
 
             await self.session.commit()
             self.logger.info(f"Groups added to project {project_id} successfully")
+            
+            # Отправляем уведомления
+            if self.notification_trigger:
+                for group in added_groups:
+                    await self.notification_trigger.on_group_added_to_project(
+                        project=project,
+                        group=group,
+                        added_by=current_user
+                    )
+            
             return await self.get_project_by_id(project_id)
 
         except Exception as e:
@@ -321,13 +376,26 @@ class ProjectService:
                 self.logger.warning(f"Groups {data.group_ids} not in project {project_id}")
                 raise GroupsNotInProjectError(data.group_ids)
 
+            removed_groups = []
+            
             # Проверяем права на удаляемые группы
             for group in groups_to_remove:
                 await ensure_user_is_admin(self.session, current_user.id, group.id)
                 project.groups.remove(group)
+                removed_groups.append(group)
 
             await self.session.commit()
             self.logger.info(f"Groups removed from project {project_id} successfully")
+            
+            # Отправляем уведомления
+            if self.notification_trigger:
+                for group in removed_groups:
+                    await self.notification_trigger.on_group_removed_from_project(
+                        project=project,
+                        group=group,
+                        removed_by=current_user
+                    )
+            
             return await self.get_project_by_id(project_id)
 
         except Exception as e:
@@ -394,7 +462,10 @@ class ProjectService:
         self.logger.info(f"Deleting project {project_id} by user {current_user.id}")
         
         try:
-            project_stmt = select(Project).where(Project.id == project_id)
+            project_stmt = select(Project).options(
+                selectinload(Project.groups),
+                selectinload(Project.tasks)
+            ).where(Project.id == project_id)
             project_result = await self.session.execute(project_stmt)
             db_project = project_result.scalar_one_or_none()
             
@@ -403,46 +474,19 @@ class ProjectService:
                 raise ProjectNotFoundError(project_id)
 
             # Получаем группы проекта
-            project_groups_stmt = select(project_group_association).where(
-                project_group_association.c.project_id == project_id
-            )
-            project_groups_result = await self.session.execute(project_groups_stmt)
-            project_group_ids = [row.group_id for row in project_groups_result]
+            project_groups = list(db_project.groups)
             
             # Проверяем права на все группы проекта
-            for group_id in project_group_ids:
-                await ensure_user_is_admin(self.session, current_user.id, group_id)
+            for group in project_groups:
+                await ensure_user_is_admin(self.session, current_user.id, group.id)
 
             # Удаляем проект со всеми связанными данными
-            tasks_stmt = select(Task.id).where(Task.project_id == project_id)
-            tasks_result = await self.session.execute(tasks_stmt)
-            task_ids = [row[0] for row in tasks_result]
-
-            if task_ids:
-                from core.database.models import TaskHistory
-                delete_history_stmt = delete(TaskHistory).where(
-                    TaskHistory.task_id.in_(task_ids)
-                )
-                await self.session.execute(delete_history_stmt)
-
-            if task_ids:
-                delete_user_associations_stmt = delete(task_user_association).where(
-                    task_user_association.c.task_id.in_(task_ids)
-                )
-                await self.session.execute(delete_user_associations_stmt)
-
-            delete_tasks_stmt = delete(Task).where(Task.project_id == project_id)
-            await self.session.execute(delete_tasks_stmt)
-
-            delete_project_links_stmt = delete(project_group_association).where(
-                project_group_association.c.project_id == project_id
-            )
-            await self.session.execute(delete_project_links_stmt)
-
-            delete_project_stmt = delete(Project).where(Project.id == project_id)
-            await self.session.execute(delete_project_stmt)
-
-            await self.session.commit()
+            await self.delete_project_auto(project_id)
+            
+            # Отправляем уведомления
+            if self.notification_trigger:
+                await self.notification_trigger.on_project_deleted(db_project, current_user)
+            
             self.logger.info(f"Project {project_id} deleted successfully")
             return True
 

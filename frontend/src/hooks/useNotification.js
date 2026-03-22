@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback} from 'react';
 
 export const useNotification = () => {
   const [notification, setNotification] = useState({
@@ -7,12 +7,23 @@ export const useNotification = () => {
     isVisible: false
   });
 
-  const showNotification = useCallback((message, type = 'info') => {
+  const showNotification = useCallback((message, type = 'info', duration = 5000) => {
     setNotification({
       message,
       type,
-      isVisible: true
+      isVisible: true,
+      duration
     });
+    
+    // Автоматическое скрытие
+    if (duration > 0) {
+      setTimeout(() => {
+        setNotification(prev => ({
+          ...prev,
+          isVisible: false
+        }));
+      }, duration);
+    }
   }, []);
 
   const hideNotification = useCallback(() => {
@@ -22,20 +33,20 @@ export const useNotification = () => {
     }));
   }, []);
 
-  const showSuccess = useCallback((message) => {
-    showNotification(message, 'success');
+  const showSuccess = useCallback((message, duration) => {
+    showNotification(message, 'success', duration);
   }, [showNotification]);
 
-  const showError = useCallback((message) => {
-    showNotification(message, 'error');
+  const showError = useCallback((message, duration) => {
+    showNotification(message, 'error', duration);
   }, [showNotification]);
 
-  const showWarning = useCallback((message) => {
-    showNotification(message, 'warning');
+  const showWarning = useCallback((message, duration) => {
+    showNotification(message, 'warning', duration);
   }, [showNotification]);
 
-  const showInfo = useCallback((message) => {
-    showNotification(message, 'info');
+  const showInfo = useCallback((message, duration) => {
+    showNotification(message, 'info', duration);
   }, [showNotification]);
 
   return {
