@@ -10,12 +10,32 @@ export const Notifications = () => {
   const { 
     notifications, 
     isLoading,
+    unreadCount,
     markAsRead,
     markAllAsRead,
     getNotificationLink,
     getNotificationIcon,
-    formatTime
+    formatTime,
+    refreshUnreadCount,
+    loadNotifications
   } = useNotifications();
+
+  // Загружаем данные при монтировании
+  useEffect(() => {
+    loadNotifications();
+    refreshUnreadCount();
+  }, [loadNotifications, refreshUnreadCount]);
+
+  // Обновляем счётчик при фокусе окна
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshUnreadCount();
+      loadNotifications();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [refreshUnreadCount, loadNotifications]);
 
   useEffect(() => {
     if (activeFilter === 'all') {
@@ -37,10 +57,14 @@ export const Notifications = () => {
     { key: 'project_created', label: 'Проекты' }
   ];
 
-  const handleNotificationClick = (notification) => {
+  const handleNotificationClick = async (notification) => {
     if (!notification.is_read) {
-      markAsRead(notification.id);
+      await markAsRead(notification.id);
     }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    await markAllAsRead();
   };
 
   const getPriorityClass = (priority) => {
@@ -53,7 +77,7 @@ export const Notifications = () => {
     return classes[priority] || '';
   };
 
-  if (isLoading) {
+  if (isLoading && notifications.length === 0) {
     return (
       <div className={styles.loadingContainer}>
         <div className={styles.spinner}></div>
@@ -67,13 +91,13 @@ export const Notifications = () => {
       <div className={styles.header}>
         <div className={styles.headerTop}>
           <h1 className={styles.title}>Уведомления</h1>
-          {notifications.some(n => !n.is_read) && (
+          {unreadCount > 0 && (
             <Button 
               variant="secondary" 
               size="medium"
-              onClick={markAllAsRead}
+              onClick={handleMarkAllAsRead}
             >
-              Отметить все как прочитанные
+              Отметить все как прочитанные ({unreadCount})
             </Button>
           )}
         </div>
@@ -86,9 +110,9 @@ export const Notifications = () => {
               onClick={() => setActiveFilter(filter.key)}
             >
               {filter.label}
-              {filter.key === 'unread' && notifications.filter(n => !n.is_read).length > 0 && (
+              {filter.key === 'unread' && unreadCount > 0 && (
                 <span className={styles.filterCount}>
-                  {notifications.filter(n => !n.is_read).length}
+                  {unreadCount}
                 </span>
               )}
             </button>

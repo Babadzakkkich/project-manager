@@ -20,14 +20,32 @@ export const NotificationBell = () => {
   
   const dropdownRef = useRef(null);
   const buttonRef = useRef(null);
+  const isDataLoadedRef = useRef(false);
 
-  // Обновляем данные при открытии дропдауна
+  // Обновляем счётчик при открытии дропдауна (всегда)
   useEffect(() => {
     if (isOpen) {
       refreshUnreadCount();
+    }
+  }, [isOpen, refreshUnreadCount]);
+
+  // Загружаем данные только при первом открытии
+  useEffect(() => {
+    if (isOpen && !isDataLoadedRef.current) {
+      isDataLoadedRef.current = true;
       loadNotifications();
     }
-  }, [isOpen, refreshUnreadCount, loadNotifications]);
+  }, [isOpen, loadNotifications]);
+
+  // Обновляем счётчик при фокусе окна
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshUnreadCount();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [refreshUnreadCount]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -38,6 +56,8 @@ export const NotificationBell = () => {
         !buttonRef.current.contains(event.target)
       ) {
         setIsOpen(false);
+        // Сбрасываем флаг при закрытии, чтобы при следующем открытии снова загрузились данные
+        isDataLoadedRef.current = false;
       }
     };
     
@@ -45,11 +65,15 @@ export const NotificationBell = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleNotificationClick = (notification) => {
+  const handleNotificationClick = async (notification) => {
     if (!notification.is_read) {
-      markAsRead(notification.id);
+      await markAsRead(notification.id);
     }
     setIsOpen(false);
+  };
+
+  const handleMarkAllAsRead = async () => {
+    await markAllAsRead();
   };
 
   const getPriorityClass = (priority) => {
@@ -95,7 +119,7 @@ export const NotificationBell = () => {
           key={notification.id}
           to={link}
           className={styles.notificationLink}
-          onClick={() => handleNotificationClick(notification, link)}
+          onClick={() => handleNotificationClick(notification)}
         >
           {content}
         </Link>
@@ -106,12 +130,14 @@ export const NotificationBell = () => {
       <div
         key={notification.id}
         className={styles.notificationWrapper}
-        onClick={() => handleNotificationClick(notification, null)}
+        onClick={() => handleNotificationClick(notification)}
       >
         {content}
       </div>
     );
   };
+
+  const hasUnread = unreadCount > 0;
 
   return (
     <div className={styles.bellContainer}>
@@ -127,7 +153,7 @@ export const NotificationBell = () => {
           alt="Уведомления" 
           className={styles.bellIcon}
         />
-        {unreadCount > 0 && (
+        {hasUnread && (
           <span className={styles.badge}>
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
@@ -138,13 +164,10 @@ export const NotificationBell = () => {
         <div className={styles.dropdown} ref={dropdownRef}>
           <div className={styles.header}>
             <h3 className={styles.title}>Уведомления</h3>
-            {unreadCount > 0 && (
+            {hasUnread && (
               <button 
                 className={styles.markAllReadButton}
-                onClick={() => {
-                  markAllAsRead();
-                  refreshUnreadCount();
-                }}
+                onClick={handleMarkAllAsRead}
               >
                 Все прочитано
               </button>
@@ -152,7 +175,7 @@ export const NotificationBell = () => {
           </div>
           
           <div className={styles.list}>
-            {isLoading ? (
+            {isLoading && notifications.length === 0 ? (
               <div className={styles.loadingState}>
                 <div className={styles.spinner}></div>
                 <p>Загрузка уведомлений...</p>

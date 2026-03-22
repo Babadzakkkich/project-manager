@@ -185,6 +185,16 @@ class RedisClient:
         except Exception as e:
             logger.error(f"Failed to remove connection: {e}")
     
+    async def invalidate_unread_count(self, user_id: int):
+        """Инвалидирует кэш количества непрочитанных уведомлений"""
+        if not self._connected:
+            return
+        try:
+            await self.client.delete(f"unread:{user_id}")
+            logger.debug(f"Invalidated unread count cache for user {user_id}")
+        except Exception as e:
+            logger.error(f"Failed to invalidate unread count cache: {e}")
+    
     @property
     def is_connected(self) -> bool:
         """Проверка соединения с Redis"""

@@ -56,6 +56,10 @@ class NotificationService:
         await self.session.commit()
         await self.session.refresh(notification)
         
+        # ИНВАЛИДИРУЕМ КЭШ СЧЁТЧИКА
+        cache_key = f"unread:{user_id}"
+        await redis_client.client.delete(cache_key)
+        
         # Формируем сообщение для отправки
         ws_message = {
             "id": notification.id,
@@ -75,6 +79,13 @@ class NotificationService:
         await redis_client.publish("notifications", {
             "user_id": user_id,
             "message": ws_message
+        })
+        
+        # Также отправляем обновлённый счётчик
+        new_count = await self.get_unread_count(user_id)
+        await redis_client.publish("notifications", {
+            "user_id": user_id,
+            "message": {"type": "unread_count", "count": new_count}
         })
         
         logger.debug(f"Notification created for user {user_id}: {title} (sent={sent})")
@@ -106,7 +117,7 @@ class NotificationService:
     async def get_unread_count(self, user_id: int) -> int:
         """Получение количества непрочитанных уведомлений"""
         
-        # Пробуем получить из Redis
+        # Пробуем получить из Redis с коротким TTL
         cache_key = f"unread:{user_id}"
         cached = await redis_client.client.get(cache_key)
         
@@ -121,8 +132,8 @@ class NotificationService:
         result = await self.session.execute(stmt)
         count = result.scalar_one()
         
-        # Кэшируем на 60 секунд
-        await redis_client.client.setex(cache_key, 60, count)
+        # Кэшируем на 10 секунд, а не на 60
+        await redis_client.client.setex(cache_key, 10, count)
         
         return count
     
@@ -142,7 +153,15 @@ class NotificationService:
             await self.session.commit()
             
             # Инвалидируем кэш
-            await redis_client.client.delete(f"unread:{user_id}")
+            cache_key = f"unread:{user_id}"
+            await redis_client.client.delete(cache_key)
+            
+            # Отправляем обновлённый счётчик
+            new_count = await self.get_unread_count(user_id)
+            await redis_client.publish("notifications", {
+                "user_id": user_id,
+                "message": {"type": "unread_count", "count": new_count}
+            })
             
             return True
         
@@ -166,7 +185,14 @@ class NotificationService:
         await self.session.commit()
         
         # Инвалидируем кэш
-        await redis_client.client.delete(f"unread:{user_id}")
+        cache_key = f"unread:{user_id}"
+        await redis_client.client.delete(cache_key)
+        
+        # Отправляем обновлённый счётчик
+        await redis_client.publish("notifications", {
+            "user_id": user_id,
+            "message": {"type": "unread_count", "count": 0}
+        })
         
         return count
 
@@ -225,8 +251,9 @@ class NotificationTriggerService:
         user_ids = {assignee.id for assignee in task.assignees}
         
         # Участники группы (все, кто может видеть задачу)
-        group_members = await self._get_group_member_ids(task.group_id)
-        user_ids.update(group_members)
+        if task.group_id:
+            group_members = await self._get_group_member_ids(task.group_id)
+            user_ids.update(group_members)
         
         if exclude_user_id:
             user_ids.discard(exclude_user_id)

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { notificationsAPI } from '../services/api/notifications';
-import { NOTIFICATION_TYPES } from '../utils/constants';
 
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -11,18 +10,25 @@ export const useNotifications = () => {
   const reconnectTimeoutRef = useRef(null);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
+  const isMountedRef = useRef(true);
+  const isInitializedRef = useRef(false);
 
   // Загрузка истории уведомлений
   const loadNotifications = useCallback(async () => {
     try {
       setIsLoading(true);
       const response = await notificationsAPI.getNotifications({ limit: 50 });
-      setNotifications(response.items || []);
-      setUnreadCount(response.unread_count || 0);
+      
+      if (isMountedRef.current) {
+        setNotifications(response.items || []);
+        setUnreadCount(response.unread_count || 0);
+      }
     } catch (error) {
       console.error('Failed to load notifications:', error);
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
@@ -30,7 +36,9 @@ export const useNotifications = () => {
   const refreshUnreadCount = useCallback(async () => {
     try {
       const response = await notificationsAPI.getUnreadCount();
-      setUnreadCount(response.count || 0);
+      if (isMountedRef.current) {
+        setUnreadCount(response.count || 0);
+      }
     } catch (error) {
       console.error('Failed to get unread count:', error);
     }
@@ -61,6 +69,13 @@ export const useNotifications = () => {
       }, 30000);
       
       wsRef.current.pingInterval = pingInterval;
+      
+      // Принудительно обновляем счётчик после подключения
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          refreshUnreadCount();
+        }
+      }, 1000);
     };
     
     wsRef.current.onmessage = (event) => {
@@ -77,17 +92,14 @@ export const useNotifications = () => {
         }
         
         // Новое уведомление
-        if (data.id) {
+        if (data.id && data.type !== 'marked_read' && data.type !== 'marked_all_read' && data.type !== 'unread_count') {
           setNotifications(prev => [data, ...prev]);
           setUnreadCount(prev => prev + 1);
-          
           showToastNotification(data);
         }
         
-        // Обновление количества после прочтения
+        // После отметки о прочтении — обновляем счётчик
         if (data.type === 'marked_read' || data.type === 'marked_all_read') {
-          // Полностью перезагружаем уведомления и счетчик
-          loadNotifications();
           refreshUnreadCount();
         }
         
@@ -108,7 +120,7 @@ export const useNotifications = () => {
         clearInterval(wsRef.current.pingInterval);
       }
       
-      if (reconnectAttempts.current < maxReconnectAttempts) {
+      if (reconnectAttempts.current < maxReconnectAttempts && isMountedRef.current) {
         reconnectTimeoutRef.current = setTimeout(() => {
           reconnectAttempts.current++;
           connectWebSocket();
@@ -119,7 +131,7 @@ export const useNotifications = () => {
     wsRef.current.onerror = (error) => {
       console.error('WebSocket error:', error);
     };
-  }, [loadNotifications, refreshUnreadCount]);
+  }, [refreshUnreadCount]);
 
   const showToastNotification = (notification) => {
     const event = new CustomEvent('toast:show', {
@@ -147,25 +159,23 @@ export const useNotifications = () => {
       await notificationsAPI.markAsRead(notificationId);
       
       // Обновляем локальное состояние
-      setNotifications(prev =>
-        prev.map(n =>
+      setNotifications(prev => {
+        const updated = prev.map(n =>
           n.id === notificationId ? { ...n, is_read: true, read_at: new Date().toISOString() } : n
-        )
-      );
+        );
+        return updated;
+      });
       
-      // Пересчитываем количество непрочитанных
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      // Обновляем счётчик
+      await refreshUnreadCount();
       
-      // Отправляем через WebSocket, чтобы синхронизировать другие вкладки
+      // Отправляем через WebSocket для синхронизации других вкладок
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
           action: 'mark_read',
           notification_id: notificationId
         }));
       }
-      
-      // Также обновляем счетчик через API для синхронизации
-      await refreshUnreadCount();
       
     } catch (error) {
       console.error('Failed to mark as read:', error);
@@ -175,26 +185,23 @@ export const useNotifications = () => {
   // Отметить все как прочитанные
   const markAllAsRead = useCallback(async () => {
     try {
-      const response = await notificationsAPI.markAllAsRead();
+      await notificationsAPI.markAllAsRead();
       
       // Обновляем локальное состояние
       setNotifications(prev =>
         prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
       );
-      setUnreadCount(0);
+      
+      // Обновляем счётчик
+      await refreshUnreadCount();
       
       // Отправляем через WebSocket
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ action: 'mark_all_read' }));
       }
       
-      // Обновляем счетчик через API
-      await refreshUnreadCount();
-      
-      return response.count;
     } catch (error) {
       console.error('Failed to mark all as read:', error);
-      return 0;
     }
   }, [refreshUnreadCount]);
 
@@ -252,13 +259,32 @@ export const useNotifications = () => {
     return date.toLocaleDateString('ru-RU');
   }, []);
 
-  // Инициализация
+  // Инициализация — ТОЛЬКО ОДИН РАЗ
   useEffect(() => {
+    if (isInitializedRef.current) return;
+    isInitializedRef.current = true;
+    
+    isMountedRef.current = true;
+    
+    // Загружаем данные
     loadNotifications();
-    refreshUnreadCount();
+    
+    // Подключаем WebSocket
     connectWebSocket();
     
+    // Обновляем счётчик при фокусе окна
+    const handleFocus = () => {
+      if (isMountedRef.current) {
+        refreshUnreadCount();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
     return () => {
+      isMountedRef.current = false;
+      window.removeEventListener('focus', handleFocus);
+      
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
@@ -269,19 +295,7 @@ export const useNotifications = () => {
         wsRef.current.close();
       }
     };
-  }, [loadNotifications, refreshUnreadCount, connectWebSocket]);
-
-  // Добавляем эффект для синхронизации при фокусе окна
-  useEffect(() => {
-    const handleFocus = () => {
-      // При возвращении на вкладку обновляем данные
-      refreshUnreadCount();
-      loadNotifications();
-    };
-    
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [refreshUnreadCount, loadNotifications]);
+  }, [loadNotifications, connectWebSocket, refreshUnreadCount]);
 
   return {
     notifications,
