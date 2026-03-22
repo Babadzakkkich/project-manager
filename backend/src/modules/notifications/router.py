@@ -10,7 +10,7 @@ from shared.dependencies import get_service_factory
 from core.database.models import User
 from core.logger import logger
 from .websocket_manager import manager
-from .redis_client import redis_client
+from .publisher import notification_publisher
 
 router = APIRouter()
 
@@ -23,6 +23,13 @@ async def websocket_endpoint(
 ):
     """
     WebSocket эндпоинт для получения уведомлений в реальном времени
+    
+    Уведомления доставляются через WebSocket напрямую из потребителя RabbitMQ.
+    Клиент может отправлять команды:
+    - mark_read: отметить уведомление как прочитанное
+    - mark_all_read: отметить все как прочитанные
+    - get_unread_count: получить количество непрочитанных
+    - ping: проверить соединение
     """
     if not user:
         await websocket.close(code=1008, reason="Unauthorized")
@@ -31,44 +38,45 @@ async def websocket_endpoint(
     connection_id = str(uuid.uuid4())
     await manager.connect(websocket, user.id, connection_id)
     
-    # Создаем обработчик для сообщений из Redis
-    async def redis_message_handler(channel: str, data: str):
-        """Обработчик сообщений из Redis для этого пользователя"""
-        try:
-            message_data = json.loads(data)
-            # Отправляем сообщение через WebSocket
-            await websocket.send_json(message_data)
-        except Exception as e:
-            logger.error(f"Error sending Redis message to WebSocket: {e}")
-    
     try:
         # Отправляем приветственное сообщение
         await websocket.send_json({
             "type": "connected",
-            "message": "Connected to notifications",
+            "message": "Connected to notifications service",
             "connection_id": connection_id
         })
         
-        # Подписываемся на канал пользователя в Redis
-        user_channel = f"user:{user.id}"
-        await redis_client.subscribe(user_channel, redis_message_handler)
-        logger.debug(f"Subscribed to Redis channel for user {user.id}")
+        logger.info(f"WebSocket connected for user {user.id}, connection {connection_id}")
         
         # Получаем сервис уведомлений через фабрику
         notification_service = service_factory.get('notification')
         
+        # Отправляем текущее количество непрочитанных уведомлений
+        unread_count = await notification_service.get_unread_count(user.id)
+        await websocket.send_json({
+            "type": "unread_count",
+            "count": unread_count
+        })
+        
         # Обрабатываем входящие сообщения от клиента
         while True:
-            data = await websocket.receive_json()
+            try:
+                data = await asyncio.wait_for(websocket.receive_json(), timeout=60.0)
+            except asyncio.TimeoutError:
+                # Отправляем ping для проверки соединения
+                await websocket.send_json({"type": "ping"})
+                continue
+            
             action = data.get("action")
             
             if action == "mark_read":
                 notification_id = data.get("notification_id")
                 if notification_id:
-                    await notification_service.mark_as_read(notification_id, user.id)
+                    success = await notification_service.mark_as_read(notification_id, user.id)
                     await websocket.send_json({
                         "type": "marked_read",
-                        "notification_id": notification_id
+                        "notification_id": notification_id,
+                        "success": success
                     })
             
             elif action == "mark_all_read":
@@ -87,12 +95,27 @@ async def websocket_endpoint(
             
             elif action == "ping":
                 await websocket.send_json({"type": "pong"})
+            
+            elif action == "subscribe_to_updates":
+                # Клиент может подписаться на обновления определенного типа
+                # (опционально, можно реализовать при необходимости)
+                await websocket.send_json({
+                    "type": "subscribed",
+                    "status": "ok"
+                })
+            
+            else:
+                logger.warning(f"Unknown action from user {user.id}: {action}")
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Unknown action: {action}"
+                })
     
     except WebSocketDisconnect:
-        logger.info(f"WebSocket disconnected for user {user.id}")
+        logger.info(f"WebSocket disconnected for user {user.id}, connection {connection_id}")
     except Exception as e:
-        logger.error(f"WebSocket error for user {user.id}: {e}")
+        logger.error(f"WebSocket error for user {user.id}: {e}", exc_info=True)
     finally:
-        # Отписываемся от канала Redis
-        await redis_client.unsubscribe(f"user:{user.id}", redis_message_handler)
+        # Отключаем соединение
         manager.disconnect(user.id, connection_id)
+        logger.info(f"WebSocket cleaned up for user {user.id}, connection {connection_id}")

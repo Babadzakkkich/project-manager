@@ -8,6 +8,9 @@ from core.config import settings
 from core.database.session import db_session
 from core.database.models import Base
 from modules.notifications.redis_client import redis_client
+from modules.notifications.rabbitmq_client import rabbitmq_client
+from modules.notifications.consumer import notification_consumer
+from core.logger import logger
 
 # Импортируем роутеры
 from modules.auth.router import router as auth_router
@@ -21,15 +24,41 @@ from modules.notifications.http_router import router as notifications_http_route
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    logger.info("Starting application lifespan...")
+    
+    # Создаем таблицы в БД
     async with db_session.engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    logger.info("Database tables created/verified")
     
+    # Подключаемся к Redis
     await redis_client.connect()
+    logger.info(f"Redis connected: {redis_client.is_connected}")
+    
+    # Подключаемся к RabbitMQ
+    connected = await rabbitmq_client.connect()
+    logger.info(f"RabbitMQ connected: {connected}")
+    
+    if connected:
+        # Запускаем потребителя уведомлений
+        await notification_consumer.start()
+        logger.info("Notification consumer started")
+    else:
+        logger.warning("RabbitMQ not connected, consumer not started")
     
     yield
     
+    logger.info("Shutting down application...")
+    
+    # Останавливаем потребителя
+    await notification_consumer.stop()
+    logger.info("Notification consumer stopped")
+    
+    # Закрываем соединения
+    await rabbitmq_client.disconnect()
     await redis_client.disconnect()
     await db_session.dispose()
+    logger.info("All connections closed")
 
 
 main_app = FastAPI(lifespan=lifespan)

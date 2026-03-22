@@ -29,11 +29,18 @@ services:
       APP_CONFIG__REDIS__PORT: ${APP_CONFIG__REDIS__PORT}
       APP_CONFIG__REDIS__DB: ${APP_CONFIG__REDIS__DB}
       APP_CONFIG__REDIS__MAX_CONNECTIONS: ${APP_CONFIG__REDIS__MAX_CONNECTIONS}
+      APP_CONFIG__RABBITMQ__HOST: ${APP_CONFIG__RABBITMQ__HOST}
+      APP_CONFIG__RABBITMQ__PORT: ${APP_CONFIG__RABBITMQ__PORT}
+      APP_CONFIG__RABBITMQ__USER: ${APP_CONFIG__RABBITMQ__USER}
+      APP_CONFIG__RABBITMQ__PASSWORD: ${APP_CONFIG__RABBITMQ__PASSWORD}
+      APP_CONFIG__RABBITMQ__VHOST: ${APP_CONFIG__RABBITMQ__VHOST}
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_healthy 
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
     volumes:
       - ./backend:/app
@@ -70,6 +77,24 @@ services:
       timeout: 5s
       retries: 5
 
+  rabbitmq:
+    image: rabbitmq:4.2.2-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${APP_CONFIG__RABBITMQ__USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${APP_CONFIG__RABBITMQ__PASSWORD:-guest}
+    restart: unless-stopped
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
 volumes:
   postgres_data:
   redis_data:
+  rabbitmq_data:
