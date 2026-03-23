@@ -39,12 +39,16 @@ class NotificationPublisher(BasePublisher):
         """
         routing_key = await self._ensure_routing_key()
         
+        # Добавляем notification_type в data, чтобы consumer мог его использовать
+        message_data = data or {}
+        message_data["notification_type"] = notification_type
+        
         message = NotificationMessage(
             user_id=user_id,
             title=title,
             content=content,
             priority=priority,
-            data=data or {},
+            data=message_data,
             correlation_id=correlation_id
         )
         
@@ -57,7 +61,7 @@ class NotificationPublisher(BasePublisher):
     async def broadcast_notification(
         self,
         user_ids: List[int],
-        notification_type: str,  # Добавляем параметр
+        notification_type: str,
         title: str,
         content: str,
         priority: MessagePriority = MessagePriority.MEDIUM,
@@ -71,13 +75,17 @@ class NotificationPublisher(BasePublisher):
         
         routing_key = await self._ensure_routing_key()
         
+        # Добавляем notification_type в data
+        message_data = data or {}
+        message_data["notification_type"] = notification_type
+        
         message = BroadcastMessage(
             user_ids=user_ids,
-            notification_type=notification_type,  # Передаем тип
+            notification_type=notification_type,
             title=title,
             content=content,
             priority=priority,
-            data=data or {}
+            data=message_data
         )
         
         return await self.messaging.publish(

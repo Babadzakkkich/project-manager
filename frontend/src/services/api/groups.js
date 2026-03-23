@@ -13,7 +13,7 @@ export const groupsAPI = {
   },
 
   create: async (groupData) => {
-    const response = await apiClient.post(API_ENDPOINTS.GROUPS, groupData);
+    const response = await apiClient.post(`${API_ENDPOINTS.GROUPS}/`, groupData);
     return response.data;
   },
 
@@ -32,11 +32,28 @@ export const groupsAPI = {
     return response.data;
   },
 
-  addUsers: async (groupId, usersData) => {
-    const response = await apiClient.post(`${API_ENDPOINTS.GROUPS}/${groupId}/add_users`, usersData);
+  // Новая система приглашений
+  inviteUser: async (groupId, inviteData) => {
+    const response = await apiClient.post(`${API_ENDPOINTS.GROUPS}/${groupId}/invite`, inviteData);
     return response.data;
   },
 
+  getPendingInvitations: async () => {
+    const response = await apiClient.get(`${API_ENDPOINTS.GROUPS}/invitations/pending`);
+    return response.data;
+  },
+
+  acceptInvitation: async (token) => {
+    const response = await apiClient.post(`${API_ENDPOINTS.GROUPS}/invitations/${token}/accept`);
+    return response.data;
+  },
+
+  declineInvitation: async (token) => {
+    const response = await apiClient.post(`${API_ENDPOINTS.GROUPS}/invitations/${token}/decline`);
+    return response.data;
+  },
+
+  // Удаление пользователей из группы (оставляем)
   removeUsers: async (groupId, usersData) => {
     const response = await apiClient.delete(`${API_ENDPOINTS.GROUPS}/${groupId}/remove_users`, {
       data: usersData

@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from core.database.models import (
     Notification, NotificationType, NotificationPriority, 
-    User, Group, Project, Task, GroupMember
+    User, Group, Project, Task, GroupMember, UserRole
 )
 from core.logger import logger
 from .redis_client import redis_client
@@ -340,7 +340,7 @@ class NotificationTriggerService:
         added_by: User,
         role: str
     ):
-        """Пользователь добавлен в группу"""
+        """Пользователь добавлен в группу (через приглашение)"""
         # Уведомляем добавленного пользователя
         if added_user.id != added_by.id:
             await self.notification_service.send(
@@ -429,6 +429,96 @@ class NotificationTriggerService:
             data={"group_id": group.id, "group_name": group.name, "user_id": target_user.id, "new_role": new_role}
         )
     
+    # ==================== ПРИГЛАШЕНИЯ ====================
+    
+    async def on_invitation_sent(
+        self,
+        group: Group,
+        invited_email: str,
+        invited_by: User,
+        role: str,
+        invitation_token: str
+    ):
+        """
+        Отправка приглашения пользователю
+        """
+        # Проверяем, существует ли пользователь с таким email
+        user_stmt = select(User).where(User.email == invited_email)
+        user_result = await self.session.execute(user_stmt)
+        existing_user = user_result.scalar_one_or_none()
+        
+        if existing_user:
+            # Если пользователь существует, отправляем уведомление ему
+            await self.notification_service.send(
+                user_id=existing_user.id,
+                notification_type=NotificationType.GROUP_INVITATION,
+                title=f"Приглашение в группу '{group.name}'",
+                content=f"{invited_by.login} приглашает вас в группу '{group.name}' в роли {role}",
+                priority=NotificationPriority.HIGH,
+                data={
+                    "group_id": group.id,
+                    "group_name": group.name,
+                    "invited_by": invited_by.login,
+                    "invited_by_id": invited_by.id,
+                    "role": role,
+                    "invitation_token": invitation_token,
+                    "invited_email": invited_email,
+                    "type": "invitation"
+                }
+            )
+        else:
+            # Если пользователь не зарегистрирован, можно отправить email
+            # или сохранить приглашение и показать при регистрации
+            self.logger.info(f"Invitation sent to non-existent user {invited_email}")
+    
+    async def on_user_accepted_invitation(
+        self,
+        group: Group,
+        new_user: User,
+        invited_by: User
+    ):
+        """
+        Уведомление пригласившему о принятии приглашения
+        """
+        await self.notification_service.send(
+            user_id=invited_by.id,
+            notification_type=NotificationType.GROUP_INVITATION_ACCEPTED,
+            title="Пользователь принял приглашение",
+            content=f"{new_user.login} ({new_user.email}) принял(а) приглашение и присоединился(ась) к группе '{group.name}'",
+            priority=NotificationPriority.MEDIUM,
+            data={
+                "group_id": group.id,
+                "group_name": group.name,
+                "user_id": new_user.id,
+                "user_login": new_user.login,
+                "user_email": new_user.email,
+                "type": "invitation_accepted"
+            }
+        )
+    
+    async def on_user_declined_invitation(
+        self,
+        group: Group,
+        invited_email: str,
+        invited_by: User
+    ):
+        """
+        Уведомление пригласившему об отклонении приглашения
+        """
+        await self.notification_service.send(
+            user_id=invited_by.id,
+            notification_type=NotificationType.GROUP_INVITATION_DECLINED,
+            title="Пользователь отклонил приглашение",
+            content=f"Пользователь {invited_email} отклонил(а) приглашение в группу '{group.name}'",
+            priority=NotificationPriority.MEDIUM,
+            data={
+                "group_id": group.id,
+                "group_name": group.name,
+                "invited_email": invited_email,
+                "type": "invitation_declined"
+            }
+        )
+    
     # ==================== ПРОЕКТНЫЕ УВЕДОМЛЕНИЯ ====================
     
     async def on_project_created(self, project: Project, created_by: User, group_ids: List[int]):
@@ -469,6 +559,42 @@ class NotificationTriggerService:
             content=f"{deleted_by.login} удалил(а) проект '{project.title}'",
             priority=NotificationPriority.HIGH,
             data={"project_id": project.id, "project_title": project.title}
+        )
+    
+    async def on_group_added_to_project(
+        self,
+        project: Project,
+        group: Group,
+        added_by: User
+    ):
+        """Группа добавлена в проект"""
+        user_ids = await self._get_group_member_ids(group.id, exclude_user_id=added_by.id)
+        
+        await self._broadcast_notification(
+            user_ids=user_ids,
+            notification_type=NotificationType.GROUP_ADDED_TO_PROJECT,
+            title="Группа добавлена в проект",
+            content=f"{added_by.login} добавил(а) группу '{group.name}' в проект '{project.title}'",
+            priority=NotificationPriority.MEDIUM,
+            data={"project_id": project.id, "project_title": project.title, "group_id": group.id, "group_name": group.name}
+        )
+    
+    async def on_group_removed_from_project(
+        self,
+        project: Project,
+        group: Group,
+        removed_by: User
+    ):
+        """Группа удалена из проекта"""
+        user_ids = await self._get_group_member_ids(group.id, exclude_user_id=removed_by.id)
+        
+        await self._broadcast_notification(
+            user_ids=user_ids,
+            notification_type=NotificationType.GROUP_REMOVED_FROM_PROJECT,
+            title="Группа удалена из проекта",
+            content=f"{removed_by.login} удалил(а) группу '{group.name}' из проекта '{project.title}'",
+            priority=NotificationPriority.MEDIUM,
+            data={"project_id": project.id, "project_title": project.title, "group_id": group.id, "group_name": group.name}
         )
     
     # ==================== ЗАДАЧНЫЕ УВЕДОМЛЕНИЯ ====================
@@ -612,4 +738,43 @@ class NotificationTriggerService:
             content=content,
             priority=NotificationPriority.MEDIUM,
             data={"task_id": task.id, "task_title": task.title, "assigned_users": [u.id for u in assigned_users]}
+        )
+    
+    async def on_users_unassigned_from_task(
+        self,
+        task: Task,
+        unassigned_users: List[User],
+        unassigned_by: User
+    ):
+        """Пользователи удалены из задачи"""
+        # Уведомляем удаленных пользователей
+        for user in unassigned_users:
+            if user.id != unassigned_by.id:
+                await self.notification_service.send(
+                    user_id=user.id,
+                    notification_type=NotificationType.USER_UNASSIGNED_FROM_TASK,
+                    title="Вы удалены из задачи",
+                    content=f"{unassigned_by.login} удалил(а) вас из задачи '{task.title}'",
+                    priority=NotificationPriority.MEDIUM,
+                    data={"task_id": task.id, "task_title": task.title}
+                )
+        
+        # Уведомляем остальных участников
+        other_users = await self._get_task_participant_ids(task.id, exclude_user_id=unassigned_by.id)
+        
+        if len(unassigned_users) == 1:
+            content = f"{unassigned_by.login} удалил(а) {unassigned_users[0].login} из задачи '{task.title}'"
+        else:
+            names = ", ".join(u.login for u in unassigned_users[:3])
+            if len(unassigned_users) > 3:
+                names += f" и еще {len(unassigned_users) - 3}"
+            content = f"{unassigned_by.login} удалил(а) {names} из задачи '{task.title}'"
+        
+        await self._broadcast_notification(
+            user_ids=other_users,
+            notification_type=NotificationType.USER_UNASSIGNED_FROM_TASK,
+            title="Исполнители удалены из задачи",
+            content=content,
+            priority=NotificationPriority.MEDIUM,
+            data={"task_id": task.id, "task_title": task.title, "unassigned_users": [u.id for u in unassigned_users]}
         )

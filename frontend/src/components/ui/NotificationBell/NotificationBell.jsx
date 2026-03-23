@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useNotifications } from '../../../hooks/useNotifications';
+import { useInvitations } from '../../../hooks/useInvitations';
+import { InvitationNotification } from '../InvitationNotification/InvitationNotification';
 import notificationSvg from '../../../assets/notifications/notification.svg';
 import styles from './NotificationBell.module.css';
 
@@ -17,25 +19,28 @@ export const NotificationBell = () => {
     forceRefresh
   } = useNotifications();
   
+  const { pendingInvitations, loadPendingInvitations } = useInvitations();
+  const [showInvitations, setShowInvitations] = useState(true);
+  
   const dropdownRef = useRef(null);
   const buttonRef = useRef(null);
 
-  // При открытии дропдауна принудительно обновляем данные
   useEffect(() => {
     if (isOpen) {
       forceRefresh();
+      loadPendingInvitations();
     }
-  }, [isOpen, forceRefresh]);
+  }, [isOpen, forceRefresh, loadPendingInvitations]);
 
-  // Слушаем событие синхронизации для обновления данных
   useEffect(() => {
     const handleSync = () => {
       forceRefresh();
+      loadPendingInvitations();
     };
     
     window.addEventListener('notifications:sync', handleSync);
     return () => window.removeEventListener('notifications:sync', handleSync);
-  }, [forceRefresh]);
+  }, [forceRefresh, loadPendingInvitations]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -54,7 +59,9 @@ export const NotificationBell = () => {
   }, []);
 
   const handleNotificationClick = async (notification) => {
-    if (!notification.is_read) {
+    // Если это приглашение, не отмечаем как прочитанное при клике
+    // так как оно будет обработано отдельно
+    if (notification.type !== 'group_invitation' && !notification.is_read) {
       await markAsRead(notification.id);
     }
     setIsOpen(false);
@@ -126,6 +133,7 @@ export const NotificationBell = () => {
   };
 
   const hasUnread = unreadCount > 0;
+  const hasInvitations = pendingInvitations.length > 0 && showInvitations;
 
   return (
     <div className={styles.bellContainer}>
@@ -141,9 +149,9 @@ export const NotificationBell = () => {
           alt="Уведомления" 
           className={styles.bellIcon}
         />
-        {hasUnread && (
+        {(hasUnread || hasInvitations) && (
           <span className={styles.badge}>
-            {unreadCount > 99 ? '99+' : unreadCount}
+            {(unreadCount + (hasInvitations ? pendingInvitations.length : 0)) > 99 ? '99+' : (unreadCount + (hasInvitations ? pendingInvitations.length : 0))}
           </span>
         )}
       </button>
@@ -152,33 +160,64 @@ export const NotificationBell = () => {
         <div className={styles.dropdown} ref={dropdownRef}>
           <div className={styles.header}>
             <h3 className={styles.title}>Уведомления</h3>
-            {hasUnread && (
-              <button 
-                className={styles.markAllReadButton}
-                onClick={handleMarkAllAsRead}
-              >
-                Все прочитано
-              </button>
-            )}
+            <div className={styles.headerActions}>
+              {hasUnread && (
+                <button 
+                  className={styles.markAllReadButton}
+                  onClick={handleMarkAllAsRead}
+                >
+                  Все прочитано
+                </button>
+              )}
+              {hasInvitations && (
+                <button 
+                  className={styles.hideInvitationsButton}
+                  onClick={() => setShowInvitations(false)}
+                >
+                  Скрыть приглашения
+                </button>
+              )}
+            </div>
           </div>
           
           <div className={styles.list}>
-            {isLoading && notifications.length === 0 ? (
+            {hasInvitations && (
+              <div className={styles.invitationsSection}>
+                <div className={styles.sectionTitle}>
+                  Приглашения ({pendingInvitations.length})
+                </div>
+                {pendingInvitations.map(invitation => (
+                  <InvitationNotification
+                    key={invitation.id}
+                    invitation={invitation}
+                    onProcessed={() => {
+                      loadPendingInvitations();
+                      forceRefresh();
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+            
+            {isLoading && notifications.length === 0 && !hasInvitations ? (
               <div className={styles.loadingState}>
                 <div className={styles.spinner}></div>
                 <p>Загрузка уведомлений...</p>
               </div>
-            ) : notifications.length === 0 ? (
+            ) : notifications.length === 0 && !hasInvitations ? (
               <div className={styles.emptyState}>
                 <span className={styles.emptyIcon}>🔕</span>
                 <p>Нет уведомлений</p>
               </div>
             ) : (
-              notifications.slice(0, 10).map(notification => renderNotificationContent(notification))
+              notifications
+                .filter(n => n.type !== 'group_invitation') // Исключаем приглашения из списка уведомлений
+                .slice(0, 10)
+                .map(notification => renderNotificationContent(notification))
             )}
           </div>
           
-          {notifications.length > 0 && (
+          {(notifications.filter(n => n.type !== 'group_invitation').length > 0 || hasInvitations) && (
             <div className={styles.footer}>
               <Link to="/notifications" className={styles.viewAllLink} onClick={() => setIsOpen(false)}>
                 Посмотреть все

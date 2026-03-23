@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { notificationsAPI } from '../services/api/notifications';
+import { NOTIFICATION_TYPES } from '../utils/constants';
 
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -12,7 +13,7 @@ export const useNotifications = () => {
   const maxReconnectAttempts = 5;
   const isMountedRef = useRef(true);
   const isInitializedRef = useRef(false);
-  const updateCounterRef = useRef(0); // Для принудительного обновления
+  const updateCounterRef = useRef(0);
 
   // Загрузка истории уведомлений
   const loadNotifications = useCallback(async () => {
@@ -54,6 +55,25 @@ export const useNotifications = () => {
     ]);
   }, [loadNotifications, refreshUnreadCount]);
 
+  // Проверка, является ли уведомление приглашением
+  const isInvitation = useCallback((notification) => {
+    return notification.type === NOTIFICATION_TYPES.GROUP_INVITATION;
+  }, []);
+
+  // Получить данные приглашения из уведомления
+  const getInvitationData = useCallback((notification) => {
+    if (!isInvitation(notification)) return null;
+    
+    return {
+      token: notification.data?.invitation_token,
+      groupId: notification.data?.group_id,
+      groupName: notification.data?.group_name,
+      invitedBy: notification.data?.invited_by,
+      role: notification.data?.role,
+      invitedEmail: notification.data?.invited_email
+    };
+  }, [isInvitation]);
+
   // Подключение к WebSocket
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -80,7 +100,6 @@ export const useNotifications = () => {
       
       wsRef.current.pingInterval = pingInterval;
       
-      // Принудительно обновляем данные после подключения
       setTimeout(() => {
         if (isMountedRef.current) {
           forceRefresh();
@@ -108,7 +127,6 @@ export const useNotifications = () => {
           showToastNotification(data);
         }
         
-        // После отметки о прочтении — обновляем все данные
         if (data.type === 'marked_read' || data.type === 'marked_all_read') {
           forceRefresh();
         }
@@ -144,6 +162,17 @@ export const useNotifications = () => {
   }, [forceRefresh]);
 
   const showToastNotification = (notification) => {
+    // Если это приглашение, показываем специальное уведомление
+    if (notification.type === NOTIFICATION_TYPES.GROUP_INVITATION) {
+      const event = new CustomEvent('invitation:show', {
+        detail: {
+          notification: notification
+        }
+      });
+      window.dispatchEvent(event);
+      return;
+    }
+    
     const event = new CustomEvent('toast:show', {
       detail: {
         message: notification.content,
@@ -168,7 +197,6 @@ export const useNotifications = () => {
     try {
       await notificationsAPI.markAsRead(notificationId);
       
-      // Обновляем локальное состояние
       setNotifications(prev => {
         const updated = prev.map(n =>
           n.id === notificationId ? { ...n, is_read: true, read_at: new Date().toISOString() } : n
@@ -176,10 +204,8 @@ export const useNotifications = () => {
         return updated;
       });
       
-      // Обновляем счётчик и перезагружаем данные для синхронизации
       await forceRefresh();
       
-      // Отправляем через WebSocket для синхронизации других вкладок
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
           action: 'mark_read',
@@ -197,15 +223,12 @@ export const useNotifications = () => {
     try {
       await notificationsAPI.markAllAsRead();
       
-      // Обновляем локальное состояние
       setNotifications(prev =>
         prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
       );
       
-      // Обновляем счётчик и перезагружаем данные для синхронизации
       await forceRefresh();
       
-      // Отправляем через WebSocket
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ action: 'mark_all_read' }));
       }
@@ -217,6 +240,11 @@ export const useNotifications = () => {
 
   // Получить ссылку для уведомления
   const getNotificationLink = useCallback((notification) => {
+    // Для приглашений ссылка ведёт на страницу приглашений
+    if (notification.type === NOTIFICATION_TYPES.GROUP_INVITATION) {
+      return '/invitations';
+    }
+    
     if (notification.data?.task_id) {
       return `/tasks/${notification.data.task_id}`;
     }
@@ -251,7 +279,10 @@ export const useNotifications = () => {
       user_assigned_to_task: '👤',
       user_unassigned_from_task: '👤',
       task_deadline_approaching: '⏰',
-      task_overdue: '⚠️'
+      task_overdue: '⚠️',
+      group_invitation: '📧',
+      group_invitation_accepted: '✅',
+      group_invitation_declined: '❌'
     };
     return icons[type] || '🔔';
   }, []);
@@ -269,7 +300,6 @@ export const useNotifications = () => {
     return date.toLocaleDateString('ru-RU');
   }, []);
 
-  // Слушаем событие синхронизации
   useEffect(() => {
     const handleSync = () => {
       if (isMountedRef.current) {
@@ -281,20 +311,15 @@ export const useNotifications = () => {
     return () => window.removeEventListener('notifications:sync', handleSync);
   }, [forceRefresh]);
 
-  // Инициализация
   useEffect(() => {
     if (isInitializedRef.current) return;
     isInitializedRef.current = true;
     
     isMountedRef.current = true;
     
-    // Загружаем данные
     forceRefresh();
-    
-    // Подключаем WebSocket
     connectWebSocket();
     
-    // Обновляем данные при фокусе окна
     const handleFocus = () => {
       if (isMountedRef.current) {
         forceRefresh();
@@ -331,6 +356,8 @@ export const useNotifications = () => {
     formatTime,
     refreshUnreadCount,
     loadNotifications,
-    forceRefresh
+    forceRefresh,
+    isInvitation,
+    getInvitationData
   };
 };

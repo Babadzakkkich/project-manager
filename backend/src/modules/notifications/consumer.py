@@ -50,7 +50,22 @@ class NotificationConsumer(BaseConsumer):
                 notification_service = NotificationService(session)
                 
                 # Преобразуем строку в Enum
-                notification_type = NotificationType(notification.type)
+                # notification.type может быть 'notification' (MessageType) или конкретный тип уведомления
+                notification_type_str = notification.data.get("notification_type") if notification.data else None
+                
+                if notification_type_str:
+                    # Если в data есть notification_type, используем его
+                    notification_type = NotificationType(notification_type_str)
+                else:
+                    # Иначе используем тип из сообщения (может быть невалидным)
+                    # Для обратной совместимости
+                    try:
+                        notification_type = NotificationType(notification.type)
+                    except ValueError:
+                        # Если тип не валидный, используем дефолтный
+                        self.logger.warning(f"Invalid notification type: {notification.type}, using TASK_CREATED as default")
+                        notification_type = NotificationType.TASK_CREATED
+                
                 # notification.priority уже строка из-за use_enum_values=True
                 priority = NotificationPriority(notification.priority)
                 

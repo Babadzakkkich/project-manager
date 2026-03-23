@@ -1,12 +1,12 @@
 from typing import Optional, List, TYPE_CHECKING, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, and_
 from sqlalchemy.orm import selectinload
 
 from core.database.models import Group, User, GroupMember, UserRole, Task, project_group_association, task_user_association
 from shared.dependencies import ensure_user_is_admin, get_user_group_role, ensure_user_is_super_admin_global
 from core.logger import logger
-from .schemas import AddUsersToGroup, GetUserRoleResponse, RemoveUsersFromGroup, GroupCreate, GroupReadWithRelations, GroupUpdate
+from .schemas import GetUserRoleResponse, RemoveUsersFromGroup, GroupCreate, GroupReadWithRelations, GroupUpdate
 from .exceptions import (
     GroupNotFoundError,
     GroupAlreadyExistsError,
@@ -14,9 +14,7 @@ from .exceptions import (
     GroupUpdateError,
     GroupDeleteError,
     UserNotInGroupError,
-    UserAlreadyInGroupError,
     UserNotFoundInGroupError,
-    UsersNotFoundError,
     InsufficientPermissionsError,
 )
 
@@ -149,10 +147,6 @@ class GroupService:
             await self.session.commit()
             self.logger.info(f"Group created successfully with ID: {new_group.id}")
             
-            # Уведомление о создании группы (опционально, можно не отправлять)
-            # if self.notification_trigger:
-            #     await self.notification_trigger.on_group_created(new_group, current_user)
-            
             return await self.get_group_by_id(new_group.id)
 
         except GroupAlreadyExistsError:
@@ -161,85 +155,6 @@ class GroupService:
             await self.session.rollback()
             self.logger.error(f"Error creating group: {e}", exc_info=True)
             raise GroupCreationError(f"Не удалось создать группу: {str(e)}")
-    
-    async def add_users_to_group(self, group_id: int, data: AddUsersToGroup, current_user: User) -> GroupReadWithRelations:
-        """Добавление пользователей в группу"""
-        self.logger.info(f"Adding users to group {group_id} by user {current_user.id}")
-        
-        try:
-            # Проверяем существование группы
-            group_stmt = select(Group).where(Group.id == group_id)
-            group_result = await self.session.execute(group_stmt)
-            group = group_result.scalar_one_or_none()
-            
-            if not group:
-                self.logger.warning(f"Group {group_id} not found")
-                raise GroupNotFoundError(group_id=group_id)
-
-            # Проверяем права администратора
-            await ensure_user_is_admin(self.session, current_user.id, group_id)
-
-            user_emails = [user_with_role.user_email for user_with_role in data.users]
-            
-            # Находим пользователей по email
-            users_stmt = select(User).where(User.email.in_(user_emails))
-            users_result = await self.session.execute(users_stmt)
-            users = users_result.scalars().all()
-
-            if len(users) != len(user_emails):
-                found_emails = {u.email for u in users}
-                missing_emails = set(user_emails) - found_emails
-                self.logger.warning(f"Users not found: {missing_emails}")
-                raise UsersNotFoundError(list(missing_emails))
-
-            email_to_user = {user.email: user for user in users}
-            added_users = []
-
-            for user_with_role in data.users:
-                user_email = user_with_role.user_email
-                role = user_with_role.role
-                user = email_to_user[user_email]
-
-                # Проверяем, не состоит ли уже пользователь в группе
-                existing_member_stmt = select(GroupMember).where(
-                    GroupMember.user_id == user.id,
-                    GroupMember.group_id == group_id
-                )
-                existing_member_result = await self.session.execute(existing_member_stmt)
-                if existing_member_result.scalar_one_or_none():
-                    self.logger.warning(f"User {user_email} already in group {group_id}")
-                    raise UserAlreadyInGroupError(user_email, group_id)
-
-                group_member = GroupMember(
-                    user_id=user.id,
-                    group_id=group_id,
-                    role=role
-                )
-                self.session.add(group_member)
-                added_users.append((user, role.value))
-
-            await self.session.commit()
-            self.logger.info(f"Users added to group {group_id} successfully")
-            
-            # Отправляем уведомления
-            if self.notification_trigger:
-                for user, role in added_users:
-                    await self.notification_trigger.on_user_added_to_group(
-                        group=group,
-                        added_user=user,
-                        added_by=current_user,
-                        role=role
-                    )
-            
-            return await self.get_group_by_id(group_id)
-
-        except (GroupNotFoundError, InsufficientPermissionsError, UsersNotFoundError, 
-                UserAlreadyInGroupError) as e:
-            raise
-        except Exception as e:
-            await self.session.rollback()
-            self.logger.error(f"Error adding users to group {group_id}: {e}", exc_info=True)
-            raise GroupUpdateError(f"Не удалось добавить пользователей в группу: {str(e)}")
     
     async def change_user_role(self, current_user_id: int, group_id: int, user_email: str, new_role: UserRole):
         """Изменение роли пользователя в группе"""
@@ -492,6 +407,13 @@ class GroupService:
             # Удаляем членов группы
             for membership in group.group_members:
                 await self.session.delete(membership)
+
+            # Удаляем приглашения
+            from core.database.models import GroupInvitation
+            delete_invitations_stmt = delete(GroupInvitation).where(
+                GroupInvitation.group_id == group_id
+            )
+            await self.session.execute(delete_invitations_stmt)
 
             # Удаляем группу
             await self.session.delete(group)
