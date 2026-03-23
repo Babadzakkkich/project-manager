@@ -1,7 +1,6 @@
-import uuid
 from typing import List, Dict, Any, Optional
-from core.config import settings
-from shared.messaging import BasePublisher, rabbitmq_client
+from shared.messaging import BasePublisher, NotificationMessage, BroadcastMessage, WebSocketMessage, MessagePriority
+from shared.messaging.module import MessagingModule
 
 
 class NotificationPublisher(BasePublisher):
@@ -9,8 +8,21 @@ class NotificationPublisher(BasePublisher):
     Издатель сообщений для уведомлений.
     """
     
-    exchange = settings.rabbitmq.notifications_exchange
-    default_routing_key = settings.rabbitmq.notifications_queue
+    def __init__(self, messaging_module: MessagingModule):
+        super().__init__(messaging_module)
+        # Сохраняем routing_key для использования
+        self._routing_key = None
+    
+    def get_message_type(self) -> str:
+        return "notification"
+    
+    async def _ensure_routing_key(self):
+        """Убедиться, что routing_key доступен"""
+        if not self._routing_key:
+            if not self.messaging.queue_name:
+                raise RuntimeError("Messaging module not set up properly: queue_name is None")
+            self._routing_key = self.messaging.queue_name
+        return self._routing_key
     
     async def send_notification(
         self,
@@ -18,76 +30,80 @@ class NotificationPublisher(BasePublisher):
         notification_type: str,
         title: str,
         content: str,
-        priority: str = "medium",
+        priority: MessagePriority = MessagePriority.MEDIUM,
         data: Optional[Dict[str, Any]] = None,
-        message_id: Optional[str] = None
+        correlation_id: Optional[str] = None
     ) -> bool:
-        """Отправить уведомление пользователю (сохраняется в БД)"""
-        return await self.publish(
-            message={
-                "user_id": user_id,
-                "notification_type": notification_type,
-                "title": title,
-                "content": content,
-                "data": data or {}
-            },
+        """
+        Отправить уведомление пользователю (сохраняется в БД)
+        """
+        routing_key = await self._ensure_routing_key()
+        
+        message = NotificationMessage(
+            user_id=user_id,
+            title=title,
+            content=content,
             priority=priority,
-            message_id=message_id
+            data=data or {},
+            correlation_id=correlation_id
+        )
+        
+        return await self.messaging.publish(
+            routing_key=routing_key,
+            message=message,
+            priority=priority.rabbitmq_priority
         )
     
     async def broadcast_notification(
         self,
         user_ids: List[int],
-        notification_type: str,
+        notification_type: str,  # Добавляем параметр
         title: str,
         content: str,
-        priority: str = "medium",
+        priority: MessagePriority = MessagePriority.MEDIUM,
         data: Optional[Dict[str, Any]] = None
     ) -> bool:
-        """Разослать уведомление нескольким пользователям"""
+        """
+        Разослать уведомление нескольким пользователям
+        """
         if not user_ids:
             return True
         
-        messages = []
-        for user_id in user_ids:
-            messages.append({
-                "user_id": user_id,
-                "notification_type": notification_type,
-                "title": title,
-                "content": content,
-                "data": data or {}
-            })
+        routing_key = await self._ensure_routing_key()
         
-        success_count = await self.publish_batch(
-            messages=messages,
+        message = BroadcastMessage(
+            user_ids=user_ids,
+            notification_type=notification_type,  # Передаем тип
+            title=title,
+            content=content,
             priority=priority,
-            batch_size=100
+            data=data or {}
         )
         
-        return success_count == len(messages)
+        return await self.messaging.publish(
+            routing_key=routing_key,
+            message=message,
+            priority=priority.rabbitmq_priority
+        )
     
     async def send_to_user(
         self,
         user_id: int,
-        message: Dict[str, Any]
+        message_data: Dict[str, Any]
     ) -> bool:
         """
         Отправить произвольное сообщение пользователю через WebSocket
         (без сохранения в БД)
         """
-        return await self.publish(
-            message={
-                "user_id": user_id,
-                "message": message
-            },
-            message_type="send_to_user",  # Указываем специальный тип
-            priority="high",
-            message_id=str(uuid.uuid4())
+        routing_key = await self._ensure_routing_key()
+        
+        message = WebSocketMessage(
+            user_id=user_id,
+            message=message_data
         )
-    
-    def _get_message_type(self) -> str:
-        return "notification"
-
-
-# Глобальный экземпляр издателя
-notification_publisher = NotificationPublisher()
+        
+        return await self.messaging.publish(
+            routing_key=routing_key,
+            message=message,
+            priority=MessagePriority.HIGH.rabbitmq_priority
+        )

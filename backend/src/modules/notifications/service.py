@@ -1,11 +1,10 @@
 import json
 import asyncio
-from typing import List, Optional, Dict, Any, Set
+from typing import List, Optional, Dict, Any, Set, TYPE_CHECKING
 from datetime import datetime
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from .publisher import notification_publisher
 
 from core.database.models import (
     Notification, NotificationType, NotificationPriority, 
@@ -13,11 +12,11 @@ from core.database.models import (
 )
 from core.logger import logger
 from .redis_client import redis_client
-from .publisher import notification_publisher
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
 if TYPE_CHECKING:
     from core.services import ServiceFactory
+    from .publisher import NotificationPublisher
 
 
 class NotificationService:
@@ -26,9 +25,11 @@ class NotificationService:
     def __init__(
         self, 
         session: AsyncSession, 
+        notification_publisher: Optional['NotificationPublisher'] = None,
         service_factory: Optional['ServiceFactory'] = None
     ):
         self.session = session
+        self.notification_publisher = notification_publisher
         self.service_factory = service_factory
         self.logger = logger
     
@@ -76,12 +77,19 @@ class NotificationService:
         """
         Отправить уведомление (асинхронно через RabbitMQ)
         """
-        return await notification_publisher.send_notification(
+        if not self.notification_publisher:
+            self.logger.warning("Notification publisher not available")
+            return False
+        
+        from shared.messaging import MessagePriority
+        message_priority = MessagePriority(priority.value)
+        
+        return await self.notification_publisher.send_notification(
             user_id=user_id,
             notification_type=notification_type.value,
             title=title,
             content=content,
-            priority=priority.value,
+            priority=message_priority,
             data=data
         )
     
@@ -93,7 +101,11 @@ class NotificationService:
         """
         Отправить произвольное сообщение пользователю
         """
-        return await notification_publisher.send_to_user(user_id, message)
+        if not self.notification_publisher:
+            self.logger.warning("Notification publisher not available")
+            return False
+            
+        return await self.notification_publisher.send_to_user(user_id, message)
     
     async def get_user_notifications(
         self,
@@ -160,11 +172,12 @@ class NotificationService:
             await redis_client.invalidate_unread_count(user_id)
             
             # Отправляем обновлённый счётчик через RabbitMQ
-            new_count = await self.get_unread_count(user_id)
-            await notification_publisher.send_to_user(
-                user_id,
-                {"type": "unread_count", "count": new_count}
-            )
+            if self.notification_publisher:
+                new_count = await self.get_unread_count(user_id)
+                await self.notification_publisher.send_to_user(
+                    user_id,
+                    {"type": "unread_count", "count": new_count}
+                )
             
             return True
         
@@ -191,10 +204,11 @@ class NotificationService:
         await redis_client.invalidate_unread_count(user_id)
         
         # Отправляем обновлённый счётчик
-        await notification_publisher.send_to_user(
-            user_id,
-            {"type": "unread_count", "count": 0}
-        )
+        if self.notification_publisher:
+            await self.notification_publisher.send_to_user(
+                user_id,
+                {"type": "unread_count", "count": 0}
+            )
         
         return count
 
@@ -205,11 +219,13 @@ class NotificationTriggerService:
     def __init__(
         self, 
         session: AsyncSession, 
+        notification_publisher: Optional['NotificationPublisher'] = None,
         service_factory: Optional['ServiceFactory'] = None
     ):
         self.session = session
         self.service_factory = service_factory
-        self.notification_service = NotificationService(session, service_factory)
+        self.notification_service = NotificationService(session, notification_publisher, service_factory)
+        self.logger = logger
     
     async def _get_group_member_ids(self, group_id: int, exclude_user_id: Optional[int] = None) -> Set[int]:
         """Получить ID всех участников группы"""
@@ -272,12 +288,20 @@ class NotificationTriggerService:
         if not user_ids:
             return
         
-        await notification_publisher.broadcast_notification(
+        if not self.notification_service.notification_publisher:
+            self.logger.warning("Notification publisher not available")
+            return
+        
+        # Преобразуем NotificationPriority в MessagePriority
+        from shared.messaging import MessagePriority
+        message_priority = MessagePriority(priority.value)
+        
+        await self.notification_service.notification_publisher.broadcast_notification(
             user_ids=list(user_ids),
             notification_type=notification_type.value,
             title=title,
             content=content,
-            priority=priority.value,
+            priority=message_priority,
             data=data
         )
     

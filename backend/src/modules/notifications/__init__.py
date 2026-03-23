@@ -1,14 +1,14 @@
 from .service import NotificationService, NotificationTriggerService
-from .publisher import notification_publisher
-from .consumer import notification_consumer
+from .publisher import NotificationPublisher
+from .consumer import NotificationConsumer
 from .websocket_manager import manager
 from .redis_client import redis_client
 
 __all__ = [
     'NotificationService',
     'NotificationTriggerService',
-    'notification_publisher',
-    'notification_consumer',
+    'NotificationPublisher',
+    'NotificationConsumer',
     'manager',
     'redis_client',
 ]

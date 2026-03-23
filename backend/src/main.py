@@ -8,8 +8,9 @@ from core.config import settings
 from core.database.session import db_session
 from core.database.models import Base
 from modules.notifications.redis_client import redis_client
-from shared.messaging import rabbitmq_client  # Изменен импорт
-from modules.notifications.consumer import notification_consumer
+from shared.messaging import RabbitMQClient, MessagingModule
+from modules.notifications.consumer import NotificationConsumer
+from modules.notifications.publisher import NotificationPublisher
 from core.logger import logger
 
 # Импортируем роутеры
@@ -20,6 +21,12 @@ from modules.tasks.router import router as tasks_router
 from modules.projects.router import router as projects_router
 from modules.notifications.router import router as notifications_ws_router
 from modules.notifications.http_router import router as notifications_http_router
+
+# Глобальные объекты
+rabbitmq_client = RabbitMQClient(settings.rabbitmq_url)
+notifications_messaging = MessagingModule(rabbitmq_client, "notifications")
+notification_publisher = NotificationPublisher(notifications_messaging)
+notification_consumer = NotificationConsumer(notifications_messaging)
 
 
 @asynccontextmanager
@@ -40,11 +47,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"RabbitMQ connected: {connected}")
     
     if connected:
+        # Настраиваем модуль уведомлений
+        await notifications_messaging.setup(
+            exchange_name=settings.rabbitmq.notifications_exchange,
+            queue_name=settings.rabbitmq.notifications_queue,
+            dlq_name=settings.rabbitmq.dlq_queue
+        )
+        logger.info("Notifications messaging module set up")
+        
         # Запускаем потребителя уведомлений
         await notification_consumer.start()
         logger.info("Notification consumer started")
     else:
-        logger.warning("RabbitMQ not connected, consumer not started")
+        logger.warning("RabbitMQ not connected, messaging not available")
     
     yield
     

@@ -10,7 +10,6 @@ from shared.dependencies import get_service_factory
 from core.database.models import User
 from core.logger import logger
 from .websocket_manager import manager
-from .publisher import notification_publisher
 
 router = APIRouter()
 

@@ -73,6 +73,10 @@ class RedisClient:
             logger.error(f"Redis set error: {e}")
             return False
     
+    async def setex(self, key: str, ttl: int, value: str) -> bool:
+        """Установить значение с TTL (аналог redis.setex)"""
+        return await self.set(key, value, ttl)
+    
     async def set_if_not_exists(self, key: str, value: str, ttl: Optional[int] = None) -> bool:
         """Установить значение только если ключ не существует"""
         if not self._connected:

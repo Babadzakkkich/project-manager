@@ -1,14 +1,11 @@
-import asyncio
 import json
 import aio_pika
-from typing import Dict, Any, Optional
-from datetime import datetime
+from typing import Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
-from core.config import settings
+from shared.messaging import BaseConsumer, NotificationMessage, BroadcastMessage, WebSocketMessage, MessageType, MessagePriority
+from shared.messaging.module import MessagingModule
 from core.database.session import db_session
-from shared.messaging import BaseConsumer, rabbitmq_client
 from .redis_client import redis_client
 from .websocket_manager import manager
 from .service import NotificationService
@@ -16,27 +13,22 @@ from .service import NotificationService
 
 class NotificationConsumer(BaseConsumer):
     """
-    Потребитель сообщений для уведомлений с поддержкой DLQ.
+    Потребитель сообщений для уведомлений.
     """
     
-    queue_name = settings.rabbitmq.notifications_queue
-    prefetch_count = 10
-    
-    def __init__(self):
-        super().__init__(rabbitmq_client, redis_client)
+    def __init__(self, messaging_module: MessagingModule):
+        super().__init__(messaging_module, redis_client, prefetch_count=10)
     
     async def handle_message(self, body: Dict[str, Any], message: aio_pika.IncomingMessage) -> bool:
         """Обработка входящего сообщения"""
-        self.logger.info(f"Handling message: type={body.get('type')}, user_id={body.get('user_id')}")
-        
         message_type = body.get("type")
         
-        if message_type == "notification":
+        if message_type == "notification" or message_type == MessageType.NOTIFICATION:
             return await self._process_notification(body, message.message_id)
-        elif message_type == "broadcast":
+        elif message_type == "broadcast" or message_type == MessageType.BROADCAST:
             return await self._process_broadcast(body, message.message_id)
-        elif message_type == "send_to_user":
-            return await self._process_send_to_user(body, message.message_id)
+        elif message_type == "websocket" or message_type == MessageType.WEBSOCKET:
+            return await self._process_websocket(body, message.message_id)
         else:
             self.logger.warning(f"Unknown message type: {message_type}")
             return True
@@ -46,16 +38,10 @@ class NotificationConsumer(BaseConsumer):
         session = None
         
         try:
-            # Проверяем обязательные поля
-            required_fields = ["user_id", "notification_type", "title", "content"]
-            missing_fields = [field for field in required_fields if field not in body]
+            # Валидируем сообщение через Pydantic
+            notification = NotificationMessage(**body)
             
-            if missing_fields:
-                self.logger.error(f"Missing required fields in message {message_id}: {missing_fields}")
-                self.logger.error(f"Message body: {body}")
-                return False
-            
-            self.logger.info(f"Processing notification for user {body['user_id']}: {body['title']}")
+            self.logger.info(f"Processing notification for user {notification.user_id}: {notification.title}")
             
             session = db_session.get_consumer_session()
             
@@ -63,41 +49,42 @@ class NotificationConsumer(BaseConsumer):
                 from core.database.models import NotificationType, NotificationPriority
                 notification_service = NotificationService(session)
                 
-                notification_type = NotificationType(body["notification_type"])
-                priority = NotificationPriority(body.get("priority", "medium"))
+                # Преобразуем строку в Enum
+                notification_type = NotificationType(notification.type)
+                # notification.priority уже строка из-за use_enum_values=True
+                priority = NotificationPriority(notification.priority)
                 
-                notification = await notification_service.create(
-                    user_id=body["user_id"],
+                db_notification = await notification_service.create(
+                    user_id=notification.user_id,
                     notification_type=notification_type,
-                    title=body["title"],
-                    content=body["content"],
+                    title=notification.title,
+                    content=notification.content,
                     priority=priority,
-                    data=body.get("data")
+                    data=notification.data
                 )
                 
-                self.logger.info(f"Notification {notification.id} saved to database for user {body['user_id']}")
+                self.logger.info(f"Notification {db_notification.id} saved to database")
                 
                 # Отправляем через WebSocket
                 ws_message = {
-                    "id": notification.id,
-                    "type": notification.type.value,
-                    "priority": notification.priority.value,
-                    "title": notification.title,
-                    "content": notification.content,
-                    "data": notification.data,
-                    "created_at": notification.created_at.isoformat(),
-                    "is_read": notification.is_read,
+                    "id": db_notification.id,
+                    "type": db_notification.type.value,
+                    "priority": db_notification.priority.value,
+                    "title": db_notification.title,
+                    "content": db_notification.content,
+                    "data": db_notification.data,
+                    "created_at": db_notification.created_at.isoformat(),
+                    "is_read": db_notification.is_read,
                     "message_id": message_id
                 }
                 
-                sent = await manager.send_to_user(body["user_id"], ws_message)
+                sent = await manager.send_to_user(notification.user_id, ws_message)
                 self.logger.info(f"Notification sent via WebSocket, delivered={sent}")
                 
             return True
             
         except Exception as e:
             self.logger.error(f"Error processing notification: {e}", exc_info=True)
-            self.logger.error(f"Message body that caused error: {body}")
             return False
         finally:
             if session:
@@ -108,32 +95,38 @@ class NotificationConsumer(BaseConsumer):
         session = None
         
         try:
+            broadcast = BroadcastMessage(**body)
+            
             session = db_session.get_consumer_session()
             
             async with session.begin():
                 from core.database.models import NotificationType, NotificationPriority
                 notification_service = NotificationService(session)
                 
-                user_ids = body.get("user_ids", [])
-                notification_type = NotificationType(body["notification_type"])
-                priority = NotificationPriority(body.get("priority", "medium"))
+                # Получаем тип уведомления из данных
+                notification_type_value = broadcast.notification_type
+                if not notification_type_value:
+                    self.logger.error("Missing notification_type in broadcast message")
+                    return False
                 
-                self.logger.info(f"Broadcasting to {len(user_ids)} users")
+                # Преобразуем строки в Enum
+                notification_type = NotificationType(notification_type_value)
+                # broadcast.priority уже строка из-за use_enum_values=True
+                priority = NotificationPriority(broadcast.priority)
                 
                 notifications = []
-                for user_id in user_ids:
+                for user_id in broadcast.user_ids:
                     notification = await notification_service.create(
                         user_id=user_id,
                         notification_type=notification_type,
-                        title=body["title"],
-                        content=body["content"],
+                        title=broadcast.title,
+                        content=broadcast.content,
                         priority=priority,
-                        data=body.get("data")
+                        data=broadcast.data
                     )
                     notifications.append(notification)
                 
                 # Рассылка WebSocket сообщений
-                ws_messages = []
                 for notification in notifications:
                     ws_message = {
                         "id": notification.id,
@@ -146,12 +139,7 @@ class NotificationConsumer(BaseConsumer):
                         "is_read": notification.is_read,
                         "message_id": f"{message_id}_{notification.id}"
                     }
-                    ws_messages.append((notification.user_id, ws_message))
-                
-                await asyncio.gather(*[
-                    manager.send_to_user(user_id, message)
-                    for user_id, message in ws_messages
-                ])
+                    await manager.send_to_user(notification.user_id, ws_message)
                 
                 self.logger.info(f"Broadcasted {len(notifications)} notifications")
                 
@@ -164,23 +152,18 @@ class NotificationConsumer(BaseConsumer):
             if session:
                 await session.close()
     
-    async def _process_send_to_user(self, body: dict, message_id: str) -> bool:
+    async def _process_websocket(self, body: dict, message_id: str) -> bool:
         """Отправка сообщения через WebSocket без сохранения в БД"""
         try:
-            user_id = body["user_id"]
-            ws_message = body.get("message", {})
+            ws_message = WebSocketMessage(**body)
             
-            self.logger.info(f"Sending custom message to user {user_id}: {ws_message.get('type')}")
+            self.logger.info(f"Sending custom message to user {ws_message.user_id}")
             
-            sent = await manager.send_to_user(user_id, ws_message)
-            self.logger.info(f"Sent to user {user_id}: delivered={sent}")
+            sent = await manager.send_to_user(ws_message.user_id, ws_message.message)
+            self.logger.info(f"Sent to user {ws_message.user_id}: delivered={sent}")
             
             return True
             
         except Exception as e:
-            self.logger.error(f"Error processing send_to_user: {e}", exc_info=True)
+            self.logger.error(f"Error processing websocket message: {e}", exc_info=True)
             return False
-
-
-# Глобальный экземпляр потребителя
-notification_consumer = NotificationConsumer()

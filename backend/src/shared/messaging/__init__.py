@@ -1,10 +1,43 @@
-from .rabbitmq_client import RabbitMQClient, rabbitmq_client
-from .publisher import BasePublisher
-from .consumer import BaseConsumer
+"""Модуль для обмена сообщениями через RabbitMQ"""
+
+from .client import RabbitMQClient
+from .module import MessagingModule
+from .base.publisher import BasePublisher
+from .base.consumer import BaseConsumer
+from .schemas import (
+    BaseMessage,
+    NotificationMessage,
+    BroadcastMessage,
+    WebSocketMessage,
+    AuditMessage,
+    AnalyticsMessage,
+    MessageType,
+    MessagePriority
+)
+from .exceptions import (
+    MessagingError,
+    ConnectionError,
+    QueueError,
+    PublishError,
+    ConsumerError
+)
 
 __all__ = [
     'RabbitMQClient',
-    'rabbitmq_client',
+    'MessagingModule',
     'BasePublisher',
     'BaseConsumer',
+    'BaseMessage',
+    'NotificationMessage',
+    'BroadcastMessage',
+    'WebSocketMessage',
+    'AuditMessage',
+    'AnalyticsMessage',
+    'MessageType',
+    'MessagePriority',
+    'MessagingError',
+    'ConnectionError',
+    'QueueError',
+    'PublishError',
+    'ConsumerError',
 ]
