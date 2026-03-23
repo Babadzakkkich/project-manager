@@ -1,12 +1,16 @@
 import uuid
 from typing import List, Dict, Any, Optional
 from core.config import settings
-from core.logger import logger
-from .rabbitmq_client import rabbitmq_client
+from shared.messaging import BasePublisher, rabbitmq_client
 
 
-class NotificationPublisher:
-    """Издатель сообщений для уведомлений"""
+class NotificationPublisher(BasePublisher):
+    """
+    Издатель сообщений для уведомлений.
+    """
+    
+    exchange = settings.rabbitmq.notifications_exchange
+    default_routing_key = settings.rabbitmq.notifications_queue
     
     async def send_notification(
         self,
@@ -18,27 +22,16 @@ class NotificationPublisher:
         data: Optional[Dict[str, Any]] = None,
         message_id: Optional[str] = None
     ) -> bool:
-        """
-        Отправить уведомление пользователю
-        Возвращает True при успешной публикации
-        """
-        if not message_id:
-            message_id = str(uuid.uuid4())
-        
-        message = {
-            "type": "send_notification",
-            "user_id": user_id,
-            "notification_type": notification_type,
-            "title": title,
-            "content": content,
-            "priority": priority,
-            "data": data or {}
-        }
-        
-        return await rabbitmq_client.publish(
-            routing_key=settings.rabbitmq.notifications_queue,
-            message=message,
-            priority=self._get_priority_value(priority),
+        """Отправить уведомление пользователю (сохраняется в БД)"""
+        return await self.publish(
+            message={
+                "user_id": user_id,
+                "notification_type": notification_type,
+                "title": title,
+                "content": content,
+                "data": data or {}
+            },
+            priority=priority,
             message_id=message_id
         )
     
@@ -51,40 +44,27 @@ class NotificationPublisher:
         priority: str = "medium",
         data: Optional[Dict[str, Any]] = None
     ) -> bool:
-        """
-        Разослать уведомление нескольким пользователям
-        """
+        """Разослать уведомление нескольким пользователям"""
         if not user_ids:
             return True
         
-        # Для большого количества пользователей разбиваем на пачки
-        batch_size = 100
-        success = True
-        batch_message_id = str(uuid.uuid4())
-        
-        for i in range(0, len(user_ids), batch_size):
-            batch = user_ids[i:i + batch_size]
-            message = {
-                "type": "broadcast_notification",
-                "user_ids": batch,
+        messages = []
+        for user_id in user_ids:
+            messages.append({
+                "user_id": user_id,
                 "notification_type": notification_type,
                 "title": title,
                 "content": content,
-                "priority": priority,
                 "data": data or {}
-            }
-            
-            result = await rabbitmq_client.publish(
-                routing_key=settings.rabbitmq.notifications_queue,
-                message=message,
-                priority=self._get_priority_value(priority),
-                message_id=f"{batch_message_id}_batch_{i}"
-            )
-            if not result:
-                success = False
-                logger.warning(f"Failed to publish batch {i//batch_size + 1}")
+            })
         
-        return success
+        success_count = await self.publish_batch(
+            messages=messages,
+            priority=priority,
+            batch_size=100
+        )
+        
+        return success_count == len(messages)
     
     async def send_to_user(
         self,
@@ -95,27 +75,18 @@ class NotificationPublisher:
         Отправить произвольное сообщение пользователю через WebSocket
         (без сохранения в БД)
         """
-        payload = {
-            "type": "send_to_user",
-            "user_id": user_id,
-            "message": message
-        }
-        
-        return await rabbitmq_client.publish(
-            routing_key=settings.rabbitmq.notifications_queue,
-            message=payload,
+        return await self.publish(
+            message={
+                "user_id": user_id,
+                "message": message
+            },
+            message_type="send_to_user",  # Указываем специальный тип
+            priority="high",
             message_id=str(uuid.uuid4())
         )
     
-    def _get_priority_value(self, priority: str) -> int:
-        """Преобразует текстовый приоритет в числовой для RabbitMQ"""
-        priority_map = {
-            "low": 0,
-            "medium": 5,
-            "high": 8,
-            "urgent": 10
-        }
-        return priority_map.get(priority, 5)
+    def _get_message_type(self) -> str:
+        return "notification"
 
 
 # Глобальный экземпляр издателя

@@ -8,7 +8,7 @@ from core.config import settings
 from core.database.session import db_session
 from core.database.models import Base
 from modules.notifications.redis_client import redis_client
-from modules.notifications.rabbitmq_client import rabbitmq_client
+from shared.messaging import rabbitmq_client  # Изменен импорт
 from modules.notifications.consumer import notification_consumer
 from core.logger import logger
 
