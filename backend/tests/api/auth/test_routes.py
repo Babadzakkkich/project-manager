@@ -33,8 +33,6 @@ def test_login_sets_auth_cookies_and_returns_200(client, monkeypatch):
 
 def test_refresh_returns_400_when_refresh_cookie_missing(client):
     response = client.post("/auth/refresh")
-
-    # Ошибка приходит из кастомного исключения auth-модуля
     assert response.status_code in (400, 401, 422)
 
 
