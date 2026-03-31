@@ -168,10 +168,6 @@ def test_check_returns_authenticated_false_without_access_token(client):
     assert response.json() == {"authenticated": False}
 
 
-@pytest.mark.xfail(
-    reason="В auth/check есть дефект: verify_refresh_token возвращает TokenPayload, "
-           "а код использует его как user_id и не возвращает Response с новой cookie."
-)
 def test_check_refresh_flow_should_reissue_access_token_but_currently_broken(
     client,
     test_user,
