@@ -220,3 +220,4 @@ dist-ssr
 *.sln
 *.sw?
 
+*.sql

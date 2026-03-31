@@ -1,13 +1,11 @@
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional, List
+from typing import Optional, List
+
+from shared.schemas import BaseProjectInfo, BaseUserWithRole, BaseUserInfo
 from core.database.models import TaskStatus, TaskPriority
 
-if TYPE_CHECKING:
-    from modules.projects.schemas import ProjectRead
-    from modules.users.schemas import UserRead, UserWithRole
-    
 class TaskCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=1000)
@@ -57,14 +55,14 @@ class GroupReadForTask(BaseModel):
     name: str
     description: Optional[str] = None
     created_at: datetime
-    users: List[UserWithRole] = []
+    users: List[BaseUserWithRole] = []
 
     model_config = ConfigDict(from_attributes=True)
 
 class TaskReadWithRelations(TaskRead):
-    project: ProjectRead | None = None
-    group: GroupReadForTask | None = None
-    assignees: List[UserRead] = []
+    project: Optional[BaseProjectInfo] = None
+    group: Optional[GroupReadForTask] = None
+    assignees: List[BaseUserInfo] = []
     
 class AddRemoveUsersToTask(BaseModel):
     user_ids: List[int]
@@ -73,7 +71,7 @@ class BoardViewRequest(BaseModel):
     project_id: int
     group_id: int
     view_mode: str = Field("team", pattern="^(team|personal)$") 
-    user_id: Optional[int] = None  
+    user_id: Optional[int] = None
 
 class TaskHistoryRead(BaseModel):
     id: int
@@ -82,9 +80,6 @@ class TaskHistoryRead(BaseModel):
     new_value: Optional[str]
     details: Optional[str]
     created_at: datetime
-    user: UserRead
+    user: BaseUserInfo
 
     model_config = ConfigDict(from_attributes=True)
-
-from modules.projects.schemas import ProjectRead
-from modules.users.schemas import UserRead, UserWithRole

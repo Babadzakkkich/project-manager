@@ -6,7 +6,8 @@ export const Notification = ({
   type = 'info',
   onClose,
   duration = 5000,
-  isVisible = false
+  isVisible = false,
+  onClick // Добавляем возможность клика по уведомлению
 }) => {
   useEffect(() => {
     if (isVisible && duration > 0) {
@@ -20,20 +21,42 @@ export const Notification = ({
 
   if (!isVisible || !message) return null;
 
+  const getIcon = () => {
+    switch (type) {
+      case 'success': return '✅';
+      case 'error': return '❌';
+      case 'warning': return '⚠️';
+      case 'info': return 'ℹ️';
+      default: return 'ℹ️';
+    }
+  };
+
+  const getTypeClass = () => {
+    switch (type) {
+      case 'success': return styles.success;
+      case 'error': return styles.error;
+      case 'warning': return styles.warning;
+      case 'info': return styles.info;
+      default: return styles.info;
+    }
+  };
+
   return (
-    <div className={`${styles.notification} ${styles[type]} ${styles.show}`}>
+    <div 
+      className={`${styles.notification} ${getTypeClass()} ${styles.show}`}
+      onClick={onClick}
+      role="alert"
+    >
       <div className={styles.content}>
-        <div className={styles.icon}>
-          {type === 'success' && '✅'}
-          {type === 'error' && '❌'}
-          {type === 'warning' && '⚠️'}
-          {type === 'info' && 'ℹ️'}
-        </div>
+        <div className={styles.icon}>{getIcon()}</div>
         <span className={styles.message}>{message}</span>
       </div>
       <button 
         className={styles.closeButton}
-        onClick={onClose}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
         aria-label="Закрыть уведомление"
       >
         ×

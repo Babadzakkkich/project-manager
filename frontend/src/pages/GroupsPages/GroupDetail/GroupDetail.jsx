@@ -22,9 +22,13 @@ export const GroupDetail = () => {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', description: '' });
   const [userRole, setUserRole] = useState('');
-  const [addingUser, setAddingUser] = useState(false);
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserRole, setNewUserRole] = useState('member');
+  
+  // Состояния для приглашений
+  const [invitingUser, setInvitingUser] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('member');
+  const [inviting, setInviting] = useState(false);
+  
   const [editingUser, setEditingUser] = useState(null);
   const [showProjectsModal, setShowProjectsModal] = useState(false);
   
@@ -118,21 +122,31 @@ export const GroupDetail = () => {
     }
   };
 
-  const handleAddUser = async (e) => {
+  // Новая функция для отправки приглашения
+  const handleInviteUser = async (e) => {
     e.preventDefault();
+    
+    if (!inviteEmail.trim()) {
+      showError('Введите email пользователя');
+      return;
+    }
+    
+    setInviting(true);
     try {
-      await groupsAPI.addUsers(groupId, {
-        users: [{ user_email: newUserEmail, role: newUserRole }]
+      await groupsAPI.inviteUser(groupId, {
+        email: inviteEmail,
+        role: inviteRole
       });
-      setNewUserEmail('');
-      setNewUserRole('member');
-      setAddingUser(false);
-      await loadGroup();
-      showSuccess('Пользователь успешно добавлен в группу');
+      setInviteEmail('');
+      setInviteRole('member');
+      setInvitingUser(false);
+      showSuccess(`Приглашение отправлено на ${inviteEmail}`);
     } catch (err) {
-      console.error('Error adding user:', err);
+      console.error('Error inviting user:', err);
       const errorMessage = handleApiError(err);
-      showError(`Не удалось добавить пользователя: ${errorMessage}`);
+      showError(`Не удалось отправить приглашение: ${errorMessage}`);
+    } finally {
+      setInviting(false);
     }
   };
 
@@ -325,36 +339,49 @@ export const GroupDetail = () => {
               <Button 
                 variant="primary" 
                 size="small"
-                onClick={() => setAddingUser(!addingUser)}
+                onClick={() => setInvitingUser(!invitingUser)}
               >
-                {addingUser ? 'Отмена' : 'Добавить участника'}
+                {invitingUser ? 'Отмена' : 'Пригласить участника'}
               </Button>
             )}
           </div>
 
-          {addingUser && (
-            <form onSubmit={handleAddUser} className={styles.addUserForm}>
+          {/* Форма отправки приглашения */}
+          {invitingUser && (
+            <form onSubmit={handleInviteUser} className={styles.addUserForm}>
               <div className={styles.addUserFields}>
                 <Input
                   label="Email пользователя"
                   type="email"
-                  value={newUserEmail}
-                  onChange={(e) => setNewUserEmail(e.target.value)}
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="Введите email пользователя"
                   required
+                  disabled={inviting}
                 />
                 <div className={styles.roleSelect}>
                   <label>Роль:</label>
                   <select 
-                    value={newUserRole} 
-                    onChange={(e) => setNewUserRole(e.target.value)}
+                    value={inviteRole} 
+                    onChange={(e) => setInviteRole(e.target.value)}
+                    disabled={inviting}
                   >
                     <option value="member">Участник</option>
                     <option value="admin">Администратор</option>
                   </select>
                 </div>
               </div>
-              <Button type="submit" variant="primary">Добавить</Button>
+              <div className={styles.inviteHint}>
+                <small>Приглашение будет отправлено пользователю. Он сможет принять или отклонить его.</small>
+              </div>
+              <Button 
+                type="submit" 
+                variant="primary" 
+                loading={inviting}
+                disabled={!inviteEmail.trim() || inviting}
+              >
+                Отправить приглашение
+              </Button>
             </form>
           )}
 

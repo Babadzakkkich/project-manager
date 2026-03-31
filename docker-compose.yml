@@ -1,8 +1,20 @@
 services:
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   backend:
     build: ./backend
     ports:
       - "8000:8000"
+    expose:
+      - "8000"
     environment:
       APP_CONFIG__DB__USER: ${APP_CONFIG__DB__USER}
       APP_CONFIG__DB__PASSWORD: ${APP_CONFIG__DB__PASSWORD}
@@ -13,20 +25,25 @@ services:
       APP_CONFIG__SECURITY__ACCESS_TOKEN_EXPIRE_MINUTES: ${APP_CONFIG__SECURITY__ACCESS_TOKEN_EXPIRE_MINUTES}
       APP_CONFIG__SECURITY__REFRESH_TOKEN_EXPIRE_DAYS: ${APP_CONFIG__SECURITY__REFRESH_TOKEN_EXPIRE_DAYS}
       APP_CONFIG__SECURITY__ALGORITHM: ${APP_CONFIG__SECURITY__ALGORITHM}
-
+      APP_CONFIG__REDIS__HOST: ${APP_CONFIG__REDIS__HOST}
+      APP_CONFIG__REDIS__PORT: ${APP_CONFIG__REDIS__PORT}
+      APP_CONFIG__REDIS__DB: ${APP_CONFIG__REDIS__DB}
+      APP_CONFIG__REDIS__MAX_CONNECTIONS: ${APP_CONFIG__REDIS__MAX_CONNECTIONS}
+      APP_CONFIG__RABBITMQ__HOST: ${APP_CONFIG__RABBITMQ__HOST}
+      APP_CONFIG__RABBITMQ__PORT: ${APP_CONFIG__RABBITMQ__PORT}
+      APP_CONFIG__RABBITMQ__USER: ${APP_CONFIG__RABBITMQ__USER}
+      APP_CONFIG__RABBITMQ__PASSWORD: ${APP_CONFIG__RABBITMQ__PASSWORD}
+      APP_CONFIG__RABBITMQ__VHOST: ${APP_CONFIG__RABBITMQ__VHOST}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
-
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    environment:
-      - VITE_API_BASE_URL=http://localhost:8000
-    depends_on:
-      - backend
-    restart: unless-stopped
+    volumes:
+      - ./backend:/app
 
   db:
     image: postgres:17
@@ -34,6 +51,8 @@ services:
       POSTGRES_USER: ${APP_CONFIG__DB__USER}
       POSTGRES_PASSWORD: ${APP_CONFIG__DB__PASSWORD}
       POSTGRES_DB: ${APP_CONFIG__DB__NAME}
+    expose:
+      - "5432"
     ports:
       - "5433:5432"
     healthcheck:
@@ -42,3 +61,40 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:4.2.2-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${APP_CONFIG__RABBITMQ__USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${APP_CONFIG__RABBITMQ__PASSWORD:-guest}
+    restart: unless-stopped
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:

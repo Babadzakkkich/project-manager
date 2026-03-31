@@ -78,12 +78,27 @@ export const ManagementBoard = () => {
     }
   }, [selectedProject, selectedGroup, viewMode, showError]);
 
+  // ИСПРАВЛЕНО: правильная обработка изменения статуса
   const handleTaskStatusChange = async (taskId, newStatus) => {
     try {
-      await tasksAPI.updateTaskStatus(taskId, newStatus);
-      await loadBoardTasks();
+      // Преобразуем статус в строковое значение, если пришел объект
+      const statusValue = typeof newStatus === 'object' ? newStatus.value : newStatus;
+      
+      // Вызываем API
+      await tasksAPI.updateTaskStatus(taskId, statusValue);
+      
+      // Обновляем локальное состояние задач
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === taskId 
+            ? { ...task, status: statusValue }
+            : task
+        )
+      );
+      
       showSuccess('Статус задачи обновлен');
     } catch (err) {
+      console.error('Error updating task status:', err);
       const errorMessage = handleApiError(err);
       showError(`Не удалось обновить статус: ${errorMessage}`);
     }
@@ -92,6 +107,15 @@ export const ManagementBoard = () => {
   const handleTaskPositionChange = async (taskId, newPosition) => {
     try {
       await tasksAPI.updateTaskPosition(taskId, newPosition);
+      
+      // Обновляем локальное состояние
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === taskId 
+            ? { ...task, position: newPosition }
+            : task
+        )
+      );
     } catch (err) {
       const errorMessage = handleApiError(err);
       showError(`Не удалось обновить позицию: ${errorMessage}`);
@@ -141,7 +165,11 @@ export const ManagementBoard = () => {
             <label className={styles.controlLabel}>Группа:</label>
             <select 
               value={selectedGroup?.id || ''}
-              onChange={(e) => setSelectedGroup(groups.find(g => g.id === parseInt(e.target.value)))}
+              onChange={(e) => {
+                const group = groups.find(g => g.id === parseInt(e.target.value));
+                setSelectedGroup(group);
+                setSelectedProject(null); // Сбрасываем проект при смене группы
+              }}
               className={styles.controlSelect}
             >
               <option value="">Выберите группу</option>
@@ -157,8 +185,12 @@ export const ManagementBoard = () => {
             <label className={styles.controlLabel}>Проект:</label>
             <select 
               value={selectedProject?.id || ''}
-              onChange={(e) => setSelectedProject(projects.find(p => p.id === parseInt(e.target.value)))}
+              onChange={(e) => {
+                const project = projects.find(p => p.id === parseInt(e.target.value));
+                setSelectedProject(project);
+              }}
               className={styles.controlSelect}
+              disabled={!selectedGroup}
             >
               <option value="">Выберите проект</option>
               {projects.map(project => (

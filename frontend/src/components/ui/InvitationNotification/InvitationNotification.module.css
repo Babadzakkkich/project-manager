@@ -1,0 +1,58 @@
+.container {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: #f0fff4;
+  border-left: 4px solid #004B23;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.content {
+  flex: 1;
+}
+
+.title {
+  font-weight: 600;
+  color: #004B23;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.message {
+  color: #4a5568;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.expires {
+  color: #718096;
+  font-size: 11px;
+  margin-bottom: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 480px) {
+  .container {
+    flex-direction: column;
+  }
+  
+  .actions {
+    width: 100%;
+  }
+  
+  .actions button {
+    flex: 1;
+  }
+}

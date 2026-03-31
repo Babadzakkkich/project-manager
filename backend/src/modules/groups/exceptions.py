@@ -72,3 +72,19 @@ class InvalidRoleError(GroupException):
         else:
             detail = f"Роль '{role}' недопустима"
         super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+    
+class InvitationError(GroupException):
+    """Базовое исключение для ошибок приглашений"""
+    pass
+
+class InvalidInvitationError(InvitationError):
+    def __init__(self, detail: str = "Недействительное приглашение"):
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+class InvitationExpiredError(InvitationError):
+    def __init__(self, detail: str = "Срок действия приглашения истек"):
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+class InvitationAlreadyProcessedError(InvitationError):
+    def __init__(self, detail: str = "Приглашение уже обработано"):
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)

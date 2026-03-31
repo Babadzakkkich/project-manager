@@ -1,11 +1,9 @@
 from __future__ import annotations
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional, List
+from typing import Optional, List
 
-if TYPE_CHECKING:
-    from modules.users.schemas import UserWithRole
-    from modules.tasks.schemas import TaskRead
+from shared.schemas import BaseUserWithRole, BaseTaskInfo
 
 class ProjectCreate(BaseModel):
     title: str
@@ -37,21 +35,16 @@ class SimpleGroupForProject(BaseModel):
     name: str
     description: Optional[str] = None
     created_at: datetime
-    users: List[UserWithRole] = []
+    users: List[BaseUserWithRole] = []
 
     model_config = ConfigDict(from_attributes=True)
 
 class ProjectReadWithRelations(ProjectRead):
     groups: List[SimpleGroupForProject] = [] 
-    tasks: List[TaskRead] = []
-    
-    model_config = ConfigDict(from_attributes=True)
+    tasks: List[BaseTaskInfo] = []
     
 class AddGroupsToProject(BaseModel):
     group_ids: List[int]
 
 class RemoveGroupsFromProject(AddGroupsToProject):
     pass
-    
-from modules.users.schemas import UserWithRole
-from modules.tasks.schemas import TaskRead

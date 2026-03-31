@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../../../contexts/AuthContext';
+import { NotificationBell } from '../../ui/NotificationBell/NotificationBell';
 import logo from '../../../assets/logo.png';
 import profileIcon from '../../../assets/profile_icon.svg';
 import styles from './Header.module.css';
@@ -34,10 +35,10 @@ export const Header = () => {
     setIsDropdownOpen(!isDropdownOpen);
   };
 
-const handleProfileClick = () => {
-  navigate('/profile');
-  setIsDropdownOpen(false);
-};
+  const handleProfileClick = () => {
+    navigate('/profile');
+    setIsDropdownOpen(false);
+  };
 
   if (!isAuthenticated) {
     return null;
@@ -67,6 +68,9 @@ const handleProfileClick = () => {
       </div>
 
       <div className={styles.rightSection}>
+        {/* Добавляем колокольчик уведомлений */}
+        <NotificationBell />
+        
         <div className={styles.profileMenu} ref={dropdownRef}>
           <button 
             className={styles.profileButton}
