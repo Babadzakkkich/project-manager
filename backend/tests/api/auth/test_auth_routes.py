@@ -1,7 +1,4 @@
-import pytest
 from jose import jwt as jose_jwt
-
-from modules.auth.exceptions import RefreshTokenError
 
 
 def test_login_sets_auth_cookies_and_returns_200(client, monkeypatch):
@@ -33,6 +30,7 @@ def test_login_sets_auth_cookies_and_returns_200(client, monkeypatch):
 
 def test_refresh_returns_400_when_refresh_cookie_missing(client):
     response = client.post("/auth/refresh")
+
     assert response.status_code in (400, 401, 422)
 
 
@@ -80,10 +78,8 @@ def test_refresh_sets_new_cookies_and_returns_200(
         mock_create_refresh_token,
     )
 
-    response = client.post(
-        "/auth/refresh",
-        cookies={"refresh_token": "valid-refresh-token"},
-    )
+    client.cookies.set("refresh_token", "valid-refresh-token")
+    response = client.post("/auth/refresh")
 
     assert response.status_code == 200
     assert response.json() == {"message": "Токены успешно обновлены"}
@@ -112,10 +108,8 @@ def test_logout_clears_cookies_and_returns_200(client, monkeypatch):
         mock_decode,
     )
 
-    response = client.post(
-        "/auth/logout",
-        cookies={"access_token": "valid-access-token"},
-    )
+    client.cookies.set("access_token", "valid-access-token")
+    response = client.post("/auth/logout")
 
     assert response.status_code == 200
     assert response.json() == {"detail": "Успешный выход из системы"}
@@ -144,10 +138,8 @@ def test_check_returns_authenticated_true_for_valid_access_token(
         mock_get_user_by_id,
     )
 
-    response = client.get(
-        "/auth/check",
-        cookies={"access_token": "valid-access-token"},
-    )
+    client.cookies.set("access_token", "valid-access-token")
+    response = client.get("/auth/check")
 
     assert response.status_code == 200
     assert response.json() == {
@@ -168,7 +160,7 @@ def test_check_returns_authenticated_false_without_access_token(client):
     assert response.json() == {"authenticated": False}
 
 
-def test_check_refresh_flow_should_reissue_access_token_but_currently_broken(
+def test_check_reissues_access_token_when_access_token_is_expired(
     client,
     test_user,
     monkeypatch,
@@ -182,6 +174,7 @@ def test_check_refresh_flow_should_reissue_access_token_but_currently_broken(
         type = "refresh"
 
     async def mock_verify_refresh_token(session, refresh_token):
+        assert refresh_token == "valid-refresh-token"
         return DummyTokenPayload()
 
     async def mock_get_user_by_id(self, user_id: int):
@@ -189,6 +182,9 @@ def test_check_refresh_flow_should_reissue_access_token_but_currently_broken(
         return test_user
 
     def mock_create_access_token(payload):
+        assert payload.sub == 1
+        assert payload.login == "test_user"
+        assert payload.type == "access"
         return "reissued-access-token"
 
     monkeypatch.setattr(jose_jwt, "decode", mock_decode)
@@ -205,14 +201,20 @@ def test_check_refresh_flow_should_reissue_access_token_but_currently_broken(
         mock_create_access_token,
     )
 
-    response = client.get(
-        "/auth/check",
-        cookies={
-            "access_token": "expired-access-token",
-            "refresh_token": "valid-refresh-token",
-        },
-    )
+    client.cookies.set("access_token", "expired-access-token")
+    client.cookies.set("refresh_token", "valid-refresh-token")
+    response = client.get("/auth/check")
 
     assert response.status_code == 200
-    assert response.json()["authenticated"] is True
-    assert "access_token=reissued-access-token" in response.headers.get("set-cookie", "")
+    assert response.json() == {
+        "authenticated": True,
+        "user": {
+            "id": 1,
+            "login": "test_user",
+            "email": "test@example.com",
+            "name": "Test User",
+        },
+    }
+
+    set_cookie_header = response.headers.get("set-cookie", "")
+    assert "access_token=reissued-access-token" in set_cookie_header
