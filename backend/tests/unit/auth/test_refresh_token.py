@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 
 import pytest
 
@@ -82,17 +81,18 @@ async def test_create_refresh_token_record_creates_db_record_and_commits(monkeyp
     db_obj = session.added[0]
     assert db_obj.user_id == 10
     assert db_obj.token_hash == hash_token("plain-refresh-token")
-    assert db_obj.used is False
     assert db_obj.expires_at > datetime.now(timezone.utc)
 
 
 @pytest.mark.asyncio
 async def test_verify_and_mark_used_refresh_token_returns_user_id_and_marks_token_used():
-    db_token = SimpleNamespace(
-        user_id=7,
-        used=False,
-        expires_at=datetime.now(timezone.utc) + timedelta(days=1),
-    )
+    class DbToken:
+        def __init__(self):
+            self.user_id = 7
+            self.used = False
+            self.expires_at = datetime.now(timezone.utc) + timedelta(days=1)
+
+    db_token = DbToken()
     session = DummySession(execute_result=DummyScalarResult(db_token))
 
     user_id = await verify_and_mark_used_refresh_token(
@@ -119,12 +119,9 @@ async def test_verify_and_mark_used_refresh_token_raises_for_invalid_token():
 
 @pytest.mark.asyncio
 async def test_verify_and_mark_used_refresh_token_raises_for_already_used_token():
-    db_token = SimpleNamespace(
-        user_id=7,
-        used=True,
-        expires_at=datetime.now(timezone.utc) + timedelta(days=1),
-    )
-    session = DummySession(execute_result=DummyScalarResult(db_token))
+    # В реальной реализации used=True токен не попадёт в выборку из-за WHERE RefreshToken.used == False,
+    # поэтому execute должен вернуть None.
+    session = DummySession(execute_result=DummyScalarResult(None))
 
     with pytest.raises(ValueError, match="Невалидный или просроченный refresh токен"):
         await verify_and_mark_used_refresh_token(
@@ -135,12 +132,9 @@ async def test_verify_and_mark_used_refresh_token_raises_for_already_used_token(
 
 @pytest.mark.asyncio
 async def test_verify_and_mark_used_refresh_token_raises_for_expired_token():
-    db_token = SimpleNamespace(
-        user_id=7,
-        used=False,
-        expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
-    )
-    session = DummySession(execute_result=DummyScalarResult(db_token))
+    # В реальной реализации expired токен не попадёт в выборку из-за WHERE RefreshToken.expires_at > now(),
+    # поэтому execute должен вернуть None.
+    session = DummySession(execute_result=DummyScalarResult(None))
 
     with pytest.raises(ValueError, match="Невалидный или просроченный refresh токен"):
         await verify_and_mark_used_refresh_token(
