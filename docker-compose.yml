@@ -1,13 +1,19 @@
 services:
-  nginx:
-    build: ./nginx
+  frontend:
+    build: ./frontend
     ports:
       - "80:80"
-    volumes:
-      - ./frontend/dist:/usr/share/nginx/html:ro
     depends_on:
       - backend
     restart: unless-stopped
+
+  frontend-builder:
+    build: ./frontend
+    volumes:
+      - frontend_build:/dist
+    command: ["echo", "Frontend build complete"]
+    profiles:
+      - build
 
   backend:
     build: ./backend
@@ -95,6 +101,7 @@ services:
       retries: 5
 
 volumes:
+  frontend_build:
   postgres_data:
   redis_data:
   rabbitmq_data:

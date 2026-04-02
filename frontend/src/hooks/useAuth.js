@@ -24,20 +24,8 @@ export const useAuth = () => {
           });
         }
       } else {
-        // Пробуем загрузить полный профиль (для обратной совместимости)
-        try {
-          const userProfile = await usersAPI.getProfile();
-          if (mountedRef.current) {
-            setUser({ 
-              isAuthenticated: true,
-              ...userProfile 
-            });
-          }
-        } catch {
-          // Если не удалось загрузить профиль, значит пользователь не аутентифицирован
-          if (mountedRef.current) {
-            setUser(null);
-          }
+        if (mountedRef.current) {
+          setUser(null);
         }
       }
     } catch (error) {
@@ -99,7 +87,9 @@ export const useAuth = () => {
         }
         return { success: true };
       } else {
-        // Если аутентификация не подтвердилась, пробуем загрузить профиль напрямую
+        // Если аутентификация не подтвердилась через checkAuth,
+        // пробуем загрузить профиль напрямую (только если есть основания полагать,
+        // что пользователь аутентифицирован)
         try {
           const userProfile = await usersAPI.getProfile();
           if (mountedRef.current) {
