@@ -30,17 +30,16 @@ SRC_DIR = BASE_DIR / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from modules.auth.router import router as auth_router  # noqa: E402
 from core.database.session import db_session  # noqa: E402
+from modules.auth.router import router as auth_router  # noqa: E402
+from modules.users.router import router as users_router  # noqa: E402
+from modules.groups.router import router as groups_router  # noqa: E402
+from modules.projects.router import router as projects_router  # noqa: E402
+from modules.tasks.router import router as tasks_router  # noqa: E402
+from modules.notifications.http_router import router as notifications_http_router  # noqa: E402
 
 
 class DummySession:
-    """
-    Заглушка AsyncSession для модульных тестов.
-    Методы добавлены на случай, если какой-то тест
-    или код сервиса к ним обратится.
-    """
-
     def add(self, obj):
         return None
 
@@ -75,10 +74,6 @@ def test_user():
 
 @pytest.fixture
 def auth_app(fake_session):
-    """
-    Изолированное приложение только с auth router,
-    без подключения main.py и без lifespan.
-    """
     app = FastAPI()
     app.include_router(auth_router, prefix="/auth", tags=["Auth"])
 
@@ -92,4 +87,36 @@ def auth_app(fake_session):
 @pytest.fixture
 def client(auth_app):
     with TestClient(auth_app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def integration_app(fake_session):
+    """
+    Общее приложение для интеграционных тестов.
+    Без main.py и lifespan, чтобы не поднимать Redis/RabbitMQ/реальную БД.
+    """
+    app = FastAPI()
+
+    app.include_router(auth_router, prefix="/auth", tags=["Auth"])
+    app.include_router(users_router, prefix="/users", tags=["Users"])
+    app.include_router(groups_router, prefix="/groups", tags=["Groups"])
+    app.include_router(projects_router, prefix="/projects", tags=["Projects"])
+    app.include_router(tasks_router, prefix="/tasks", tags=["Tasks"])
+    app.include_router(
+        notifications_http_router,
+        prefix="/notifications",
+        tags=["Notifications HTTP"],
+    )
+
+    async def override_session():
+        return fake_session
+
+    app.dependency_overrides[db_session.session_getter] = override_session
+    return app
+
+
+@pytest.fixture
+def integration_client(integration_app):
+    with TestClient(integration_app) as test_client:
         yield test_client
