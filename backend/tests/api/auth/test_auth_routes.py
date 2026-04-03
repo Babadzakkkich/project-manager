@@ -1,6 +1,8 @@
+import pytest
 from jose import jwt as jose_jwt
 
 
+@pytest.mark.smoke
 def test_login_sets_auth_cookies_and_returns_200(client, monkeypatch):
     async def mock_login_user(self, login: str, password: str):
         assert login == "test_user"
@@ -34,6 +36,7 @@ def test_refresh_returns_400_when_refresh_cookie_missing(client):
     assert response.status_code in (400, 401, 422)
 
 
+@pytest.mark.sanity
 def test_refresh_sets_new_cookies_and_returns_200(
     client,
     test_user,
@@ -89,6 +92,7 @@ def test_refresh_sets_new_cookies_and_returns_200(
     assert "refresh_token=new-refresh-token" in set_cookie_header
 
 
+@pytest.mark.sanity
 def test_logout_clears_cookies_and_returns_200(client, monkeypatch):
     async def mock_revoke_all_user_tokens(session, user_id: int):
         assert user_id == 1
@@ -119,6 +123,7 @@ def test_logout_clears_cookies_and_returns_200(client, monkeypatch):
     assert "refresh_token=" in set_cookie_header
 
 
+@pytest.mark.smoke
 def test_check_returns_authenticated_true_for_valid_access_token(
     client,
     test_user,

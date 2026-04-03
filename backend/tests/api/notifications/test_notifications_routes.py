@@ -93,6 +93,7 @@ def notifications_client():
         yield client
 
 
+@pytest.mark.sanity
 def test_get_notifications_returns_list_response(notifications_client):
     response = notifications_client.get("/notifications/")
 
@@ -108,6 +109,7 @@ def test_get_notifications_returns_list_response(notifications_client):
     assert data["items"][1]["id"] == 2
 
 
+@pytest.mark.sanity
 def test_get_notifications_with_unread_only_returns_filtered_items(notifications_client):
     response = notifications_client.get("/notifications/?unread_only=true")
 

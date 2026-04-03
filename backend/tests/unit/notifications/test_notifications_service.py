@@ -71,6 +71,7 @@ class DummySession:
 
 
 @pytest.mark.asyncio
+@pytest.mark.sanity
 async def test_create_creates_and_returns_notification(monkeypatch):
     session = DummySession()
     service = NotificationService(session=session)
@@ -135,6 +136,7 @@ async def test_send_to_user_returns_false_when_publisher_not_available():
 
 
 @pytest.mark.asyncio
+@pytest.mark.sanity
 async def test_get_user_notifications_returns_list():
     notif_type_1 = list(NotificationType)[0]
     notif_type_2 = list(NotificationType)[1] if len(list(NotificationType)) > 1 else list(NotificationType)[0]

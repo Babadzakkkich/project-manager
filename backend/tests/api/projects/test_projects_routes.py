@@ -242,6 +242,7 @@ def projects_client(monkeypatch):
         yield client
 
 
+@pytest.mark.smoke
 def test_get_projects_returns_list(projects_client):
     response = projects_client.get("/projects/")
 
@@ -281,6 +282,7 @@ def test_get_project_returns_404_for_missing_project(projects_client):
     assert "не найден" in response.json()["detail"]
 
 
+@pytest.mark.sanity
 def test_create_project_returns_201(projects_client):
     response = projects_client.post(
         "/projects/",
@@ -385,6 +387,7 @@ def test_add_groups_to_project_returns_403_for_permissions_error(projects_client
     assert response.status_code == 403
 
 
+@pytest.mark.sanity
 def test_update_project_returns_updated_project(projects_client):
     response = projects_client.put(
         "/projects/1",

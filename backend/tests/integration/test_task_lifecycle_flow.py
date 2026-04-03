@@ -9,6 +9,7 @@ from shared.dependencies import get_service_factory
 
 
 @pytest.mark.integration
+@pytest.mark.smoke
 def test_task_lifecycle_flow(integration_app, integration_client):
     """
     Сквозной интеграционный сценарий жизненного цикла задачи:

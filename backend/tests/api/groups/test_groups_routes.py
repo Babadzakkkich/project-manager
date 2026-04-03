@@ -198,6 +198,7 @@ def test_get_group_returns_404_for_missing_group(groups_client):
     assert "не найдена" in response.json()["detail"] or "не найден" in response.json()["detail"]
 
 
+@pytest.mark.sanity
 def test_create_group_returns_201(groups_client):
     response = groups_client.post(
         "/groups/",

@@ -335,6 +335,7 @@ def test_get_tasks_returns_list(tasks_client):
     assert response.json()[0]["title"] == "Fix auth"
 
 
+@pytest.mark.smoke
 def test_get_my_tasks_returns_list(tasks_client):
     response = tasks_client.get("/tasks/my")
 
@@ -365,6 +366,7 @@ def test_get_task_returns_404_for_missing_task(tasks_client):
     assert response.status_code == 404
 
 
+@pytest.mark.sanity
 def test_create_task_returns_201(tasks_client):
     response = tasks_client.post(
         "/tasks/",
@@ -433,6 +435,7 @@ def test_add_users_to_task_returns_400_for_invalid_users(tasks_client):
     assert response.status_code == 400
 
 
+@pytest.mark.sanity
 def test_update_task_returns_updated_task(tasks_client):
     response = tasks_client.put(
         "/tasks/1",
@@ -478,6 +481,7 @@ def test_get_project_board_returns_tasks(tasks_client):
     assert response.json()[0]["id"] == 21
 
 
+@pytest.mark.sanity
 def test_update_task_status_returns_updated_task(tasks_client):
     response = tasks_client.put(
         f"/tasks/1/status?status_update={TaskStatus.IN_PROGRESS.value}"
@@ -487,6 +491,7 @@ def test_update_task_status_returns_updated_task(tasks_client):
     assert response.json()["status"] == TaskStatus.IN_PROGRESS.value
 
 
+@pytest.mark.sanity
 def test_update_task_priority_returns_updated_task(tasks_client):
     response = tasks_client.put(
         f"/tasks/1/priority?priority_update={TaskPriority.LOW.value}"
@@ -496,6 +501,7 @@ def test_update_task_priority_returns_updated_task(tasks_client):
     assert response.json()["priority"] == TaskPriority.LOW.value
 
 
+@pytest.mark.sanity
 def test_update_task_position_returns_updated_task(tasks_client):
     response = tasks_client.put("/tasks/1/position?position=3")
 
