@@ -102,6 +102,50 @@ async def create_user(
             detail=e.detail
         )
 
+@router.put("/me", response_model=UserRead)
+async def update_current_user(
+    user_data: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    service_factory: ServiceFactory = Depends(get_service_factory)
+):
+    """
+    Обновление профиля текущего пользователя.
+    Позволяет пользователю изменять свои данные без указания ID.
+    """
+    logger.info(f"PUT /users/me - updating profile for user {current_user.id}")
+    user_service = service_factory.get('user')
+    
+    try:
+        updated_user = await user_service.update_user(
+            user_id=current_user.id,
+            user_update=user_data,
+            current_user_id=current_user.id
+        )
+        return updated_user
+    except UserNotFoundError as e:
+        logger.error(f"User {current_user.id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=e.detail
+        )
+    except UserAlreadyExistsError as e:
+        logger.warning(f"Update failed - duplicate data: {e.detail}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=e.detail
+        )
+    except UserUpdateError as e:
+        logger.error(f"Update error: {e.detail}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=e.detail
+        )
+    except UserAccessDeniedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=e.detail
+        )
+
 # Обновить пользователя
 @router.put("/{user_id}", response_model=UserRead)
 async def update_user(
@@ -130,6 +174,48 @@ async def update_user(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=e.detail
+        )
+
+@router.delete("/me", status_code=status.HTTP_200_OK)
+async def delete_current_user(
+    current_user: User = Depends(get_current_user),
+    service_factory: ServiceFactory = Depends(get_service_factory)
+):
+    """
+    Удаление аккаунта текущего пользователя.
+    Полностью удаляет пользователя и все связанные данные.
+    """
+    logger.info(f"DELETE /users/me - deleting account for user {current_user.id}")
+    user_service = service_factory.get('user')
+    
+    try:
+        deleted = await user_service.delete_user(
+            user_id=current_user.id,
+            current_user_id=current_user.id
+        )
+        if not deleted:
+            logger.warning(f"User {current_user.id} not found for deletion")
+            raise UserNotFoundError(user_id=current_user.id)
+        
+        logger.info(f"User {current_user.id} successfully deleted their account")
+        return {"detail": "Аккаунт успешно удален"}
+        
+    except UserNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=e.detail
+        )
+    except UserDeleteError as e:
+        logger.error(f"Delete error: {e.detail}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=e.detail
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during account deletion: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Внутренняя ошибка сервера при удалении аккаунта"
         )
 
 # Удалить пользователя
