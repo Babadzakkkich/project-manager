@@ -22,12 +22,22 @@ export const useNotifications = () => {
       const response = await notificationsAPI.getNotifications({ limit: 50 });
       
       if (isMountedRef.current) {
+        const allItems = response.items || [];
+        
+        // Считаем количество непрочитанных приглашений в ответе
+        const unreadInvitationsCount = allItems.filter(
+          item => item.type === NOTIFICATION_TYPES.GROUP_INVITATION && !item.is_read
+        ).length;
+        
         // Исключаем приглашения из списка уведомлений
-        const filteredItems = (response.items || []).filter(
+        const filteredItems = allItems.filter(
           item => item.type !== NOTIFICATION_TYPES.GROUP_INVITATION
         );
         setNotifications(filteredItems);
-        setUnreadCount(response.unread_count || 0);
+        
+        // Корректируем общий счётчик: вычитаем непрочитанные приглашения
+        const totalUnread = response.unread_count || 0;
+        setUnreadCount(totalUnread - unreadInvitationsCount);
       }
     } catch (error) {
       console.error('Failed to load notifications:', error);
@@ -41,9 +51,15 @@ export const useNotifications = () => {
   // Обновление количества непрочитанных (без учёта приглашений)
   const refreshUnreadCount = useCallback(async () => {
     try {
-      const response = await notificationsAPI.getUnreadCount();
+      // Получаем только непрочитанные уведомления, чтобы узнать количество приглашений
+      const response = await notificationsAPI.getNotifications({ limit: 50, unread_only: true });
       if (isMountedRef.current) {
-        setUnreadCount(response.count || 0);
+        const unreadInvitationsCount = (response.items || []).filter(
+          item => item.type === NOTIFICATION_TYPES.GROUP_INVITATION
+        ).length;
+        
+        const totalUnread = response.unread_count || 0;
+        setUnreadCount(totalUnread - unreadInvitationsCount);
       }
     } catch (error) {
       console.error('Failed to get unread count:', error);
@@ -143,7 +159,9 @@ export const useNotifications = () => {
         }
         
         if (data.type === 'unread_count') {
-          setUnreadCount(data.count);
+          // При получении unread_count через WS также нужно вычесть приглашения
+          // Так как мы не знаем точное количество приглашений в WS сообщении, лучше сделать forceRefresh
+          forceRefresh();
         }
         
       } catch (error) {
