@@ -26,6 +26,8 @@ export const useInvitations = () => {
       if (result.success) {
         showSuccess(`Вы присоединились к группе "${groupName}"`);
         await loadPendingInvitations();
+        // Отправляем событие для синхронизации уведомлений
+        window.dispatchEvent(new CustomEvent('notifications:sync'));
         return true;
       }
       return false;
@@ -42,6 +44,8 @@ export const useInvitations = () => {
       if (result.success) {
         showSuccess('Приглашение отклонено');
         await loadPendingInvitations();
+        // Отправляем событие для синхронизации уведомлений
+        window.dispatchEvent(new CustomEvent('notifications:sync'));
         return true;
       }
       return false;
@@ -51,6 +55,27 @@ export const useInvitations = () => {
       return false;
     }
   }, [loadPendingInvitations, showSuccess, showError]);
+
+  // Слушаем событие получения нового приглашения через WebSocket
+  useEffect(() => {
+    const handleInvitationReceived = () => {
+      console.log('Invitation received via WebSocket, refreshing...');
+      loadPendingInvitations();
+    };
+    
+    window.addEventListener('invitation:received', handleInvitationReceived);
+    return () => window.removeEventListener('invitation:received', handleInvitationReceived);
+  }, [loadPendingInvitations]);
+
+  // Слушаем событие синхронизации
+  useEffect(() => {
+    const handleSync = () => {
+      loadPendingInvitations();
+    };
+    
+    window.addEventListener('notifications:sync', handleSync);
+    return () => window.removeEventListener('notifications:sync', handleSync);
+  }, [loadPendingInvitations]);
 
   useEffect(() => {
     loadPendingInvitations();

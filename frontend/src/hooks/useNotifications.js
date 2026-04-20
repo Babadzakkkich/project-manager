@@ -15,14 +15,18 @@ export const useNotifications = () => {
   const isInitializedRef = useRef(false);
   const updateCounterRef = useRef(0);
 
-  // Загрузка истории уведомлений
+  // Загрузка истории уведомлений (исключая приглашения)
   const loadNotifications = useCallback(async () => {
     try {
       setIsLoading(true);
       const response = await notificationsAPI.getNotifications({ limit: 50 });
       
       if (isMountedRef.current) {
-        setNotifications(response.items || []);
+        // Исключаем приглашения из списка уведомлений
+        const filteredItems = (response.items || []).filter(
+          item => item.type !== NOTIFICATION_TYPES.GROUP_INVITATION
+        );
+        setNotifications(filteredItems);
         setUnreadCount(response.unread_count || 0);
       }
     } catch (error) {
@@ -34,7 +38,7 @@ export const useNotifications = () => {
     }
   }, []);
 
-  // Обновление количества непрочитанных
+  // Обновление количества непрочитанных (без учёта приглашений)
   const refreshUnreadCount = useCallback(async () => {
     try {
       const response = await notificationsAPI.getUnreadCount();
@@ -122,9 +126,16 @@ export const useNotifications = () => {
         
         // Новое уведомление
         if (data.id && data.type !== 'marked_read' && data.type !== 'marked_all_read' && data.type !== 'unread_count') {
-          setNotifications(prev => [data, ...prev]);
-          setUnreadCount(prev => prev + 1);
-          showToastNotification(data);
+          // Если это приглашение, не добавляем в уведомления, а генерируем событие для invitations
+          if (data.type === NOTIFICATION_TYPES.GROUP_INVITATION) {
+            // Отправляем событие для обновления приглашений
+            window.dispatchEvent(new CustomEvent('invitation:received', { detail: data }));
+            showToastNotification(data);
+          } else {
+            setNotifications(prev => [data, ...prev]);
+            setUnreadCount(prev => prev + 1);
+            showToastNotification(data);
+          }
         }
         
         if (data.type === 'marked_read' || data.type === 'marked_all_read') {
@@ -240,11 +251,6 @@ export const useNotifications = () => {
 
   // Получить ссылку для уведомления
   const getNotificationLink = useCallback((notification) => {
-    // Для приглашений ссылка ведёт на страницу приглашений
-    if (notification.type === NOTIFICATION_TYPES.GROUP_INVITATION) {
-      return '/invitations';
-    }
-    
     if (notification.data?.task_id) {
       return `/tasks/${notification.data.task_id}`;
     }
