@@ -1,159 +1,87 @@
-// ============================================================
-// Custom Commands для Syncro Project Manager
-// ============================================================
+const defaultUser = {
+  id: 1,
+  login: 'admin_user',
+  email: 'admin@example.com',
+  name: 'Admin User',
+};
 
-// ---------- НАВИГАЦИЯ ----------
-Cypress.Commands.add('goToHome', () => {
-  cy.visit('/');
+Cypress.Commands.add('mockCommonPrivateRequests', () => {
+  cy.intercept(
+    { method: 'GET', pathname: '/notifications/' },
+    { statusCode: 200, body: [] }
+  ).as('notificationsList');
+
+  cy.intercept(
+    { method: 'GET', pathname: '/notifications/unread/count' },
+    { statusCode: 200, body: { count: 0 } }
+  ).as('notificationsUnread');
+
+  cy.intercept(
+    { method: 'GET', pathname: '/groups/invitations/pending' },
+    { statusCode: 200, body: [] }
+  ).as('pendingInvitations');
 });
 
-Cypress.Commands.add('goToRegister', () => {
-  cy.visit('/register');
-  cy.wait(1000); // Даем время на рендер
+Cypress.Commands.add('mockUnauthenticated', () => {
+  cy.intercept(
+    { method: 'GET', pathname: '/auth/check' },
+    {
+      statusCode: 200,
+      body: { authenticated: false },
+    }
+  ).as('checkAuth');
 });
 
-Cypress.Commands.add('goToLogin', () => {
-  cy.visit('/login');
-  cy.wait(1000);
+Cypress.Commands.add('mockAuthenticated', (user = defaultUser) => {
+  cy.intercept(
+    { method: 'GET', pathname: '/auth/check' },
+    {
+      statusCode: 200,
+      body: {
+        authenticated: true,
+        user,
+      },
+    }
+  ).as('checkAuth');
+
+  cy.mockCommonPrivateRequests();
 });
 
-// ---------- ПРОВЕРКИ СТРАНИЦ ----------
-Cypress.Commands.add('assertRegisterPage', () => {
-  cy.url().should('include', '/register');
-  cy.contains('Регистрация').should('be.visible');
+Cypress.Commands.add('visitAsGuest', (path = '/') => {
+  cy.mockUnauthenticated();
+  cy.visit(path);
+  cy.wait('@checkAuth');
 });
 
-Cypress.Commands.add('assertLoginPage', () => {
-  cy.url().should('include', '/login');
-  cy.contains('Вход в систему').should('be.visible');
+Cypress.Commands.add('visitAsAuthenticated', (path = '/workspace', user = defaultUser) => {
+  cy.mockAuthenticated(user);
+  cy.visit(path);
+  cy.wait('@checkAuth');
 });
 
-// ---------- РАБОТА С ФОРМАМИ ----------
-Cypress.Commands.add('safeType', (selector, text) => {
-  cy.get(selector).clear();
-  cy.get(selector).type(text);
+Cypress.Commands.add('fillLoginForm', ({ login, password }) => {
+  cy.get('input[name="login"]').should('be.visible').clear().type(login);
+  cy.get('input[name="password"]').should('be.visible').clear().type(password);
 });
 
-Cypress.Commands.add('fillRegisterForm', (userData = {}) => {
-  const defaultData = {
-    login: `testuser${Date.now()}`,
-    email: `test${Date.now()}@example.com`,
-    name: `Test User`,
-    password: 'TestPassword123!',
-    confirmPassword: 'TestPassword123!'
-  };
-  
-  const data = { ...defaultData, ...userData };
-  
-  cy.contains('Логин').parent().find('input').as('loginField');
-  cy.get('@loginField').clear();
-  cy.get('@loginField').type(data.login);
-  
-  cy.contains('Email').parent().find('input').as('emailField');
-  cy.get('@emailField').clear();
-  cy.get('@emailField').type(data.email);
-  
-  cy.contains('Имя').parent().find('input').as('nameField');
-  cy.get('@nameField').clear();
-  cy.get('@nameField').type(data.name);
-  
-  cy.contains('Пароль').parent().find('input').as('passwordField');
-  cy.get('@passwordField').clear();
-  cy.get('@passwordField').type(data.password);
-  
-  cy.contains('Подтверждение пароля').parent().find('input').as('confirmField');
-  cy.get('@confirmField').clear();
-  cy.get('@confirmField').type(data.confirmPassword);
+Cypress.Commands.add('fillRegisterForm', ({ login, email, name, password, confirmPassword }) => {
+  cy.get('input[name="email"]').should('be.visible').clear().type(email);
+  cy.get('input[name="login"]').should('be.visible').clear().type(login);
+  cy.get('input[name="name"]').should('be.visible').clear().type(name);
+  cy.get('input[name="password"]').should('be.visible').clear().type(password);
+  cy.get('input[name="confirmPassword"]').should('be.visible').clear().type(confirmPassword);
 });
 
-Cypress.Commands.add('fillLoginForm', (credentials = {}) => {
-  const defaultCreds = {
-    login: 'test@example.com',
-    password: 'TestPassword123!'
-  };
-  
-  const creds = { ...defaultCreds, ...credentials };
-  
-  cy.contains('Логин').parent().find('input').as('loginInput');
-  cy.get('@loginInput').clear();
-  cy.get('@loginInput').type(creds.login);
-  
-  cy.contains('Пароль').parent().find('input').as('passwordInput');
-  cy.get('@passwordInput').clear();
-  cy.get('@passwordInput').type(creds.password);
-});
-
-Cypress.Commands.add('submitAuthForm', () => {
-  cy.contains('button', 'Зарегистрироваться').click({ force: true }) ||
-  cy.contains('button', 'Войти').click({ force: true });
-  
-  cy.wait(1000);
-});
-
-// ---------- API МОКИ для ваших endpoint'ов ----------
 Cypress.Commands.add('mockRegisterSuccess', () => {
-  cy.intercept('POST', '**/auth/register', {
-    statusCode: 201,
-    body: {
-      message: 'Пользователь успешно зарегистрирован',
-      user: {
-        id: 1,
-        login: 'testuser',
-        email: 'test@example.com',
-        name: 'Test User'
-      }
-    }
+  cy.intercept('POST', '**/users/', (req) => {
+    req.reply({
+      statusCode: 201,
+      body: {
+        id: 101,
+        login: req.body.login,
+        email: req.body.email,
+        name: req.body.name,
+      },
+    });
   }).as('registerRequest');
-});
-
-Cypress.Commands.add('mockRegisterError', (error = 'Пользователь уже существует') => {
-  cy.intercept('POST', '**/auth/register', {
-    statusCode: 400,
-    body: { detail: error }
-  }).as('registerError');
-});
-
-Cypress.Commands.add('mockLoginSuccess', () => {
-  cy.intercept('POST', '**/auth/login', {
-    statusCode: 200,
-    body: {
-      access_token: 'fake-jwt-token-12345',
-      token_type: 'bearer',
-      user: {
-        id: 1,
-        login: 'testuser',
-        email: 'test@example.com',
-        name: 'Test User'
-      }
-    }
-  }).as('loginRequest');
-});
-
-Cypress.Commands.add('mockLoginError', (error = 'Неверные учетные данные') => {
-  cy.intercept('POST', '**/auth/login', {
-    statusCode: 401,
-    body: { detail: error }
-  }).as('loginError');
-});
-
-Cypress.Commands.add('mockLogoutSuccess', () => {
-  cy.intercept('POST', '**/auth/logout', {
-    statusCode: 200,
-    body: { message: 'Logged out successfully' }
-  }).as('logoutRequest');
-});
-
-// ---------- ПОЛЬЗОВАТЕЛЬСКИЕ СЦЕНАРИИ ----------
-Cypress.Commands.add('loginWithMock', (credentials) => {
-  cy.mockLoginSuccess();
-  cy.goToLogin();
-  cy.fillLoginForm(credentials);
-  cy.submitAuthForm();
-  cy.wait('@loginRequest');
-});
-
-Cypress.Commands.add('logoutWithMock', () => {
-  cy.mockLogoutSuccess();
-  cy.get('[data-testid="user-menu"], button').contains('Выйти').click({ force: true });
-  cy.wait('@logoutRequest');
 });
