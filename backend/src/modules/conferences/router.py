@@ -18,10 +18,6 @@ from .schemas import (
     JoinConferenceResponse,
     ConferenceStatsResponse,
     CreatorInfo,
-    # Новые схемы (добавить в schemas.py)
-    ModeratorActionRequest,
-    RecordingRequest,
-    StreamingRequest,
 )
 
 router = APIRouter()
