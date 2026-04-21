@@ -12,6 +12,8 @@ import { ConfirmationModal } from '../../../components/ui/ConfirmationModal';
 import { Notification } from '../../../components/ui/Notification';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { useNotification } from '../../../hooks/useNotification';
+import { StartConferenceButton } from '../../../components/ui/StartConferenceButton';
+import { CONFERENCE_ROOM_TYPES } from '../../../utils/constants';
 import { 
   handleApiError, 
   formatDate,
@@ -438,6 +440,13 @@ export const ProjectDetail = () => {
 
           {isAdmin && !editing && (
             <div className={styles.headerActions}>
+              <StartConferenceButton
+                type={CONFERENCE_ROOM_TYPES.PROJECT}
+                id={project.id}
+                title={`Созвон проекта ${project.title}`}
+                variant="primary"
+                size="medium"
+              />
               <Button 
                 variant="primary" 
                 onClick={() => setEditing(true)}

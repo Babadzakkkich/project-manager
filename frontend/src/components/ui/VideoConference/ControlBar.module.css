@@ -1,0 +1,97 @@
+.controlBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: rgba(0, 0, 0, 0.8);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  justify-content: center;
+}
+
+.controlButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 70px;
+}
+
+.controlButton:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.controlButton.disabled {
+  background: rgba(229, 62, 62, 0.3);
+}
+
+.controlButton.disabled:hover {
+  background: rgba(229, 62, 62, 0.5);
+}
+
+.controlButton.active {
+  background: #004B23;
+}
+
+.controlButton.active:hover {
+  background: #006400;
+}
+
+.icon {
+  font-size: 24px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.leaveButton {
+  background: rgba(229, 62, 62, 0.3);
+}
+
+.leaveButton:hover {
+  background: rgba(229, 62, 62, 0.6);
+}
+
+@media (max-width: 768px) {
+  .controlBar {
+    padding: 12px 16px;
+  }
+  
+  .controlButton {
+    padding: 8px 12px;
+    min-width: 50px;
+  }
+  
+  .icon {
+    font-size: 20px;
+  }
+  
+  .label {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .controlButton {
+    padding: 6px 8px;
+    min-width: 40px;
+  }
+  
+  .label {
+    display: none;
+  }
+}

@@ -64,6 +64,9 @@ export const Header = () => {
           <Link to="/management" className={styles.navLink}>
             Управление
           </Link>
+          <Link to="/conferences" className={styles.navLink}>
+            Созвоны
+          </Link>
         </nav>
       </div>
 

@@ -269,6 +269,12 @@ export const useNotifications = () => {
 
   // Получить ссылку для уведомления
   const getNotificationLink = useCallback((notification) => {
+    if (notification.data?.room_id) {
+    return `/conferences/${notification.data.room_id}`;
+    }
+    if (notification.data?.task_id) {
+      return `/tasks/${notification.data.task_id}`;
+    }
     if (notification.data?.task_id) {
       return `/tasks/${notification.data.task_id}`;
     }
@@ -306,7 +312,9 @@ export const useNotifications = () => {
       task_overdue: '⚠️',
       group_invitation: '📧',
       group_invitation_accepted: '✅',
-      group_invitation_declined: '❌'
+      group_invitation_declined: '❌',
+      conference_started: '🎥',
+      conference_invite: '📞'
     };
     return icons[type] || '🔔';
   }, []);

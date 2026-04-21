@@ -12,6 +12,8 @@ import { useAuthContext } from '../../../contexts/AuthContext';
 import { useNotification } from '../../../hooks/useNotification';
 import { handleApiError, getUserRoleTranslation } from '../../../utils/helpers';
 import styles from './GroupDetail.module.css';
+import { StartConferenceButton } from '../../../components/ui/StartConferenceButton';
+import { CONFERENCE_ROOM_TYPES } from '../../../utils/constants';
 
 export const GroupDetail = () => {
   const { groupId } = useParams();
@@ -313,6 +315,13 @@ export const GroupDetail = () => {
 
         {isAdmin && !editing && (
           <div className={styles.headerActions}>
+            <StartConferenceButton
+              type={CONFERENCE_ROOM_TYPES.GROUP}
+              id={group.id}
+              title={`Созвон группы ${group.name}`}
+              variant="primary"
+              size="medium"
+            />
             <Button 
               variant="secondary" 
               onClick={() => setEditing(true)}

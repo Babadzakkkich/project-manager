@@ -8,6 +8,8 @@ import { ConfirmationModal } from '../../../components/ui/ConfirmationModal';
 import { Notification } from '../../../components/ui/Notification';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { useNotification } from '../../../hooks/useNotification';
+import { StartConferenceButton } from '../../../components/ui/StartConferenceButton';
+import { CONFERENCE_ROOM_TYPES } from '../../../utils/constants';
 import { 
   handleApiError, 
   formatDate,
@@ -565,6 +567,14 @@ export const TaskDetail = () => {
 
           {canEdit && !editing && (
             <div className={styles.headerActions}>
+              <StartConferenceButton
+                type={CONFERENCE_ROOM_TYPES.TASK}
+                id={task.id}
+                title={`Обсуждение задачи ${task.title}`}
+                variant="primary"
+                size="medium"
+                className={styles.conferenceButton}
+              />
               <Button 
                 variant="primary" 
                 onClick={() => setEditing(true)}
