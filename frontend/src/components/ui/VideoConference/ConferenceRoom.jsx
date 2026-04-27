@@ -1,4 +1,3 @@
-// SRC/COMPONENTS/UI/VIDEOCONFERENCE/CONFERENCEROOM.JSX
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ConnectionState } from 'livekit-client';
@@ -41,6 +40,7 @@ export const ConferenceRoom = () => {
     muteParticipant,
     kickParticipant,
     endConference,
+    addHistoryMessages,
     isAudioEnabled,
     isVideoEnabled,
     isScreenSharing
@@ -188,10 +188,12 @@ export const ConferenceRoom = () => {
       {/* Чат (опционально показывается) */}
       {showChat && (
         <ChatPanel
+          roomId={parseInt(roomId)}
           messages={messages}
           onSendMessage={sendChatMessage}
           onClose={() => setShowChat(false)}
-          currentUserId={user?.id?.toString()}
+          currentUserId={user?.id}
+          _addHistoryMessages={addHistoryMessages}
         />
       )}
       

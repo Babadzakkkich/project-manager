@@ -26,6 +26,24 @@ export const conferencesAPI = {
     return response.data;
   },
 
+  // Получение истории сообщений
+  getRoomMessages: async (roomId, params = {}) => {
+    const { limit = 50, before_id = null } = params;
+    const queryParams = new URLSearchParams({ limit });
+    if (before_id) queryParams.append('before_id', before_id);
+    
+    const response = await apiClient.get(`/conferences/rooms/${roomId}/messages?${queryParams}`);
+    return response.data;
+  },
+
+  // Отправка сообщения (сохраняется на сервере)
+  sendRoomMessage: async (roomId, message) => {
+    const response = await apiClient.post(`/conferences/rooms/${roomId}/messages`, {
+      message
+    });
+    return response.data;
+  },
+
   // Выход из комнаты
   leaveRoom: async (roomId) => {
     const response = await apiClient.post(`/conferences/rooms/${roomId}/leave`);

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 
 from core.database.models import User
 from core.services import ServiceFactory
@@ -12,6 +12,7 @@ from core.logger import logger
 
 from .service import ConferenceService
 from .schemas import (
+    ConferenceMessageResponse,
     ConferenceRoomCreate,
     ConferenceRoomResponse,
     ConferenceRoomWithDetails,
@@ -69,6 +70,62 @@ async def create_conference_room(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Не удалось создать комнату: {str(e)}"
         )
+
+@router.post("/rooms/{room_id}/messages")
+async def send_room_message(
+    room_id: int,
+    message_data: dict,
+    service_factory: ServiceFactory = Depends(get_service_factory),
+    current_user: User = Depends(get_current_user)
+):
+    """Отправка сообщения в комнату (сохраняется на сервере)"""
+    logger.info(f"User {current_user.id} sending message to room {room_id}")
+    
+    conference_service = service_factory.get('conference')
+    message = await conference_service.save_message(
+        room_id=room_id,
+        user_id=current_user.id,
+        message_text=message_data.get("message", "")
+    )
+    
+    if not message:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Не удалось сохранить сообщение"
+        )
+    
+    return {
+        "id": message.id,
+        "user_id": message.user_id,
+        "user_name": current_user.name or current_user.login,
+        "message": message.message,
+        "created_at": message.created_at.isoformat()
+    }
+
+@router.get("/rooms/{room_id}/messages", response_model=List[ConferenceMessageResponse])
+async def get_room_messages(
+    room_id: int,
+    limit: int = 50,
+    before_id: Optional[int] = None,
+    service_factory: ServiceFactory = Depends(get_service_factory),
+    current_user: User = Depends(get_current_user)
+):
+    """Получение истории сообщений комнаты"""
+    logger.info(f"Getting messages for room {room_id}, user {current_user.id}")
+    
+    conference_service = service_factory.get('conference')
+    messages = await conference_service.get_room_messages(room_id, current_user.id, limit, before_id)
+    
+    return [
+        ConferenceMessageResponse(
+            id=msg.id,
+            user_id=msg.user_id,
+            user_name=msg.user.name if msg.user else "Неизвестный",
+            message=msg.message,
+            created_at=msg.created_at
+        )
+        for msg in messages
+    ]
 
 
 @router.get("/rooms", response_model=List[ConferenceRoomWithDetails])

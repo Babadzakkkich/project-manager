@@ -50,6 +50,37 @@
   gap: 16px;
 }
 
+.loadingHistory {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  color: #718096;
+  font-size: 12px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e2e8f0;
+  border-top: 2px solid #004B23;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.noMoreMessages {
+  text-align: center;
+  padding: 12px;
+  color: #a0aec0;
+  font-size: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
 .emptyMessages {
   display: flex;
   flex-direction: column;

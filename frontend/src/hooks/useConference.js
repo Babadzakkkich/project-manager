@@ -29,6 +29,10 @@ export const useConference = (roomId) => {
   const roomRef = useRef(null);
   const hasConnectedRef = useRef(false);
   
+  // Храним актуальные ссылки на функции в ref'ах
+  const handleDataMessageRef = useRef(null);
+  const updateParticipantsRef = useRef(null);
+  
   // Функция обновления списка участников
   const updateParticipants = useCallback((currentRoom) => {
     if (!currentRoom) return;
@@ -39,6 +43,11 @@ export const useConference = (roomId) => {
     ];
     setParticipants(allParticipants);
   }, []);
+  
+  // Обновляем ref при каждом изменении updateParticipants
+  useEffect(() => {
+    updateParticipantsRef.current = updateParticipants;
+  }, [updateParticipants]);
   
   const disconnect = useCallback(async () => {
     if (roomRef.current) {
@@ -62,6 +71,17 @@ export const useConference = (roomId) => {
     }
   }, [roomId]);
   
+  // Добавление сообщений из истории (для ChatPanel)
+  const addHistoryMessages = useCallback((olderMessages) => {
+    setMessages(prev => {
+      // Избегаем дублирования по ID
+      const existingIds = new Set(prev.map(msg => msg.id));
+      const newMessages = olderMessages.filter(msg => !existingIds.has(msg.id));
+      return [...newMessages, ...prev];
+    });
+  }, []);
+  
+  // Обработчик действий модератора
   const handleModeratorAction = useCallback((data) => {
     if (data.action === 'mute') {
       if (data.targetId === user?.id?.toString()) {
@@ -77,15 +97,33 @@ export const useConference = (roomId) => {
     }
   }, [user?.id, showError, disconnect]);
   
+  // Обработчик получения данных (чат, реакции, действия модератора)
   const handleDataMessage = useCallback((data, participant) => {
+    console.log('handleDataMessage called:', { data, participantId: participant.identity });
+    
     if (data.type === 'chat') {
-      setMessages(prev => [...prev, {
-        id: Date.now() + Math.random(),
+      // Проверяем, не наше ли это сообщение (избегаем дублирования)
+      const isLocalMessage = messages.some(msg => 
+        msg.id === data.messageId || 
+        (msg.isLocal && msg.message === data.message && 
+         Math.abs(new Date(msg.timestamp) - new Date(data.timestamp || Date.now())) < 5000)
+      );
+      
+      if (isLocalMessage) {
+        console.log('Skipping local message duplicate');
+        return;
+      }
+      
+      const newMessage = {
+        id: data.messageId || Date.now() + Math.random(),
         sender: participant.identity,
         senderName: participant.name || participant.identity,
         message: data.message,
-        timestamp: new Date().toISOString()
-      }]);
+        timestamp: data.timestamp || new Date().toISOString()
+      };
+      
+      console.log('Adding chat message:', newMessage);
+      setMessages(prev => [...prev, newMessage]);
     } else if (data.type === 'reaction') {
       const reactionEvent = new CustomEvent('conference:reaction', {
         detail: {
@@ -100,7 +138,77 @@ export const useConference = (roomId) => {
     } else {
       console.log('Unknown data message type:', data.type);
     }
-  }, [handleModeratorAction]);
+  }, [handleModeratorAction, messages]);
+  
+  // Обновляем ref при каждом изменении handleDataMessage
+  useEffect(() => {
+    handleDataMessageRef.current = handleDataMessage;
+  }, [handleDataMessage]);
+  
+  // Подписка на события комнаты
+  const subscribeToRoomEvents = useCallback((newRoom) => {
+    newRoom
+      .on(RoomEvent.Connected, () => {
+        console.log('LiveKit: Connected to room');
+        setConnectionState(ConnectionState.Connected);
+        setIsConnecting(false);
+        connectingRef.current = false;
+        hasConnectedRef.current = true;
+        showSuccess('Подключено к созвону');
+      })
+      .on(RoomEvent.Disconnected, () => {
+        console.log('LiveKit: Disconnected from room');
+        setConnectionState(ConnectionState.Disconnected);
+        roomRef.current = null;
+        hasConnectedRef.current = false;
+      })
+      .on(RoomEvent.Reconnecting, () => {
+        console.log('LiveKit: Reconnecting...');
+        setConnectionState(ConnectionState.Reconnecting);
+      })
+      .on(RoomEvent.ParticipantConnected, () => {
+        console.log('LiveKit: Participant connected');
+        updateParticipantsRef.current?.(newRoom);
+      })
+      .on(RoomEvent.ParticipantDisconnected, () => {
+        console.log('LiveKit: Participant disconnected');
+        updateParticipantsRef.current?.(newRoom);
+      })
+      .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+        console.log(`LiveKit: Track subscribed: ${track.kind} from ${participant.identity}`);
+        updateParticipantsRef.current?.(newRoom);
+      })
+      .on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+        console.log(`LiveKit: Track unsubscribed: ${track.kind} from ${participant.identity}`);
+        updateParticipantsRef.current?.(newRoom);
+      })
+      .on(RoomEvent.LocalTrackPublished, (publication) => {
+        console.log(`LiveKit: Local track published: ${publication.kind}`);
+        updateParticipantsRef.current?.(newRoom);
+      })
+      .on(RoomEvent.LocalTrackUnpublished, (publication) => {
+        console.log(`LiveKit: Local track unpublished: ${publication.kind}`);
+        updateParticipantsRef.current?.(newRoom);
+      })
+      .on(RoomEvent.DataReceived, (payload, participant) => {
+        try {
+          const data = JSON.parse(new TextDecoder().decode(payload));
+          handleDataMessageRef.current?.(data, participant);
+        } catch (e) {
+          console.error('Failed to parse data message:', e);
+        }
+      })
+      .on(RoomEvent.ConnectionStateChanged, (state) => {
+        console.log('LiveKit: Connection state changed:', state);
+        setConnectionState(state);
+      })
+      .on(RoomEvent.MediaDevicesError, (e) => {
+        console.error('LiveKit: Media devices error:', e);
+      })
+      .on(RoomEvent.SignalConnected, () => {
+        console.log('LiveKit: Signal connected');
+      });
+  }, [showSuccess]);
   
   // Подключение к комнате
   const connect = useCallback(async () => {
@@ -114,7 +222,6 @@ export const useConference = (roomId) => {
     setError(null);
     
     try {
-      // Получаем данные для подключения
       const joinData = await conferencesAPI.joinRoom(roomId);
       
       setRoomInfo(joinData.room);
@@ -126,7 +233,6 @@ export const useConference = (roomId) => {
         isModerator: joinData.is_moderator
       });
       
-      // Создаем комнату LiveKit
       const newRoom = new Room({
         adaptiveStream: true,
         dynacast: true,
@@ -140,80 +246,37 @@ export const useConference = (roomId) => {
         }
       });
       
-      // Подписываемся на события комнаты
-      newRoom
-        .on(RoomEvent.Connected, () => {
-          console.log('LiveKit: Connected to room');
-          setConnectionState(ConnectionState.Connected);
-          setIsConnecting(false);
-          connectingRef.current = false;
-          hasConnectedRef.current = true;
-          showSuccess('Подключено к созвону');
-        })
-        .on(RoomEvent.Disconnected, () => {
-          console.log('LiveKit: Disconnected from room');
-          setConnectionState(ConnectionState.Disconnected);
-          roomRef.current = null;
-          hasConnectedRef.current = false;
-        })
-        .on(RoomEvent.Reconnecting, () => {
-          console.log('LiveKit: Reconnecting...');
-          setConnectionState(ConnectionState.Reconnecting);
-        })
-        .on(RoomEvent.ParticipantConnected, () => {
-          console.log('LiveKit: Participant connected');
-          updateParticipants(newRoom);
-        })
-        .on(RoomEvent.ParticipantDisconnected, () => {
-          console.log('LiveKit: Participant disconnected');
-          updateParticipants(newRoom);
-        })
-        .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-          console.log(`LiveKit: Track subscribed: ${track.kind} from ${participant.identity}`);
-          updateParticipants(newRoom);
-        })
-        .on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
-          console.log(`LiveKit: Track unsubscribed: ${track.kind} from ${participant.identity}`);
-          updateParticipants(newRoom);
-        })
-        .on(RoomEvent.LocalTrackPublished, (publication) => {
-          console.log(`LiveKit: Local track published: ${publication.kind}`);
-          updateParticipants(newRoom);
-        })
-        .on(RoomEvent.LocalTrackUnpublished, (publication) => {
-          console.log(`LiveKit: Local track unpublished: ${publication.kind}`);
-          updateParticipants(newRoom);
-        })
-        .on(RoomEvent.DataReceived, (payload, participant, kind) => {
-          if (kind === DataPacket_Kind.RELIABLE) {
-            try {
-              const data = JSON.parse(new TextDecoder().decode(payload));
-              handleDataMessage(data, participant);
-            } catch (e) {
-              console.error('Failed to parse data message:', e);
-            }
-          }
-        })
-        .on(RoomEvent.ConnectionStateChanged, (state) => {
-          console.log('LiveKit: Connection state changed:', state);
-          setConnectionState(state);
-        })
-        .on(RoomEvent.MediaDevicesError, (e) => {
-          console.error('LiveKit: Media devices error:', e);
-        })
-        .on(RoomEvent.SignalConnected, () => {
-          console.log('LiveKit: Signal connected');
-        });
+      // Подписываемся на события ДО подключения
+      subscribeToRoomEvents(newRoom);
       
       roomRef.current = newRoom;
       setRoom(newRoom);
       
-      // Подключаемся к LiveKit
       console.log(`Connecting to LiveKit at ${joinData.ws_url}`);
-      await newRoom.connect(joinData.ws_url, joinData.token);
+      await newRoom.connect(joinData.ws_url, joinData.token, {
+        rtcConfig: {
+          iceTransportPolicy: 'all'
+        }
+      });
       console.log('LiveKit connection established');
       
-      // НЕ включаем камеру и микрофон автоматически
+      // Загружаем историю сообщений
+      try {
+        const historyMessages = await conferencesAPI.getRoomMessages(roomId);
+        const formattedHistory = historyMessages.map(msg => ({
+          id: msg.id,
+          sender: msg.user_id.toString(),
+          senderName: msg.user_name,
+          message: msg.message,
+          timestamp: msg.created_at,
+          isLocal: msg.user_id === user?.id
+        }));
+        setMessages(formattedHistory);
+        console.log(`Loaded ${formattedHistory.length} history messages`);
+      } catch (err) {
+        console.error('Failed to load message history:', err);
+      }
+      
       audioEnabledRef.current = false;
       videoEnabledRef.current = false;
       
@@ -241,7 +304,7 @@ export const useConference = (roomId) => {
       hasConnectedRef.current = false;
       setIsConnecting(false);
     }
-  }, [roomId, showSuccess, showError, updateParticipants, handleDataMessage]);
+  }, [roomId, user?.id, showError, subscribeToRoomEvents, updateParticipants]);
   
   // Управление микрофоном
   const toggleAudio = useCallback(async () => {
@@ -292,33 +355,71 @@ export const useConference = (roomId) => {
     }
   }, [updateParticipants, showError]);
   
-  const sendChatMessage = useCallback((message) => {
+  // Отправка сообщения в чат
+  const sendChatMessage = useCallback(async (message) => {
     if (!roomRef.current) return;
     
     const trimmedMessage = message.trim();
     if (!trimmedMessage) return;
     
-    const data = {
-      type: 'chat',
-      message: trimmedMessage
-    };
-    
-    const encoder = new TextEncoder();
-    roomRef.current.localParticipant.publishData(
-      encoder.encode(JSON.stringify(data)),
-      DataPacket_Kind.RELIABLE
-    );
-    
-    setMessages(prev => [...prev, {
-      id: Date.now() + Math.random(),
-      sender: roomRef.current.localParticipant.identity,
-      senderName: roomRef.current.localParticipant.name || 'Вы',
-      message: trimmedMessage,
-      timestamp: new Date().toISOString(),
-      isLocal: true
-    }]);
-  }, []);
+    // Сначала сохраняем на сервере
+    try {
+      const savedMessage = await conferencesAPI.sendRoomMessage(roomId, trimmedMessage);
+      
+      // Отправляем через LiveKit Data канал с ID из БД
+      const data = {
+        type: 'chat',
+        message: trimmedMessage,
+        messageId: savedMessage.id,
+        timestamp: savedMessage.created_at
+      };
+      
+      const encoder = new TextEncoder();
+      roomRef.current.localParticipant.publishData(
+        encoder.encode(JSON.stringify(data)),
+        DataPacket_Kind.RELIABLE
+      );
+      
+      // Добавляем в локальное состояние с реальным ID
+      setMessages(prev => [...prev, {
+        id: savedMessage.id,
+        sender: roomRef.current.localParticipant.identity,
+        senderName: roomRef.current.localParticipant.name || 'Вы',
+        message: trimmedMessage,
+        timestamp: savedMessage.created_at,
+        isLocal: true
+      }]);
+    } catch (err) {
+      console.error('Failed to save message to server:', err);
+      
+      // Если не удалось сохранить на сервере, отправляем только через LiveKit
+      const tempId = Date.now() + Math.random();
+      const data = {
+        type: 'chat',
+        message: trimmedMessage,
+        messageId: tempId,
+        timestamp: new Date().toISOString()
+      };
+      
+      const encoder = new TextEncoder();
+      roomRef.current.localParticipant.publishData(
+        encoder.encode(JSON.stringify(data)),
+        DataPacket_Kind.RELIABLE
+      );
+      
+      // Добавляем локально даже при ошибке
+      setMessages(prev => [...prev, {
+        id: tempId,
+        sender: roomRef.current.localParticipant.identity,
+        senderName: roomRef.current.localParticipant.name || 'Вы',
+        message: trimmedMessage,
+        timestamp: new Date().toISOString(),
+        isLocal: true
+      }]);
+    }
+  }, [roomId]);
   
+  // Отправка реакции
   const sendReaction = useCallback((reaction) => {
     if (!roomRef.current) return;
     
@@ -334,6 +435,7 @@ export const useConference = (roomId) => {
     );
   }, []);
   
+  // Отключение микрофона участника (модератор)
   const muteParticipant = useCallback(async (participantId) => {
     if (!roomRef.current || !isModerator) return;
     
@@ -354,6 +456,7 @@ export const useConference = (roomId) => {
     }
   }, [isModerator]);
   
+  // Удаление участника (модератор)
   const kickParticipant = useCallback(async (participantId) => {
     if (!roomRef.current || !isModerator) return;
     
@@ -374,6 +477,7 @@ export const useConference = (roomId) => {
     }
   }, [isModerator]);
   
+  // Завершение конференции
   const endConference = useCallback(async () => {
     if (!roomRef.current || !isModerator) return;
     
@@ -387,18 +491,20 @@ export const useConference = (roomId) => {
     }
   }, [roomId, isModerator, disconnect, showSuccess, showError]);
   
+  // Состояния аудио/видео
   const isAudioEnabled = useCallback(() => {
-    return roomRef.current?.localParticipant.isMicrophoneEnabled || false;
+    return roomRef.current?.localParticipant?.isMicrophoneEnabled || false;
   }, []);
   
   const isVideoEnabled = useCallback(() => {
-    return roomRef.current?.localParticipant.isCameraEnabled || false;
+    return roomRef.current?.localParticipant?.isCameraEnabled || false;
   }, []);
   
   const isScreenSharing = useCallback(() => {
-    return roomRef.current?.localParticipant.isScreenShareEnabled || false;
+    return roomRef.current?.localParticipant?.isScreenShareEnabled || false;
   }, []);
   
+  // Очистка при размонтировании
   useEffect(() => {
     return () => {
       if (roomRef.current) {
@@ -431,6 +537,7 @@ export const useConference = (roomId) => {
     muteParticipant,
     kickParticipant,
     endConference,
+    addHistoryMessages,
     
     isAudioEnabled: isAudioEnabled(),
     isVideoEnabled: isVideoEnabled(),

@@ -84,7 +84,7 @@ class RabbitMQConfig(BaseModel):
 class LiveKitConfig(BaseModel):
     """Конфигурация для LiveKit"""
     host: str = Field("livekit", env="APP_CONFIG__LIVEKIT__HOST")
-    external_host: str = Field("localhost", env="APP_CONFIG__LIVEKIT__EXTERNAL_HOST")
+    external_host: str = Field("26.89.212.255", env="APP_CONFIG__LIVEKIT__EXTERNAL_HOST")
     api_key: str = Field("devkey", env="APP_CONFIG__LIVEKIT__API_KEY")
     api_secret: str = Field("secretsecretsecretsecretsecret12", env="APP_CONFIG__LIVEKIT__API_SECRET")
     ws_port: int = Field(7880, env="APP_CONFIG__LIVEKIT__WS_PORT")
@@ -92,8 +92,8 @@ class LiveKitConfig(BaseModel):
     
     @property
     def ws_url(self) -> str:
-        """URL для подключения клиента к LiveKit"""
-        return f"ws://{self.external_host}:{self.ws_port}"
+        """URL для подключения клиента к LiveKit через Nginx прокси (WSS)"""
+        return f"wss://{self.external_host}/livekit"
     
     @property
     def internal_ws_url(self) -> str:

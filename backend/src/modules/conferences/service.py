@@ -346,6 +346,65 @@ class ConferenceService:
                     pass
                     
         return False
+
+    async def save_message(self, room_id: int, user_id: int, message_text: str) -> Optional[ConferenceMessage]:
+        """Сохранение сообщения в БД"""
+        if not message_text.strip():
+            return None
+        
+        message = ConferenceMessage(
+            room_id=room_id,
+            user_id=user_id,
+            message=message_text.strip()
+        )
+        
+        self.session.add(message)
+        await self.session.commit()
+        await self.session.refresh(message)
+        
+        # Загружаем пользователя для ответа
+        stmt = select(ConferenceMessage).options(
+            selectinload(ConferenceMessage.user)
+        ).where(ConferenceMessage.id == message.id)
+        result = await self.session.execute(stmt)
+        message = result.scalar_one()
+        
+        return message
+
+
+    async def get_room_messages(
+        self, 
+        room_id: int, 
+        user_id: int, 
+        limit: int = 50,
+        before_id: Optional[int] = None
+    ) -> List[ConferenceMessage]:
+        """Получение истории сообщений комнаты"""
+        # Проверяем доступ к комнате
+        room = await self.get_room_by_id(room_id)
+        if not room:
+            return []
+        
+        if not await self.can_join_conference(user_id, room):
+            return []
+        
+        # Получаем сообщения
+        stmt = select(ConferenceMessage).options(
+            selectinload(ConferenceMessage.user)
+        ).where(
+            ConferenceMessage.room_id == room_id
+        )
+        
+        # Если указан before_id, загружаем сообщения старше этого id
+        if before_id:
+            stmt = stmt.where(ConferenceMessage.id < before_id)
+        
+        stmt = stmt.order_by(ConferenceMessage.created_at.desc()).limit(limit)
+        
+        result = await self.session.execute(stmt)
+        messages = result.scalars().all()
+        
+        return list(reversed(messages))  # Возвращаем в хронологическом порядке
     
     async def leave_room(self, room_id: int, user_id: int) -> bool:
         """Выход пользователя из комнаты"""

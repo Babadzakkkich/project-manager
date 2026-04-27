@@ -1,7 +1,7 @@
 export const API_BASE_URL = '/api'
 
 export const LIVEKIT_CONFIG = {
-  WS_URL: 'ws://localhost:7880',
+  WS_URL: 'wss://26.89.212.255/livekit',
 };
 
 export const COLORS = {
