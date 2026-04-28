@@ -19,6 +19,7 @@ class ApiPrefix(BaseModel):
     projects: str = "/projects"
     tasks: str = "/tasks"
     notifications: str = "/notifications"
+    conferences: str = "/conferences"
 
 
 class DatabaseConfig(BaseModel):
@@ -80,6 +81,31 @@ class RabbitMQConfig(BaseModel):
         return f"amqp://{self.user}:{self.password}@{self.host}:{self.port}/{self.vhost}"
 
 
+class LiveKitConfig(BaseModel):
+    """Конфигурация для LiveKit"""
+    host: str = Field("livekit", env="APP_CONFIG__LIVEKIT__HOST")
+    external_host: str = Field("26.89.212.255", env="APP_CONFIG__LIVEKIT__EXTERNAL_HOST")
+    api_key: str = Field("devkey", env="APP_CONFIG__LIVEKIT__API_KEY")
+    api_secret: str = Field("secretsecretsecretsecretsecret12", env="APP_CONFIG__LIVEKIT__API_SECRET")
+    ws_port: int = Field(7880, env="APP_CONFIG__LIVEKIT__WS_PORT")
+    http_port: int = Field(7881, env="APP_CONFIG__LIVEKIT__HTTP_PORT")
+    
+    @property
+    def ws_url(self) -> str:
+        """URL для подключения клиента к LiveKit через Nginx прокси (WSS)"""
+        return f"wss://{self.external_host}/livekit"
+    
+    @property
+    def internal_ws_url(self) -> str:
+        """URL для внутреннего использования (бэкенд -> LiveKit)"""
+        return f"ws://{self.host}:{self.ws_port}"
+    
+    @property
+    def api_url(self) -> str:
+        """URL для LiveKit Server API (бэкенд -> LiveKit)"""
+        return f"http://{self.host}:{self.http_port}"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         case_sensitive=False,
@@ -93,6 +119,7 @@ class Settings(BaseSettings):
     security: SecurityConfig = Field(...)
     redis: RedisConfig = RedisConfig()
     rabbitmq: RabbitMQConfig = RabbitMQConfig()
+    livekit: LiveKitConfig = LiveKitConfig()
     
     @property
     def debug(self) -> bool:
@@ -105,6 +132,10 @@ class Settings(BaseSettings):
     @property
     def rabbitmq_url(self) -> str:
         return self.rabbitmq.url
+    
+    @property
+    def livekit_ws_url(self) -> str:
+        return self.livekit.ws_url
 
 
 settings = Settings()

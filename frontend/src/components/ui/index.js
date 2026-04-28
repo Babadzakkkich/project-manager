@@ -6,3 +6,5 @@ export { ProjectCard } from './ProjectCard';
 export { TaskCard } from './TaskCard';
 export { ConfirmationModal } from './ConfirmationModal';
 export { NotificationBell } from './NotificationBell/NotificationBell';
+export { StartConferenceButton } from './StartConferenceButton';
+export { ConferenceRoom, ParticipantGrid, ControlBar, ChatPanel, ReactionsBar } from './VideoConference';

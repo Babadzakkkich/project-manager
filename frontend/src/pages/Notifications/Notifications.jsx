@@ -12,7 +12,7 @@ export const Notifications = () => {
   const { 
     notifications, 
     isLoading,
-    unreadCount,
+    unreadCount, // Это количество непрочитанных БЕЗ приглашений
     markAsRead,
     markAllAsRead,
     getNotificationLink,
@@ -51,14 +51,17 @@ export const Notifications = () => {
     return () => window.removeEventListener('notifications:sync', handleSync);
   }, [forceRefresh, loadPendingInvitations]);
 
+  // Фильтрация уведомлений
   useEffect(() => {
     let filtered = notifications;
     
     if (activeFilter === 'unread') {
-      filtered = notifications.filter(n => !n.is_read);
+      // Для фильтра "Непрочитанные" показываем только обычные непрочитанные уведомления
+      // Приглашения отображаются отдельным блоком
+      filtered = notifications.filter(n => !n.is_read && n.type !== 'group_invitation');
     } else if (activeFilter === 'invitations') {
-      filtered = notifications.filter(n => n.type === 'group_invitation');
-    } else if (activeFilter !== 'all' && activeFilter !== 'unread' && activeFilter !== 'invitations') {
+      filtered = []; // Приглашения показываются отдельно
+    } else if (activeFilter !== 'all') {
       filtered = notifications.filter(n => n.type === activeFilter);
     }
     
@@ -84,8 +87,10 @@ export const Notifications = () => {
   };
 
   const handleMarkAllAsRead = async () => {
+    // Отмечаем прочитанными только обычные уведомления
     await markAllAsRead();
     forceRefresh();
+    // Приглашения не трогаем - их нужно принимать или отклонять
   };
 
   const getPriorityClass = (priority) => {
@@ -98,8 +103,11 @@ export const Notifications = () => {
     return classes[priority] || '';
   };
 
-  // Считаем количество непрочитанных приглашений из pendingInvitations
   const pendingInvitationsCount = pendingInvitations.length;
+  const totalUnreadCount = unreadCount + pendingInvitationsCount;
+  
+  // Определяем, есть ли обычные непрочитанные уведомления (для кнопки "Отметить все")
+  const hasRegularUnread = unreadCount > 0;
 
   if (isLoading && notifications.length === 0 && pendingInvitations.length === 0) {
     return (
@@ -110,20 +118,27 @@ export const Notifications = () => {
     );
   }
 
-  const unreadCountTotal = unreadCount + pendingInvitationsCount;
+  // Определяем, нужно ли показывать приглашения в зависимости от фильтра
+  const shouldShowInvitations = 
+    (activeFilter === 'all' || activeFilter === 'invitations' || activeFilter === 'unread') && 
+    pendingInvitations.length > 0;
+
+  // Определяем, нужно ли показывать обычные уведомления
+  const shouldShowRegularNotifications = activeFilter !== 'invitations';
 
   return (
     <div className={styles.container}>
       <div className={styles.header}>
         <div className={styles.headerTop}>
           <h1 className={styles.title}>Уведомления</h1>
-          {unreadCountTotal > 0 && (
+          {/* Показываем кнопку только если есть обычные непрочитанные уведомления */}
+          {hasRegularUnread && (
             <Button 
               variant="secondary" 
               size="medium"
               onClick={handleMarkAllAsRead}
             >
-              Отметить все как прочитанные ({unreadCountTotal})
+              Отметить все как прочитанные ({unreadCount})
             </Button>
           )}
         </div>
@@ -136,9 +151,9 @@ export const Notifications = () => {
               onClick={() => setActiveFilter(filter.key)}
             >
               {filter.label}
-              {filter.key === 'unread' && unreadCountTotal > 0 && (
+              {filter.key === 'unread' && totalUnreadCount > 0 && (
                 <span className={styles.filterCount}>
-                  {unreadCountTotal}
+                  {totalUnreadCount}
                 </span>
               )}
               {filter.key === 'invitations' && pendingInvitationsCount > 0 && (
@@ -152,10 +167,12 @@ export const Notifications = () => {
       </div>
 
       <div className={styles.content}>
-        {/* Отображаем приглашения если выбраны приглашения или все */}
-        {(activeFilter === 'all' || activeFilter === 'invitations') && pendingInvitations.length > 0 && (
+        {/* Отображаем приглашения */}
+        {shouldShowInvitations && (
           <div className={styles.invitationsSection}>
-            <h2 className={styles.sectionTitle}>Приглашения</h2>
+            <h2 className={styles.sectionTitle}>
+              Приглашения {pendingInvitationsCount > 0 && `(${pendingInvitationsCount})`}
+            </h2>
             <div className={styles.invitationsList}>
               {pendingInvitations.map(invitation => (
                 <InvitationNotification
@@ -172,13 +189,19 @@ export const Notifications = () => {
         )}
 
         {/* Отображаем обычные уведомления */}
-        {(activeFilter !== 'invitations' || activeFilter === 'all') && (
+        {shouldShowRegularNotifications && (
           <>
             {filteredNotifications.length === 0 && pendingInvitations.length === 0 ? (
               <div className={styles.emptyState}>
                 <div className={styles.emptyIcon}>🔕</div>
                 <h3>Нет уведомлений</h3>
                 <p>У вас пока нет уведомлений. Они появятся здесь, когда произойдут важные события.</p>
+              </div>
+            ) : filteredNotifications.length === 0 && activeFilter !== 'all' ? (
+              <div className={styles.emptyState}>
+                <div className={styles.emptyIcon}>🔍</div>
+                <h3>Нет уведомлений</h3>
+                <p>Попробуйте изменить параметры фильтрации</p>
               </div>
             ) : filteredNotifications.length > 0 ? (
               <div className={styles.notificationsList}>
@@ -203,7 +226,7 @@ export const Notifications = () => {
                     </div>
                   );
                   
-                  if (link && notification.type !== 'group_invitation') {
+                  if (link) {
                     return (
                       <Link
                         key={notification.id}

@@ -17,6 +17,8 @@ import { Profile } from '../pages/Profile/Profile';
 import { ManagementBoard } from '../pages/ManagementBoard/ManagementBoard';
 import { Notifications } from '../pages/Notifications/Notifications';
 import { Invitations } from '../pages/Invitations/Invitations';
+import { Conferences } from '../pages/Conferences/Conferences';
+import { ConferenceRoom } from '../components/ui/VideoConference/ConferenceRoom';
 
 const LoadingSpinner = () => (
   <div style={{ 
@@ -136,6 +138,22 @@ export const AppRoutes = () => {
         element={
           <PrivateRoute>
             <ManagementBoard />
+          </PrivateRoute>
+        } 
+      />
+      <Route 
+        path="/conferences" 
+        element={
+          <PrivateRoute>
+            <Conferences />
+          </PrivateRoute>
+        } 
+      />
+      <Route 
+        path="/conferences/:roomId" 
+        element={
+          <PrivateRoute>
+            <ConferenceRoom />
           </PrivateRoute>
         } 
       />

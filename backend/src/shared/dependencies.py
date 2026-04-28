@@ -32,6 +32,7 @@ async def get_service_factory(
     from modules.tasks.service import TaskService
     from modules.users.service import UserService
     from modules.notifications.service import NotificationService, NotificationTriggerService
+    from modules.conferences.service import ConferenceService  # <-- НОВОЕ
     
     factory.register('group', lambda s, f: GroupService(s, f))
     factory.register('project', lambda s, f: ProjectService(s, f))
@@ -39,6 +40,7 @@ async def get_service_factory(
     factory.register('user', lambda s, f: UserService(s, f))
     factory.register('notification', lambda s, f: NotificationService(s, notification_publisher, f))
     factory.register('notification_trigger', lambda s, f: NotificationTriggerService(s, notification_publisher, f))
+    factory.register('conference', lambda s, f: ConferenceService(s, f))  # <-- НОВОЕ
     
     try:
         yield factory

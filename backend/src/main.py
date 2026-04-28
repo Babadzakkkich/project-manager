@@ -21,6 +21,7 @@ from modules.tasks.router import router as tasks_router
 from modules.projects.router import router as projects_router
 from modules.notifications.router import router as notifications_ws_router
 from modules.notifications.http_router import router as notifications_http_router
+from modules.conferences.router import router as conferences_router
 
 # Глобальные объекты
 rabbitmq_client = RabbitMQClient(settings.rabbitmq_url)
@@ -80,7 +81,7 @@ main_app = FastAPI(lifespan=lifespan)
 
 main_app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:80", "http://localhost"],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+|26\.89\.212\.255)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -94,6 +95,7 @@ main_app.include_router(projects_router, prefix=settings.api.projects, tags=["Pr
 main_app.include_router(tasks_router, prefix=settings.api.tasks, tags=["Tasks"])
 main_app.include_router(notifications_ws_router, prefix=settings.api.notifications, tags=["Notifications WebSocket"])
 main_app.include_router(notifications_http_router, prefix=settings.api.notifications, tags=["Notifications HTTP"])
+main_app.include_router(conferences_router, prefix=settings.api.conferences, tags=["Conferences"])
 
 
 if __name__ == "__main__":

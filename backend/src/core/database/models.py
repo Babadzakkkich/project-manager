@@ -5,13 +5,16 @@ from sqlalchemy import Enum as SQLEnum
 from typing import Any, Dict, List, Optional
 import enum
 
+
 class Base(DeclarativeBase):
     __abstract__ = True
+
 
 class UserRole(enum.Enum):
     SUPER_ADMIN = "super_admin"
     ADMIN = "admin"
     MEMBER = "member"
+
 
 class TaskStatus(enum.Enum):
     BACKLOG = "backlog"
@@ -21,11 +24,13 @@ class TaskStatus(enum.Enum):
     DONE = "done"
     CANCELLED = "cancelled"
 
+
 class TaskPriority(enum.Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     URGENT = "urgent"
+
 
 class NotificationType(enum.Enum):
     # Групповые уведомления
@@ -58,6 +63,11 @@ class NotificationType(enum.Enum):
     GROUP_INVITATION = "group_invitation"
     GROUP_INVITATION_ACCEPTED = "group_invitation_accepted"
     GROUP_INVITATION_DECLINED = "group_invitation_declined"
+    
+    # Конференции
+    CONFERENCE_STARTED = "conference_started"
+    CONFERENCE_INVITE = "conference_invite"
+
 
 class NotificationPriority(enum.Enum):
     LOW = "low"
@@ -65,6 +75,15 @@ class NotificationPriority(enum.Enum):
     HIGH = "high"
     URGENT = "urgent"
 
+
+class ConferenceRoomType(enum.Enum):
+    PROJECT = "project"
+    GROUP = "group"
+    TASK = "task"
+    INSTANT = "instant"
+
+
+# Ассоциативные таблицы
 task_user_association = Table(
     "task_user_association",
     Base.metadata,
@@ -79,6 +98,15 @@ project_group_association = Table(
     Column("group_id", Integer, ForeignKey("groups.id"), primary_key=True),
 )
 
+conference_invited_users = Table(
+    "conference_invited_users",
+    Base.metadata,
+    Column("room_id", Integer, ForeignKey("conference_rooms.id"), primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
+)
+
+
+# ==================== СУЩЕСТВУЮЩИЕ МОДЕЛИ ====================
 
 class GroupInvitation(Base):
     """Модель приглашения в группу"""
@@ -117,10 +145,7 @@ class Notification(Base):
     priority: Mapped[NotificationPriority] = mapped_column(SQLEnum(NotificationPriority), default=NotificationPriority.MEDIUM)
     title: Mapped[str] = mapped_column(String(200))
     content: Mapped[str] = mapped_column(String(500))
-    
-    # Дополнительные данные в JSON
     data: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
-    
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -129,7 +154,6 @@ class Notification(Base):
         default=lambda: datetime.now(timezone.utc)
     )
     
-    # Связи
     user: Mapped["User"] = relationship("User", back_populates="notifications")
 
 
@@ -150,19 +174,32 @@ class User(Base):
     group_memberships: Mapped[List["GroupMember"]] = relationship(
         "GroupMember", back_populates="user", cascade="all, delete-orphan"
     )
-    
     assigned_tasks: Mapped[List["Task"]] = relationship(
         "Task", secondary=task_user_association, back_populates="assignees"
     )
-    
     notifications: Mapped[List["Notification"]] = relationship(
         "Notification", 
         back_populates="user",
         cascade="all, delete-orphan"
     )
-    
     sent_invitations: Mapped[List["GroupInvitation"]] = relationship(
-        "GroupInvitation", foreign_keys=[GroupInvitation.invited_by_id], back_populates="invited_by", cascade="all, delete-orphan"
+        "GroupInvitation", 
+        foreign_keys=[GroupInvitation.invited_by_id], 
+        back_populates="invited_by", 
+        cascade="all, delete-orphan"
+    )
+    
+    # Конференции
+    created_conferences: Mapped[List["ConferenceRoom"]] = relationship(
+        "ConferenceRoom", back_populates="creator"
+    )
+    conference_participations: Mapped[List["ConferenceParticipant"]] = relationship(
+        "ConferenceParticipant", back_populates="user"
+    )
+    invited_conferences: Mapped[List["ConferenceRoom"]] = relationship(
+        "ConferenceRoom", 
+        secondary=conference_invited_users,
+        back_populates="invited_users"
     )
 
 
@@ -180,7 +217,6 @@ class Group(Base):
     group_members: Mapped[List["GroupMember"]] = relationship(
         "GroupMember", back_populates="group", cascade="all, delete-orphan"
     )
-    
     projects: Mapped[List["Project"]] = relationship(
         "Project", 
         secondary=project_group_association, 
@@ -191,9 +227,13 @@ class Group(Base):
         back_populates="group",
         cascade="all, delete-orphan"
     )
-    
     invitations: Mapped[List["GroupInvitation"]] = relationship(
         "GroupInvitation", back_populates="group", cascade="all, delete-orphan"
+    )
+    
+    # Конференции
+    conferences: Mapped[List["ConferenceRoom"]] = relationship(
+        "ConferenceRoom", back_populates="group"
     )
 
 
@@ -240,6 +280,11 @@ class Project(Base):
         back_populates="project",
         cascade="all, delete-orphan"
     )
+    
+    # Конференции
+    conferences: Mapped[List["ConferenceRoom"]] = relationship(
+        "ConferenceRoom", back_populates="project"
+    )
 
 
 class Task(Base):
@@ -259,7 +304,6 @@ class Task(Base):
     )
     
     position: Mapped[int] = mapped_column(default=0)
-    
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), 
         server_default=func.now()
@@ -277,6 +321,11 @@ class Task(Base):
     group: Mapped["Group"] = relationship("Group", back_populates="tasks")
     
     tags: Mapped[List[str]] = mapped_column(JSON, default=list, nullable=True)
+    
+    # Конференции
+    conferences: Mapped[List["ConferenceRoom"]] = relationship(
+        "ConferenceRoom", back_populates="task"
+    )
 
 
 class TaskHistory(Base):
@@ -313,3 +362,108 @@ class RefreshToken(Base):
     used: Mapped[bool] = mapped_column(default=False)
     
     user: Mapped["User"] = relationship("User")
+
+
+# ==================== НОВЫЕ МОДЕЛИ КОНФЕРЕНЦИЙ ====================
+
+class ConferenceRoom(Base):
+    __tablename__ = "conference_rooms"
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    room_name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    room_type: Mapped[ConferenceRoomType] = mapped_column(SQLEnum(ConferenceRoomType), nullable=False)
+    
+    project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
+    group_id: Mapped[Optional[int]] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), nullable=True)
+    task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    max_participants: Mapped[int] = mapped_column(Integer, default=30)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        server_default=func.now()
+    )
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    
+    # Связи
+    project: Mapped[Optional["Project"]] = relationship("Project", back_populates="conferences")
+    group: Mapped[Optional["Group"]] = relationship("Group", back_populates="conferences")
+    task: Mapped[Optional["Task"]] = relationship("Task", back_populates="conferences")
+    creator: Mapped["User"] = relationship("User", back_populates="created_conferences")
+    
+    participants: Mapped[List["ConferenceParticipant"]] = relationship(
+        "ConferenceParticipant", back_populates="room", cascade="all, delete-orphan"
+    )
+    messages: Mapped[List["ConferenceMessage"]] = relationship(
+        "ConferenceMessage", back_populates="room", cascade="all, delete-orphan"
+    )
+    invited_users: Mapped[List["User"]] = relationship(
+        "User", 
+        secondary=conference_invited_users,
+        back_populates="invited_conferences"
+    )
+    stats: Mapped[List["ConferenceStats"]] = relationship(
+        "ConferenceStats", back_populates="room", cascade="all, delete-orphan"
+    )
+
+
+class ConferenceParticipant(Base):
+    __tablename__ = "conference_participants"
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    room_id: Mapped[int] = mapped_column(ForeignKey("conference_rooms.id", ondelete="CASCADE"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    
+    joined_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        server_default=func.now()
+    )
+    left_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_speaking: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_video_on: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_audio_on: Mapped[bool] = mapped_column(Boolean, default=True)
+    participant_sid: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    
+    __table_args__ = (
+        UniqueConstraint('room_id', 'user_id', name='uq_conference_participant'),
+    )
+    
+    room: Mapped["ConferenceRoom"] = relationship("ConferenceRoom", back_populates="participants")
+    user: Mapped["User"] = relationship("User", back_populates="conference_participations")
+
+
+class ConferenceMessage(Base):
+    __tablename__ = "conference_messages"
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    room_id: Mapped[int] = mapped_column(ForeignKey("conference_rooms.id", ondelete="CASCADE"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        server_default=func.now()
+    )
+    
+    room: Mapped["ConferenceRoom"] = relationship("ConferenceRoom", back_populates="messages")
+    user: Mapped["User"] = relationship("User")
+
+
+class ConferenceStats(Base):
+    __tablename__ = "conference_stats"
+    
+    id: Mapped[int] = mapped_column(primary_key=True)
+    room_id: Mapped[int] = mapped_column(ForeignKey("conference_rooms.id"))
+    participant_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    peak_participants: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    messages_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        server_default=func.now()
+    )
+    
+    room: Mapped["ConferenceRoom"] = relationship("ConferenceRoom", back_populates="stats")

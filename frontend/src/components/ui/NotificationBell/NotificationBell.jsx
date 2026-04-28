@@ -132,7 +132,9 @@ export const NotificationBell = () => {
     );
   };
 
-  const hasUnread = unreadCount > 0;
+  // Суммируем чистый unreadCount из useNotifications и количество приглашений
+  const totalUnreadCount = unreadCount + pendingInvitations.length;
+  const hasUnread = totalUnreadCount > 0;
   const hasInvitations = pendingInvitations.length > 0 && showInvitations;
 
   return (
@@ -149,9 +151,9 @@ export const NotificationBell = () => {
           alt="Уведомления" 
           className={styles.bellIcon}
         />
-        {(hasUnread || hasInvitations) && (
+        {hasUnread && (
           <span className={styles.badge}>
-            {(unreadCount + (hasInvitations ? pendingInvitations.length : 0)) > 99 ? '99+' : (unreadCount + (hasInvitations ? pendingInvitations.length : 0))}
+            {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
           </span>
         )}
       </button>

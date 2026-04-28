@@ -15,15 +15,29 @@ export const useNotifications = () => {
   const isInitializedRef = useRef(false);
   const updateCounterRef = useRef(0);
 
-  // Загрузка истории уведомлений
+  // Загрузка истории уведомлений (исключая приглашения)
   const loadNotifications = useCallback(async () => {
     try {
       setIsLoading(true);
       const response = await notificationsAPI.getNotifications({ limit: 50 });
       
       if (isMountedRef.current) {
-        setNotifications(response.items || []);
-        setUnreadCount(response.unread_count || 0);
+        const allItems = response.items || [];
+        
+        // Считаем количество непрочитанных приглашений в ответе
+        const unreadInvitationsCount = allItems.filter(
+          item => item.type === NOTIFICATION_TYPES.GROUP_INVITATION && !item.is_read
+        ).length;
+        
+        // Исключаем приглашения из списка уведомлений
+        const filteredItems = allItems.filter(
+          item => item.type !== NOTIFICATION_TYPES.GROUP_INVITATION
+        );
+        setNotifications(filteredItems);
+        
+        // Корректируем общий счётчик: вычитаем непрочитанные приглашения
+        const totalUnread = response.unread_count || 0;
+        setUnreadCount(totalUnread - unreadInvitationsCount);
       }
     } catch (error) {
       console.error('Failed to load notifications:', error);
@@ -34,12 +48,18 @@ export const useNotifications = () => {
     }
   }, []);
 
-  // Обновление количества непрочитанных
+  // Обновление количества непрочитанных (без учёта приглашений)
   const refreshUnreadCount = useCallback(async () => {
     try {
-      const response = await notificationsAPI.getUnreadCount();
+      // Получаем только непрочитанные уведомления, чтобы узнать количество приглашений
+      const response = await notificationsAPI.getNotifications({ limit: 50, unread_only: true });
       if (isMountedRef.current) {
-        setUnreadCount(response.count || 0);
+        const unreadInvitationsCount = (response.items || []).filter(
+          item => item.type === NOTIFICATION_TYPES.GROUP_INVITATION
+        ).length;
+        
+        const totalUnread = response.unread_count || 0;
+        setUnreadCount(totalUnread - unreadInvitationsCount);
       }
     } catch (error) {
       console.error('Failed to get unread count:', error);
@@ -122,9 +142,16 @@ export const useNotifications = () => {
         
         // Новое уведомление
         if (data.id && data.type !== 'marked_read' && data.type !== 'marked_all_read' && data.type !== 'unread_count') {
-          setNotifications(prev => [data, ...prev]);
-          setUnreadCount(prev => prev + 1);
-          showToastNotification(data);
+          // Если это приглашение, не добавляем в уведомления, а генерируем событие для invitations
+          if (data.type === NOTIFICATION_TYPES.GROUP_INVITATION) {
+            // Отправляем событие для обновления приглашений
+            window.dispatchEvent(new CustomEvent('invitation:received', { detail: data }));
+            showToastNotification(data);
+          } else {
+            setNotifications(prev => [data, ...prev]);
+            setUnreadCount(prev => prev + 1);
+            showToastNotification(data);
+          }
         }
         
         if (data.type === 'marked_read' || data.type === 'marked_all_read') {
@@ -132,7 +159,9 @@ export const useNotifications = () => {
         }
         
         if (data.type === 'unread_count') {
-          setUnreadCount(data.count);
+          // При получении unread_count через WS также нужно вычесть приглашения
+          // Так как мы не знаем точное количество приглашений в WS сообщении, лучше сделать forceRefresh
+          forceRefresh();
         }
         
       } catch (error) {
@@ -240,11 +269,12 @@ export const useNotifications = () => {
 
   // Получить ссылку для уведомления
   const getNotificationLink = useCallback((notification) => {
-    // Для приглашений ссылка ведёт на страницу приглашений
-    if (notification.type === NOTIFICATION_TYPES.GROUP_INVITATION) {
-      return '/invitations';
+    if (notification.data?.room_id) {
+    return `/conferences/${notification.data.room_id}`;
     }
-    
+    if (notification.data?.task_id) {
+      return `/tasks/${notification.data.task_id}`;
+    }
     if (notification.data?.task_id) {
       return `/tasks/${notification.data.task_id}`;
     }
@@ -282,7 +312,9 @@ export const useNotifications = () => {
       task_overdue: '⚠️',
       group_invitation: '📧',
       group_invitation_accepted: '✅',
-      group_invitation_declined: '❌'
+      group_invitation_declined: '❌',
+      conference_started: '🎥',
+      conference_invite: '📞'
     };
     return icons[type] || '🔔';
   }, []);

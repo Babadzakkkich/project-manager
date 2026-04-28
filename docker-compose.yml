@@ -3,6 +3,7 @@ services:
     build: ./frontend
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       - backend
     restart: unless-stopped
@@ -40,6 +41,12 @@ services:
       APP_CONFIG__RABBITMQ__USER: ${APP_CONFIG__RABBITMQ__USER}
       APP_CONFIG__RABBITMQ__PASSWORD: ${APP_CONFIG__RABBITMQ__PASSWORD}
       APP_CONFIG__RABBITMQ__VHOST: ${APP_CONFIG__RABBITMQ__VHOST}
+      APP_CONFIG__LIVEKIT__HOST: livekit
+      APP_CONFIG__LIVEKIT__EXTERNAL_HOST: ${APP_CONFIG__LIVEKIT__EXTERNAL_HOST}
+      APP_CONFIG__LIVEKIT__API_KEY: ${APP_CONFIG__LIVEKIT__API_KEY:-devkey}
+      APP_CONFIG__LIVEKIT__API_SECRET: ${APP_CONFIG__LIVEKIT__API_SECRET:-secretsecretsecretsecretsecret12}
+      APP_CONFIG__LIVEKIT__WS_PORT: ${APP_CONFIG__LIVEKIT__WS_PORT:-7880}
+      APP_CONFIG__LIVEKIT__HTTP_PORT: ${APP_CONFIG__LIVEKIT__HTTP_PORT:-7881}
     depends_on:
       db:
         condition: service_healthy
@@ -47,6 +54,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      livekit:
+        condition: service_started
     restart: unless-stopped
     volumes:
       - ./backend:/app
@@ -99,6 +108,31 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
+
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: livekit
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+      - "7883-7889:7883-7889/udp"
+    environment:
+      LIVEKIT_KEYS: "devkey: secretsecretsecretsecretsecret12"
+      LIVEKIT_PORT: 7880
+      LIVEKIT_HTTP_PORT: 7881
+      LIVEKIT_RTC_PORT_UDP: 7882
+      LIVEKIT_RTC_PORT_TCP: 7880
+      LIVEKIT_RTC_PORT_RANGE_START: 7883
+      LIVEKIT_RTC_PORT_RANGE_END: 7889
+      LIVEKIT_REDIS_ADDRESS: "redis:6379"
+      LIVEKIT_NODE_IP: ${APP_CONFIG__LIVEKIT__EXTERNAL_HOST}
+      LIVEKIT_RTC_IP: ${APP_CONFIG__LIVEKIT__EXTERNAL_HOST}
+      LIVEKIT_RTC_STUN_SERVERS: ""
+      LIVEKIT_RTC_USE_EXTERNAL_IP: "true"
+    restart: unless-stopped
+    depends_on:
+      - redis
 
 volumes:
   frontend_build:

@@ -1,6 +1,8 @@
-// utils/constants.js - ОБНОВЛЕННАЯ ВЕРСИЯ
+export const API_BASE_URL = '/api'
 
-export const API_BASE_URL = 'http://localhost:8000';
+export const LIVEKIT_CONFIG = {
+  WS_URL: 'wss://26.89.212.255/livekit',
+};
 
 export const COLORS = {
   primary: '#004B23',
@@ -36,9 +38,23 @@ export const API_ENDPOINTS = {
   PROJECTS: '/projects',
   TASKS: '/tasks',
   NOTIFICATIONS: '/notifications',
+  CONFERENCES: '/conferences',
 };
 
-// Добавляем типы уведомлений
+export const CONFERENCE_ROOM_TYPES = {
+  PROJECT: 'project',
+  GROUP: 'group',
+  TASK: 'task',
+  INSTANT: 'instant'
+};
+
+export const CONFERENCE_ROOM_TYPE_TRANSLATIONS = {
+  project: 'Проект',
+  group: 'Группа',
+  task: 'Задача',
+  instant: 'Мгновенный'
+};
+
 export const NOTIFICATION_TYPES = {
   // Групповые
   GROUP_CREATED: 'group_created',
@@ -70,6 +86,10 @@ export const NOTIFICATION_TYPES = {
   GROUP_INVITATION: 'group_invitation',
   GROUP_INVITATION_ACCEPTED: 'group_invitation_accepted',
   GROUP_INVITATION_DECLINED: 'group_invitation_declined',
+  
+  // Конференции
+  CONFERENCE_STARTED: 'conference_started',
+  CONFERENCE_INVITE: 'conference_invite',
 };
 
 export const NOTIFICATION_PRIORITIES = {
@@ -103,6 +123,8 @@ export const NOTIFICATION_ICONS = {
   [NOTIFICATION_TYPES.GROUP_INVITATION]: '📧',
   [NOTIFICATION_TYPES.GROUP_INVITATION_ACCEPTED]: '✅',
   [NOTIFICATION_TYPES.GROUP_INVITATION_DECLINED]: '❌',
+  [NOTIFICATION_TYPES.CONFERENCE_STARTED]: '🎥',
+  [NOTIFICATION_TYPES.CONFERENCE_INVITE]: '📞',
 };
 
 export const NOTIFICATION_PRIORITY_COLORS = {
