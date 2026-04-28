@@ -175,13 +175,30 @@ export const useConference = (roomId) => {
         updateParticipantsRef.current?.(newRoom);
       })
       .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-        console.log(`LiveKit: Track subscribed: ${track.kind} from ${participant.identity}`);
+        console.log(`=== TrackSubscribed ===`);
+        console.log(`Track kind: ${track.kind}`);
+        console.log(`From participant: ${participant.identity} (${participant.name})`);
+        console.log(`Is muted: ${track.isMuted}`);
+        console.log(`========================`);
+        
         updateParticipantsRef.current?.(newRoom);
       })
       .on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
         console.log(`LiveKit: Track unsubscribed: ${track.kind} from ${participant.identity}`);
         updateParticipantsRef.current?.(newRoom);
       })
+      
+      // === НОВОЕ: обработка включения/выключения микрофона удалённым участником ===
+      .on(RoomEvent.TrackMuted, (track, participant) => {
+        console.log(`LiveKit: Track muted: ${track.kind} from ${participant.identity}`);
+        updateParticipantsRef.current?.(newRoom);
+      })
+      .on(RoomEvent.TrackUnmuted, (track, participant) => {
+        console.log(`LiveKit: Track unmuted: ${track.kind} from ${participant.identity}`);
+        updateParticipantsRef.current?.(newRoom);
+      })
+      // ===================================================================
+      
       .on(RoomEvent.LocalTrackPublished, (publication) => {
         console.log(`LiveKit: Local track published: ${publication.kind}`);
         updateParticipantsRef.current?.(newRoom);
@@ -255,7 +272,12 @@ export const useConference = (roomId) => {
       console.log(`Connecting to LiveKit at ${joinData.ws_url}`);
       await newRoom.connect(joinData.ws_url, joinData.token, {
         rtcConfig: {
-          iceTransportPolicy: 'all'
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+          ],
+          iceTransportPolicy: 'all',
         }
       });
       console.log('LiveKit connection established');
@@ -314,6 +336,8 @@ export const useConference = (roomId) => {
       const enabled = !audioEnabledRef.current;
       await roomRef.current.localParticipant.setMicrophoneEnabled(enabled);
       audioEnabledRef.current = enabled;
+      console.log(`Microphone ${enabled ? 'enabled' : 'disabled'}`);
+      // НЕМЕДЛЕННО обновляем участников, чтобы UI отразил изменения
       updateParticipants(roomRef.current);
     } catch (err) {
       console.error('Failed to toggle audio:', err);

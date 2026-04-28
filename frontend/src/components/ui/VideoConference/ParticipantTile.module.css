@@ -21,6 +21,11 @@
   object-fit: cover;
 }
 
+.screenShareVideo {
+  object-fit: contain;
+  background: #111827;
+}
+
 .noVideo {
   width: 100%;
   height: 100%;
