@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { BellOff } from 'lucide-react';
 import { useNotifications } from '../../../hooks/useNotifications';
 import { useInvitations } from '../../../hooks/useInvitations';
 import { InvitationNotification } from '../InvitationNotification/InvitationNotification';
@@ -9,21 +8,20 @@ import styles from './NotificationBell.module.css';
 
 export const NotificationBell = () => {
   const [isOpen, setIsOpen] = useState(false);
-
-  const {
-    notifications,
-    unreadCount,
+  const { 
+    notifications, 
+    unreadCount, 
     isLoading,
-    markAsRead,
+    markAsRead, 
     markAllAsRead,
     getNotificationLink,
     getNotificationIcon,
-    forceRefresh,
+    forceRefresh
   } = useNotifications();
-
+  
   const { pendingInvitations, loadPendingInvitations } = useInvitations();
   const [showInvitations, setShowInvitations] = useState(true);
-
+  
   const dropdownRef = useRef(null);
   const buttonRef = useRef(null);
 
@@ -39,7 +37,7 @@ export const NotificationBell = () => {
       forceRefresh();
       loadPendingInvitations();
     };
-
+    
     window.addEventListener('notifications:sync', handleSync);
     return () => window.removeEventListener('notifications:sync', handleSync);
   }, [forceRefresh, loadPendingInvitations]);
@@ -47,7 +45,7 @@ export const NotificationBell = () => {
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
-        dropdownRef.current &&
+        dropdownRef.current && 
         !dropdownRef.current.contains(event.target) &&
         buttonRef.current &&
         !buttonRef.current.contains(event.target)
@@ -55,16 +53,17 @@ export const NotificationBell = () => {
         setIsOpen(false);
       }
     };
-
+    
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleNotificationClick = async (notification) => {
+    // Если это приглашение, не отмечаем как прочитанное при клике
+    // так как оно будет обработано отдельно
     if (notification.type !== 'group_invitation' && !notification.is_read) {
       await markAsRead(notification.id);
     }
-
     setIsOpen(false);
   };
 
@@ -77,9 +76,8 @@ export const NotificationBell = () => {
       low: styles.priorityLow,
       medium: styles.priorityMedium,
       high: styles.priorityHigh,
-      urgent: styles.priorityUrgent,
+      urgent: styles.priorityUrgent
     };
-
     return classes[priority] || '';
   };
 
@@ -87,52 +85,29 @@ export const NotificationBell = () => {
     const date = new Date(dateString);
     const now = new Date();
     const diff = now - date;
-
+    
     if (diff < 60 * 1000) return 'только что';
     if (diff < 60 * 60 * 1000) return `${Math.floor(diff / 60000)} мин`;
     if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / 3600000)} ч`;
-
-    return date.toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'short',
-    });
-  };
-
-  const NotificationTypeIcon = ({ type, size = 20 }) => {
-    const Icon = getNotificationIcon(type);
-
-    return (
-      <Icon
-        size={size}
-        strokeWidth={2}
-        aria-hidden="true"
-      />
-    );
+    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
   };
 
   const renderNotificationContent = (notification) => {
     const link = getNotificationLink(notification);
-
     const content = (
-      <div
-        className={`${styles.notification} ${
-          !notification.is_read ? styles.unread : ''
-        } ${getPriorityClass(notification.priority)}`}
-      >
+      <div className={`${styles.notification} ${!notification.is_read ? styles.unread : ''} ${getPriorityClass(notification.priority)}`}>
         <div className={styles.icon}>
-          <NotificationTypeIcon type={notification.type} />
+          {getNotificationIcon(notification.type)}
         </div>
-
         <div className={styles.content}>
           <div className={styles.title}>{notification.title}</div>
           <div className={styles.message}>{notification.content}</div>
           <div className={styles.time}>{getTimeAgo(notification.created_at)}</div>
         </div>
-
         {!notification.is_read && <div className={styles.unreadDot} />}
       </div>
     );
-
+    
     if (link) {
       return (
         <Link
@@ -145,7 +120,7 @@ export const NotificationBell = () => {
         </Link>
       );
     }
-
+    
     return (
       <div
         key={notification.id}
@@ -157,30 +132,25 @@ export const NotificationBell = () => {
     );
   };
 
-  const regularNotifications = notifications.filter(
-    notification => notification.type !== 'group_invitation'
-  );
-
+  // Суммируем чистый unreadCount из useNotifications и количество приглашений
   const totalUnreadCount = unreadCount + pendingInvitations.length;
   const hasUnread = totalUnreadCount > 0;
   const hasInvitations = pendingInvitations.length > 0 && showInvitations;
 
   return (
     <div className={styles.bellContainer}>
-      <button
+      <button 
         ref={buttonRef}
         className={styles.bellButton}
         onClick={() => setIsOpen(!isOpen)}
         aria-label="Уведомления"
         aria-expanded={isOpen}
-        type="button"
       >
-        <img
-          src={notificationSvg}
-          alt="Уведомления"
+        <img 
+          src={notificationSvg} 
+          alt="Уведомления" 
           className={styles.bellIcon}
         />
-
         {hasUnread && (
           <span className={styles.badge}>
             {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
@@ -192,37 +162,32 @@ export const NotificationBell = () => {
         <div className={styles.dropdown} ref={dropdownRef}>
           <div className={styles.header}>
             <h3 className={styles.title}>Уведомления</h3>
-
             <div className={styles.headerActions}>
               {hasUnread && (
-                <button
+                <button 
                   className={styles.markAllReadButton}
                   onClick={handleMarkAllAsRead}
-                  type="button"
                 >
                   Все прочитано
                 </button>
               )}
-
               {hasInvitations && (
-                <button
+                <button 
                   className={styles.hideInvitationsButton}
                   onClick={() => setShowInvitations(false)}
-                  type="button"
                 >
                   Скрыть приглашения
                 </button>
               )}
             </div>
           </div>
-
+          
           <div className={styles.list}>
             {hasInvitations && (
               <div className={styles.invitationsSection}>
                 <div className={styles.sectionTitle}>
                   Приглашения ({pendingInvitations.length})
                 </div>
-
                 {pendingInvitations.map(invitation => (
                   <InvitationNotification
                     key={invitation.id}
@@ -235,33 +200,28 @@ export const NotificationBell = () => {
                 ))}
               </div>
             )}
-
-            {isLoading && regularNotifications.length === 0 && !hasInvitations ? (
+            
+            {isLoading && notifications.length === 0 && !hasInvitations ? (
               <div className={styles.loadingState}>
                 <div className={styles.spinner}></div>
                 <p>Загрузка уведомлений...</p>
               </div>
-            ) : regularNotifications.length === 0 && !hasInvitations ? (
+            ) : notifications.length === 0 && !hasInvitations ? (
               <div className={styles.emptyState}>
-                <span className={styles.emptyIcon}>
-                  <BellOff size={42} strokeWidth={1.8} aria-hidden="true" />
-                </span>
+                <span className={styles.emptyIcon}>🔕</span>
                 <p>Нет уведомлений</p>
               </div>
             ) : (
-              regularNotifications
+              notifications
+                .filter(n => n.type !== 'group_invitation') // Исключаем приглашения из списка уведомлений
                 .slice(0, 10)
                 .map(notification => renderNotificationContent(notification))
             )}
           </div>
-
-          {(regularNotifications.length > 0 || hasInvitations) && (
+          
+          {(notifications.filter(n => n.type !== 'group_invitation').length > 0 || hasInvitations) && (
             <div className={styles.footer}>
-              <Link
-                to="/notifications"
-                className={styles.viewAllLink}
-                onClick={() => setIsOpen(false)}
-              >
+              <Link to="/notifications" className={styles.viewAllLink} onClick={() => setIsOpen(false)}>
                 Посмотреть все
               </Link>
             </div>

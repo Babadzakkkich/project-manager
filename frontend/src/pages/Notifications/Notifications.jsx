@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { BellOff, Search } from 'lucide-react';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useInvitations } from '../../hooks/useInvitations';
 import { InvitationNotification } from '../../components/ui/InvitationNotification/InvitationNotification';
@@ -10,11 +9,10 @@ import styles from './Notifications.module.css';
 export const Notifications = () => {
   const [activeFilter, setActiveFilter] = useState('all');
   const [filteredNotifications, setFilteredNotifications] = useState([]);
-
-  const {
-    notifications,
+  const { 
+    notifications, 
     isLoading,
-    unreadCount,
+    unreadCount, // Это количество непрочитанных БЕЗ приглашений
     markAsRead,
     markAllAsRead,
     getNotificationLink,
@@ -22,51 +20,51 @@ export const Notifications = () => {
     formatTime,
     forceRefresh,
   } = useNotifications();
-
+  
   const { pendingInvitations, loadPendingInvitations } = useInvitations();
 
+  // Загружаем данные при монтировании
   useEffect(() => {
     forceRefresh();
     loadPendingInvitations();
   }, [forceRefresh, loadPendingInvitations]);
 
+  // Обновляем данные при фокусе окна
   useEffect(() => {
     const handleFocus = () => {
       forceRefresh();
       loadPendingInvitations();
     };
-
+    
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [forceRefresh, loadPendingInvitations]);
 
+  // Слушаем событие синхронизации
   useEffect(() => {
     const handleSync = () => {
       forceRefresh();
       loadPendingInvitations();
     };
-
+    
     window.addEventListener('notifications:sync', handleSync);
     return () => window.removeEventListener('notifications:sync', handleSync);
   }, [forceRefresh, loadPendingInvitations]);
 
+  // Фильтрация уведомлений
   useEffect(() => {
     let filtered = notifications;
-
+    
     if (activeFilter === 'unread') {
-      filtered = notifications.filter(
-        notification =>
-          !notification.is_read &&
-          notification.type !== 'group_invitation'
-      );
+      // Для фильтра "Непрочитанные" показываем только обычные непрочитанные уведомления
+      // Приглашения отображаются отдельным блоком
+      filtered = notifications.filter(n => !n.is_read && n.type !== 'group_invitation');
     } else if (activeFilter === 'invitations') {
-      filtered = [];
+      filtered = []; // Приглашения показываются отдельно
     } else if (activeFilter !== 'all') {
-      filtered = notifications.filter(
-        notification => notification.type === activeFilter
-      );
+      filtered = notifications.filter(n => n.type === activeFilter);
     }
-
+    
     setFilteredNotifications(filtered);
   }, [notifications, activeFilter]);
 
@@ -78,19 +76,21 @@ export const Notifications = () => {
     { key: 'task_status_changed', label: 'Статусы' },
     { key: 'user_assigned_to_task', label: 'Назначения' },
     { key: 'group_created', label: 'Группы' },
-    { key: 'project_created', label: 'Проекты' },
+    { key: 'project_created', label: 'Проекты' }
   ];
 
   const handleNotificationClick = async (notification) => {
     if (!notification.is_read && notification.type !== 'group_invitation') {
       await markAsRead(notification.id);
-      await forceRefresh();
+      forceRefresh();
     }
   };
 
   const handleMarkAllAsRead = async () => {
+    // Отмечаем прочитанными только обычные уведомления
     await markAllAsRead();
-    await forceRefresh();
+    forceRefresh();
+    // Приглашения не трогаем - их нужно принимать или отклонять
   };
 
   const getPriorityClass = (priority) => {
@@ -98,26 +98,15 @@ export const Notifications = () => {
       low: styles.priorityLow,
       medium: styles.priorityMedium,
       high: styles.priorityHigh,
-      urgent: styles.priorityUrgent,
+      urgent: styles.priorityUrgent
     };
-
     return classes[priority] || '';
-  };
-
-  const NotificationTypeIcon = ({ type, size = 24 }) => {
-    const Icon = getNotificationIcon(type);
-
-    return (
-      <Icon
-        size={size}
-        strokeWidth={2}
-        aria-hidden="true"
-      />
-    );
   };
 
   const pendingInvitationsCount = pendingInvitations.length;
   const totalUnreadCount = unreadCount + pendingInvitationsCount;
+  
+  // Определяем, есть ли обычные непрочитанные уведомления (для кнопки "Отметить все")
   const hasRegularUnread = unreadCount > 0;
 
   if (isLoading && notifications.length === 0 && pendingInvitations.length === 0) {
@@ -129,12 +118,12 @@ export const Notifications = () => {
     );
   }
 
-  const shouldShowInvitations =
-    (activeFilter === 'all' ||
-      activeFilter === 'invitations' ||
-      activeFilter === 'unread') &&
+  // Определяем, нужно ли показывать приглашения в зависимости от фильтра
+  const shouldShowInvitations = 
+    (activeFilter === 'all' || activeFilter === 'invitations' || activeFilter === 'unread') && 
     pendingInvitations.length > 0;
 
+  // Определяем, нужно ли показывать обычные уведомления
   const shouldShowRegularNotifications = activeFilter !== 'invitations';
 
   return (
@@ -142,10 +131,10 @@ export const Notifications = () => {
       <div className={styles.header}>
         <div className={styles.headerTop}>
           <h1 className={styles.title}>Уведомления</h1>
-
+          {/* Показываем кнопку только если есть обычные непрочитанные уведомления */}
           {hasRegularUnread && (
-            <Button
-              variant="secondary"
+            <Button 
+              variant="secondary" 
               size="medium"
               onClick={handleMarkAllAsRead}
             >
@@ -153,25 +142,20 @@ export const Notifications = () => {
             </Button>
           )}
         </div>
-
+        
         <div className={styles.filters}>
           {filters.map(filter => (
             <button
               key={filter.key}
-              className={`${styles.filterButton} ${
-                activeFilter === filter.key ? styles.active : ''
-              }`}
+              className={`${styles.filterButton} ${activeFilter === filter.key ? styles.active : ''}`}
               onClick={() => setActiveFilter(filter.key)}
-              type="button"
             >
               {filter.label}
-
               {filter.key === 'unread' && totalUnreadCount > 0 && (
                 <span className={styles.filterCount}>
                   {totalUnreadCount}
                 </span>
               )}
-
               {filter.key === 'invitations' && pendingInvitationsCount > 0 && (
                 <span className={styles.filterCount}>
                   {pendingInvitationsCount}
@@ -183,12 +167,12 @@ export const Notifications = () => {
       </div>
 
       <div className={styles.content}>
+        {/* Отображаем приглашения */}
         {shouldShowInvitations && (
           <div className={styles.invitationsSection}>
             <h2 className={styles.sectionTitle}>
               Приглашения {pendingInvitationsCount > 0 && `(${pendingInvitationsCount})`}
             </h2>
-
             <div className={styles.invitationsList}>
               {pendingInvitations.map(invitation => (
                 <InvitationNotification
@@ -204,23 +188,18 @@ export const Notifications = () => {
           </div>
         )}
 
+        {/* Отображаем обычные уведомления */}
         {shouldShowRegularNotifications && (
           <>
             {filteredNotifications.length === 0 && pendingInvitations.length === 0 ? (
               <div className={styles.emptyState}>
-                <div className={styles.emptyIcon}>
-                  <BellOff size={48} strokeWidth={1.8} aria-hidden="true" />
-                </div>
+                <div className={styles.emptyIcon}>🔕</div>
                 <h3>Нет уведомлений</h3>
-                <p>
-                  У вас пока нет уведомлений. Они появятся здесь, когда произойдут важные события.
-                </p>
+                <p>У вас пока нет уведомлений. Они появятся здесь, когда произойдут важные события.</p>
               </div>
             ) : filteredNotifications.length === 0 && activeFilter !== 'all' ? (
               <div className={styles.emptyState}>
-                <div className={styles.emptyIcon}>
-                  <Search size={48} strokeWidth={1.8} aria-hidden="true" />
-                </div>
+                <div className={styles.emptyIcon}>🔍</div>
                 <h3>Нет уведомлений</h3>
                 <p>Попробуйте изменить параметры фильтрации</p>
               </div>
@@ -228,39 +207,25 @@ export const Notifications = () => {
               <div className={styles.notificationsList}>
                 {filteredNotifications.map(notification => {
                   const link = getNotificationLink(notification);
-
                   const content = (
-                    <div
-                      className={`${styles.notification} ${
-                        !notification.is_read ? styles.unread : ''
-                      } ${getPriorityClass(notification.priority)}`}
+                    <div 
+                      className={`${styles.notification} ${!notification.is_read ? styles.unread : ''} ${getPriorityClass(notification.priority)}`}
                       onClick={() => handleNotificationClick(notification)}
                     >
                       <div className={styles.icon}>
-                        <NotificationTypeIcon type={notification.type} />
+                        {getNotificationIcon(notification.type)}
                       </div>
-
                       <div className={styles.content}>
                         <div className={styles.headerRow}>
-                          <div className={styles.title}>
-                            {notification.title}
-                          </div>
-                          <div className={styles.time}>
-                            {formatTime(notification.created_at)}
-                          </div>
+                          <div className={styles.title}>{notification.title}</div>
+                          <div className={styles.time}>{formatTime(notification.created_at)}</div>
                         </div>
-
-                        <div className={styles.message}>
-                          {notification.content}
-                        </div>
+                        <div className={styles.message}>{notification.content}</div>
                       </div>
-
-                      {!notification.is_read && (
-                        <div className={styles.unreadDot} />
-                      )}
+                      {!notification.is_read && <div className={styles.unreadDot} />}
                     </div>
                   );
-
+                  
                   if (link) {
                     return (
                       <Link
@@ -272,12 +237,9 @@ export const Notifications = () => {
                       </Link>
                     );
                   }
-
+                  
                   return (
-                    <div
-                      key={notification.id}
-                      className={styles.notificationWrapper}
-                    >
+                    <div key={notification.id} className={styles.notificationWrapper}>
                       {content}
                     </div>
                   );
