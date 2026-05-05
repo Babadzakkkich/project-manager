@@ -8,6 +8,7 @@ import {
   getTaskStatusIcon,
   getTaskPriorityColor,
   getTaskPriorityIcon,
+  getTaskOverdueIcon,
   isTaskOverdue
 } from '../../../utils/taskStatus';
 import { formatTaskTags } from '../../../utils/helpers';
@@ -188,7 +189,11 @@ export const TaskCard = ({
               <span className={styles.infoLabel}>Срок:</span>
               <span className={`${styles.infoValue} ${overdue ? styles.overdueText : ''}`}>
                 {formatDate(task.deadline)}
-                {overdue && <span className={styles.overdueIndicator}> ⚠️</span>}
+                {overdue && (
+                  <span className={styles.overdueIndicator}>
+                    {getTaskOverdueIcon({ size: 14 })}
+                  </span>
+                )}
               </span>
             </div>
           </div>
@@ -343,7 +348,11 @@ export const TaskCard = ({
             <span className={styles.dateLabel}>Срок:</span>
             <span className={`${styles.dateValue} ${overdue ? styles.overdueText : ''}`}>
               {formatDate(task.deadline)}
-              {overdue && <span className={styles.overdueIndicator}> ⚠️ Просрочено</span>}
+              {overdue && (
+                <span className={styles.overdueIndicator}>
+                  {getTaskOverdueIcon({ size: 14 })} Просрочено
+                </span>
+              )}
             </span>
           </div>
         </div>
