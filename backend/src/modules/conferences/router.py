@@ -1,16 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
 from core.database.models import User
 from core.services import ServiceFactory
 from modules.auth.dependencies import get_current_user
 from shared.dependencies import get_service_factory
-from core.database.session import db_session
 from core.config import settings
 from core.logger import logger
 
-from .service import ConferenceService
 from .schemas import (
     ConferenceMessageResponse,
     ConferenceRoomCreate,
@@ -24,6 +21,24 @@ from .schemas import (
 router = APIRouter()
 
 
+def get_active_participants_count(room) -> int:
+    """
+    Возвращает количество участников, которые находятся в созвоне сейчас.
+
+    В таблице conference_participants записи не удаляются после выхода,
+    поэтому нельзя считать len(room.participants). У вышедших участников
+    заполняется left_at, а активные участники имеют left_at = None.
+    """
+    if not room.participants:
+        return 0
+
+    return sum(
+        1
+        for participant in room.participants
+        if participant.left_at is None
+    )
+
+
 @router.post("/rooms", response_model=ConferenceRoomResponse, status_code=status.HTTP_201_CREATED)
 async def create_conference_room(
     room_data: ConferenceRoomCreate,
@@ -35,8 +50,8 @@ async def create_conference_room(
     
     conference_service = service_factory.get('conference')
     
-    # Проверяем права на создание
     entity_id = None
+
     if room_data.room_type == "project" and room_data.project_id:
         entity_id = room_data.project_id
     elif room_data.room_type == "group" and room_data.group_id:
@@ -45,7 +60,9 @@ async def create_conference_room(
         entity_id = room_data.task_id
     
     if entity_id and not await conference_service.can_create_conference(
-        current_user.id, room_data.room_type, entity_id
+        current_user.id,
+        room_data.room_type,
+        entity_id
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -71,6 +88,7 @@ async def create_conference_room(
             detail=f"Не удалось создать комнату: {str(e)}"
         )
 
+
 @router.post("/rooms/{room_id}/messages")
 async def send_room_message(
     room_id: int,
@@ -78,7 +96,7 @@ async def send_room_message(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Отправка сообщения в комнату (сохраняется на сервере)"""
+    """Отправка сообщения в комнату, сохраняется на сервере"""
     logger.info(f"User {current_user.id} sending message to room {room_id}")
     
     conference_service = service_factory.get('conference')
@@ -102,6 +120,7 @@ async def send_room_message(
         "created_at": message.created_at.isoformat()
     }
 
+
 @router.get("/rooms/{room_id}/messages", response_model=List[ConferenceMessageResponse])
 async def get_room_messages(
     room_id: int,
@@ -114,7 +133,12 @@ async def get_room_messages(
     logger.info(f"Getting messages for room {room_id}, user {current_user.id}")
     
     conference_service = service_factory.get('conference')
-    messages = await conference_service.get_room_messages(room_id, current_user.id, limit, before_id)
+    messages = await conference_service.get_room_messages(
+        room_id,
+        current_user.id,
+        limit,
+        before_id
+    )
     
     return [
         ConferenceMessageResponse(
@@ -139,13 +163,11 @@ async def get_available_rooms(
     conference_service = service_factory.get('conference')
     rooms = await conference_service.get_available_rooms_for_user(current_user.id)
     
-    # Добавляем дополнительную информацию
     result = []
+
     for room in rooms:
-        # Создаем базовую модель из комнаты
         room_dict = ConferenceRoomWithDetails.model_validate(room)
         
-        # Добавляем информацию о создателе
         if room.creator:
             room_dict.creator = CreatorInfo(
                 id=room.creator.id,
@@ -153,9 +175,11 @@ async def get_available_rooms(
                 name=room.creator.name
             )
         
-        # Добавляем остальные поля
-        room_dict.participants_count = len(room.participants) if room.participants else 0
-        room_dict.is_moderator = await conference_service._is_room_moderator(current_user.id, room)
+        room_dict.participants_count = get_active_participants_count(room)
+        room_dict.is_moderator = await conference_service._is_room_moderator(
+            current_user.id,
+            room
+        )
         
         result.append(room_dict)
     
@@ -186,10 +210,8 @@ async def get_room_details(
             detail="Нет доступа к комнате"
         )
     
-    # Создаем базовую модель из комнаты
     room_dict = ConferenceRoomWithDetails.model_validate(room)
     
-    # Добавляем информацию о создателе
     if room.creator:
         room_dict.creator = CreatorInfo(
             id=room.creator.id,
@@ -197,9 +219,11 @@ async def get_room_details(
             name=room.creator.name
         )
     
-    # Добавляем остальные поля
-    room_dict.participants_count = len(room.participants) if room.participants else 0
-    room_dict.is_moderator = await conference_service._is_room_moderator(current_user.id, room)
+    room_dict.participants_count = get_active_participants_count(room)
+    room_dict.is_moderator = await conference_service._is_room_moderator(
+        current_user.id,
+        room
+    )
     
     return room_dict
 
@@ -253,13 +277,35 @@ async def leave_conference_room(
     return {"detail": "Вы вышли из созвона"}
 
 
+@router.post("/rooms/{room_id}/leave-beacon")
+async def leave_conference_room_beacon(
+    room_id: int,
+    service_factory: ServiceFactory = Depends(get_service_factory),
+    current_user: User = Depends(get_current_user)
+):
+
+    logger.info(f"Beacon leave: user {current_user.id} leaving room {room_id}")
+
+    conference_service = service_factory.get('conference')
+
+    try:
+        await conference_service.leave_room(room_id, current_user.id)
+    except Exception as e:
+        logger.error(
+            f"Beacon leave failed for room {room_id}, user {current_user.id}: {e}",
+            exc_info=True
+        )
+
+    return {"detail": "OK"}
+
+
 @router.delete("/rooms/{room_id}")
 async def end_conference(
     room_id: int,
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Завершение созвона (только для модератора)"""
+    """Завершение созвона, только для модератора"""
     logger.info(f"User {current_user.id} ending conference {room_id}")
     
     conference_service = service_factory.get('conference')
@@ -322,7 +368,7 @@ async def get_conference_stats(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Получение статистики созвона (только для модератора)"""
+    """Получение статистики созвона, только для модератора"""
     logger.info(f"Getting stats for room {room_id} by user {current_user.id}")
     
     conference_service = service_factory.get('conference')

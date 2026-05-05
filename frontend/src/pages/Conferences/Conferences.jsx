@@ -2,9 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { conferencesAPI } from '../../services/api/conferences';
 import { Button } from '../../components/ui/Button';
-import { StartConferenceButton } from '../../components/ui/StartConferenceButton';
 import { useNotification } from '../../hooks/useNotification';
-import { CONFERENCE_ROOM_TYPES, CONFERENCE_ROOM_TYPE_TRANSLATIONS } from '../../utils/constants';
+import {
+  CONFERENCE_ROOM_TYPES,
+  CONFERENCE_ROOM_TYPE_TRANSLATIONS
+} from '../../utils/constants';
 import { formatRelativeTime } from '../../utils/helpers';
 import styles from './Conferences.module.css';
 
@@ -20,21 +22,37 @@ export const Conferences = () => {
     room_type: CONFERENCE_ROOM_TYPES.INSTANT
   });
   
-  const loadRooms = useCallback(async () => {
+  const loadRooms = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
+
       const availableRooms = await conferencesAPI.getAvailableRooms();
       setRooms(availableRooms);
     } catch (err) {
       console.error('Error loading conferences:', err);
-      showError('Не удалось загрузить список созвонов');
+
+      if (!silent) {
+        showError('Не удалось загрузить список созвонов');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [showError]);
   
   useEffect(() => {
     loadRooms();
+
+    const intervalId = setInterval(() => {
+      loadRooms(true);
+    }, 5000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
   }, [loadRooms]);
   
   const handleCreateInstant = async () => {
@@ -51,7 +69,11 @@ export const Conferences = () => {
       });
       
       setShowCreateModal(false);
-      setCreateForm({ title: '', room_type: CONFERENCE_ROOM_TYPES.INSTANT });
+      setCreateForm({
+        title: '',
+        room_type: CONFERENCE_ROOM_TYPES.INSTANT
+      });
+
       navigate(`/conferences/${room.id}`);
     } catch (err) {
       console.error('Error creating conference:', err);
@@ -70,7 +92,27 @@ export const Conferences = () => {
       [CONFERENCE_ROOM_TYPES.TASK]: '✅',
       [CONFERENCE_ROOM_TYPES.INSTANT]: '📞'
     };
+
     return icons[type] || '🎥';
+  };
+
+  const getParticipantsWord = (count) => {
+    const normalizedCount = Math.abs(count) % 100;
+    const lastDigit = normalizedCount % 10;
+
+    if (normalizedCount > 10 && normalizedCount < 20) {
+      return 'участников';
+    }
+
+    if (lastDigit === 1) {
+      return 'участник';
+    }
+
+    if (lastDigit >= 2 && lastDigit <= 4) {
+      return 'участника';
+    }
+
+    return 'участников';
   };
   
   if (loading) {
@@ -104,7 +146,10 @@ export const Conferences = () => {
         <div className={styles.emptyState}>
           <div className={styles.emptyIcon}>🎥</div>
           <h3>Нет активных созвонов</h3>
-          <p>Создайте новый созвон или дождитесь, когда кто-то начнёт созвон в вашей группе или проекте</p>
+          <p>
+            Создайте новый созвон или дождитесь, когда кто-то начнёт созвон
+            в вашей группе или проекте
+          </p>
           <Button
             variant="primary"
             onClick={() => setShowCreateModal(true)}
@@ -114,63 +159,77 @@ export const Conferences = () => {
         </div>
       ) : (
         <div className={styles.roomsGrid}>
-          {rooms.map((room) => (
-            <div key={room.id} className={styles.roomCard}>
-              <div className={styles.roomHeader}>
-                <span className={styles.roomType}>
-                  {getRoomTypeIcon(room.room_type)} {CONFERENCE_ROOM_TYPE_TRANSLATIONS[room.room_type]}
-                </span>
-                <span className={`${styles.status} ${room.is_active ? styles.active : ''}`}>
-                  {room.is_active ? '🟢 Идёт' : '⚪ Завершён'}
-                </span>
+          {rooms.map((room) => {
+            const participantsCount = room.participants_count || 0;
+
+            return (
+              <div key={room.id} className={styles.roomCard}>
+                <div className={styles.roomHeader}>
+                  <span className={styles.roomType}>
+                    {getRoomTypeIcon(room.room_type)}{' '}
+                    {CONFERENCE_ROOM_TYPE_TRANSLATIONS[room.room_type]}
+                  </span>
+                  <span className={`${styles.status} ${room.is_active ? styles.active : ''}`}>
+                    {room.is_active ? '🟢 Идёт' : '⚪ Завершён'}
+                  </span>
+                </div>
+                
+                <h3 className={styles.roomTitle}>{room.title}</h3>
+                
+                <div className={styles.roomInfo}>
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>Создатель:</span>
+                    <span className={styles.infoValue}>
+                      {room.creator?.login || 'Неизвестно'}
+                    </span>
+                  </div>
+
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>Участников:</span>
+                    <span className={styles.infoValue}>
+                      {participantsCount} / {room.max_participants}{' '}
+                      {getParticipantsWord(participantsCount)}
+                    </span>
+                  </div>
+
+                  <div className={styles.infoItem}>
+                    <span className={styles.infoLabel}>Начат:</span>
+                    <span className={styles.infoValue}>
+                      {room.started_at ? formatRelativeTime(room.started_at) : '—'}
+                    </span>
+                  </div>
+                </div>
+                
+                {room.is_active && (
+                  <Button
+                    variant="primary"
+                    onClick={() => handleJoinRoom(room.id)}
+                    className={styles.joinButton}
+                  >
+                    Присоединиться
+                  </Button>
+                )}
               </div>
-              
-              <h3 className={styles.roomTitle}>{room.title}</h3>
-              
-              <div className={styles.roomInfo}>
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>Создатель:</span>
-                  <span className={styles.infoValue}>
-                    {room.creator?.login || 'Неизвестно'}
-                  </span>
-                </div>
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>Участников:</span>
-                  <span className={styles.infoValue}>
-                    {room.participants_count || 0} / {room.max_participants}
-                  </span>
-                </div>
-                <div className={styles.infoItem}>
-                  <span className={styles.infoLabel}>Начат:</span>
-                  <span className={styles.infoValue}>
-                    {room.started_at ? formatRelativeTime(room.started_at) : '—'}
-                  </span>
-                </div>
-              </div>
-              
-              {room.is_active && (
-                <Button
-                  variant="primary"
-                  onClick={() => handleJoinRoom(room.id)}
-                  className={styles.joinButton}
-                >
-                  Присоединиться
-                </Button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
       
-      {/* Модальное окно создания мгновенного созвона */}
       {showCreateModal && (
-        <div className={styles.modalOverlay} onClick={() => setShowCreateModal(false)}>
-          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div
+          className={styles.modalOverlay}
+          onClick={() => setShowCreateModal(false)}
+        >
+          <div
+            className={styles.modal}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className={styles.modalHeader}>
               <h2>Создать мгновенный созвон</h2>
               <button
                 className={styles.closeButton}
                 onClick={() => setShowCreateModal(false)}
+                type="button"
               >
                 ×
               </button>
@@ -182,7 +241,12 @@ export const Conferences = () => {
                 <input
                   type="text"
                   value={createForm.title}
-                  onChange={(e) => setCreateForm(prev => ({ ...prev, title: e.target.value }))}
+                  onChange={(e) =>
+                    setCreateForm(prev => ({
+                      ...prev,
+                      title: e.target.value
+                    }))
+                  }
                   placeholder="Введите название..."
                   className={styles.input}
                   autoFocus

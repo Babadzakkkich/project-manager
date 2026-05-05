@@ -17,14 +17,17 @@ export const ConferenceRoom = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuthContext();
+
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
   const [floatingReaction, setFloatingReaction] = useState(null);
   const [userInteracted, setUserInteracted] = useState(false);
   const [joiningRoom, setJoiningRoom] = useState(false);
-  const [roomData, setRoomData] = useState(null); // Загружаем данные комнаты отдельно
+  const [roomData, setRoomData] = useState(null);
+
   const hasConnected = useRef(false);
+  const leaveBeaconSentRef = useRef(false);
 
   const {
     connectionState,
@@ -50,7 +53,6 @@ export const ConferenceRoom = () => {
     isScreenSharing,
   } = useConference(parseInt(roomId));
 
-  // Загружаем информацию о комнате сразу (без подключения к LiveKit)
   useEffect(() => {
     const loadRoomData = async () => {
       try {
@@ -58,19 +60,19 @@ export const ConferenceRoom = () => {
         setRoomData(data);
       } catch (err) {
         console.error('Failed to load room data:', err);
-        // Если комната не найдена, можно показать ошибку
         navigate('/conferences', { replace: true });
       }
     };
+
     if (roomId) {
       loadRoomData();
     }
   }, [roomId, navigate]);
 
-  // Подключаемся только после взаимодействия пользователя
   useEffect(() => {
     if (!hasConnected.current && roomId && userInteracted) {
       hasConnected.current = true;
+      leaveBeaconSentRef.current = false;
       setJoiningRoom(true);
       connect();
     }
@@ -83,14 +85,55 @@ export const ConferenceRoom = () => {
     };
   }, [connect, disconnect, roomId, userInteracted]);
 
-  // Сбрасываем флаг joiningRoom после успешного подключения
+  useEffect(() => {
+    if (!roomId || !userInteracted) {
+      return;
+    }
+
+    const leaveUrl = `/api/conferences/rooms/${roomId}/leave-beacon`;
+
+    const sendLeaveBeacon = () => {
+      if (leaveBeaconSentRef.current) {
+        return;
+      }
+
+      leaveBeaconSentRef.current = true;
+
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(
+            leaveUrl,
+            new Blob([], { type: 'text/plain' })
+          );
+          return;
+        }
+
+        fetch(leaveUrl, {
+          method: 'POST',
+          credentials: 'include',
+          keepalive: true
+        }).catch(() => {});
+      // eslint-disable-next-line no-unused-vars
+      } catch (err) {
+        // Страница уже закрывается, поэтому ошибку здесь не показываем.
+      }
+    };
+
+    window.addEventListener('pagehide', sendLeaveBeacon);
+    window.addEventListener('beforeunload', sendLeaveBeacon);
+
+    return () => {
+      window.removeEventListener('pagehide', sendLeaveBeacon);
+      window.removeEventListener('beforeunload', sendLeaveBeacon);
+    };
+  }, [roomId, userInteracted]);
+
   useEffect(() => {
     if (connectionState === ConnectionState.Connected) {
       setJoiningRoom(false);
     }
   }, [connectionState]);
 
-  // Обработка реакций
   useEffect(() => {
     const handleReaction = (event) => {
       const { reaction, participantName } = event.detail;
@@ -99,11 +142,13 @@ export const ConferenceRoom = () => {
     };
 
     window.addEventListener('conference:reaction', handleReaction);
-    return () => window.removeEventListener('conference:reaction', handleReaction);
+
+    return () => {
+      window.removeEventListener('conference:reaction', handleReaction);
+    };
   }, []);
 
   const handleJoinRoom = () => {
-    // Жест пользователя (клик) — AudioContext будет разблокирован
     setUserInteracted(true);
   };
 
@@ -120,14 +165,12 @@ export const ConferenceRoom = () => {
 
   const handleCopyLink = () => {
     const url = window.location.href;
-    navigator.clipboard?.writeText(url).then(() => {
-      // Можно показать уведомление
-    }).catch((err) => {
+
+    navigator.clipboard?.writeText(url).catch((err) => {
       console.error('Failed to copy:', err);
     });
   };
 
-  // Экран ожидания взаимодействия пользователя
   if (!userInteracted) {
     const displayRoom = roomData || roomInfo;
 
@@ -135,13 +178,16 @@ export const ConferenceRoom = () => {
       <div className={styles.loadingContainer}>
         <div className={styles.joinRoomCard}>
           <div className={styles.joinRoomIcon}>🎥</div>
+
           <h2 className={styles.joinRoomTitle}>
             {displayRoom?.title || 'Загрузка...'}
           </h2>
+
           <p className={styles.joinRoomDescription}>
             Вы приглашены присоединиться к созвону.
             Нажмите кнопку ниже, чтобы войти.
           </p>
+
           {displayRoom && (
             <div className={styles.joinRoomInfo}>
               <div className={styles.joinRoomInfoItem}>
@@ -153,14 +199,18 @@ export const ConferenceRoom = () => {
                   {displayRoom.room_type === 'instant' && '📞 Мгновенный'}
                 </span>
               </div>
+
               {displayRoom.creator && (
                 <div className={styles.joinRoomInfoItem}>
                   <span className={styles.joinRoomLabel}>Создатель:</span>
-                  <span className={styles.joinRoomValue}>{displayRoom.creator.login}</span>
+                  <span className={styles.joinRoomValue}>
+                    {displayRoom.creator.login}
+                  </span>
                 </div>
               )}
             </div>
           )}
+
           <Button
             variant="primary"
             size="large"
@@ -170,6 +220,7 @@ export const ConferenceRoom = () => {
           >
             {displayRoom ? 'Войти в созвон' : 'Загрузка...'}
           </Button>
+
           <p className={styles.joinRoomHint}>
             При входе потребуется доступ к микрофону и камере
           </p>
@@ -178,13 +229,18 @@ export const ConferenceRoom = () => {
     );
   }
 
-  // Состояния загрузки после взаимодействия
-  if (joiningRoom || isConnecting || connectionState === ConnectionState.Connecting) {
+  if (
+    joiningRoom ||
+    isConnecting ||
+    connectionState === ConnectionState.Connecting
+  ) {
     return (
       <div className={styles.loadingContainer}>
         <div className={styles.spinner}></div>
         <p>Подключение к созвону...</p>
-        <p className={styles.hint}>Пожалуйста, разрешите доступ к микрофону и камере</p>
+        <p className={styles.hint}>
+          Пожалуйста, разрешите доступ к микрофону и камере
+        </p>
       </div>
     );
   }
@@ -203,14 +259,15 @@ export const ConferenceRoom = () => {
       <div className={styles.errorContainer}>
         <h2>Ошибка подключения</h2>
         <p>{error}</p>
-        <Button onClick={() => navigate(-1)}>Вернуться назад</Button>
+        <Button onClick={() => navigate(-1)}>
+          Вернуться назад
+        </Button>
       </div>
     );
   }
 
   return (
     <div className={styles.room}>
-      {/* Хедер */}
       <div className={styles.header}>
         <div className={styles.headerLeft}>
           <Button
@@ -221,8 +278,12 @@ export const ConferenceRoom = () => {
           >
             ← Выйти
           </Button>
+
           <div className={styles.roomInfo}>
-            <h2 className={styles.roomTitle}>{roomInfo?.title || 'Созвон'}</h2>
+            <h2 className={styles.roomTitle}>
+              {roomInfo?.title || 'Созвон'}
+            </h2>
+
             <span className={styles.participantCount}>
               {participants.length}{' '}
               {participants.length === 1
@@ -235,9 +296,14 @@ export const ConferenceRoom = () => {
         </div>
 
         <div className={styles.headerActions}>
-          <Button variant="secondary" size="small" onClick={handleCopyLink}>
+          <Button
+            variant="secondary"
+            size="small"
+            onClick={handleCopyLink}
+          >
             📋 Копировать ссылку
           </Button>
+
           {isModerator && (
             <Button
               variant="danger"
@@ -250,7 +316,6 @@ export const ConferenceRoom = () => {
         </div>
       </div>
 
-      {/* Основная область с видео */}
       <div className={styles.mainArea}>
         <ParticipantGrid
           participants={participants}
@@ -260,16 +325,18 @@ export const ConferenceRoom = () => {
           onKickParticipant={kickParticipant}
         />
 
-        {/* Плавающая реакция */}
         {floatingReaction && (
           <div className={styles.floatingReaction}>
-            <span className={styles.reactionEmoji}>{floatingReaction.reaction}</span>
-            <span className={styles.reactionName}>{floatingReaction.participantName}</span>
+            <span className={styles.reactionEmoji}>
+              {floatingReaction.reaction}
+            </span>
+            <span className={styles.reactionName}>
+              {floatingReaction.participantName}
+            </span>
           </div>
         )}
       </div>
 
-      {/* Чат */}
       {showChat && (
         <ChatPanel
           roomId={parseInt(roomId)}
@@ -281,7 +348,6 @@ export const ConferenceRoom = () => {
         />
       )}
 
-      {/* Панель участников */}
       {showParticipants && (
         <ParticipantsPanel
           participants={participants}
@@ -293,10 +359,8 @@ export const ConferenceRoom = () => {
         />
       )}
 
-      {/* Панель реакций */}
       <ReactionsBar onSendReaction={sendReaction} />
 
-      {/* Панель управления */}
       <ControlBar
         isAudioEnabled={isAudioEnabled}
         isVideoEnabled={isVideoEnabled}
@@ -311,7 +375,6 @@ export const ConferenceRoom = () => {
         showParticipants={showParticipants}
       />
 
-      {/* Модальное окно подтверждения завершения */}
       <ConfirmationModal
         isOpen={showEndModal}
         onClose={() => setShowEndModal(false)}
