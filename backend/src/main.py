@@ -77,9 +77,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("All connections closed")
 
 
-main_app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan)
 
-main_app.add_middleware(
+app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+|26\.89\.212\.255)(:\d+)?",
     allow_credentials=True,
@@ -88,14 +88,14 @@ main_app.add_middleware(
     expose_headers=["*"],
 )
 
-main_app.include_router(auth_router, prefix=settings.api.auth, tags=["Auth"])
-main_app.include_router(users_router, prefix=settings.api.users, tags=["Users"])
-main_app.include_router(groups_router, prefix=settings.api.groups, tags=["Groups"])
-main_app.include_router(projects_router, prefix=settings.api.projects, tags=["Projects"])
-main_app.include_router(tasks_router, prefix=settings.api.tasks, tags=["Tasks"])
-main_app.include_router(notifications_ws_router, prefix=settings.api.notifications, tags=["Notifications WebSocket"])
-main_app.include_router(notifications_http_router, prefix=settings.api.notifications, tags=["Notifications HTTP"])
-main_app.include_router(conferences_router, prefix=settings.api.conferences, tags=["Conferences"])
+app.include_router(auth_router, prefix=settings.api.auth, tags=["Auth"])
+app.include_router(users_router, prefix=settings.api.users, tags=["Users"])
+app.include_router(groups_router, prefix=settings.api.groups, tags=["Groups"])
+app.include_router(projects_router, prefix=settings.api.projects, tags=["Projects"])
+app.include_router(tasks_router, prefix=settings.api.tasks, tags=["Tasks"])
+app.include_router(notifications_ws_router, prefix=settings.api.notifications, tags=["Notifications WebSocket"])
+app.include_router(notifications_http_router, prefix=settings.api.notifications, tags=["Notifications HTTP"])
+app.include_router(conferences_router, prefix=settings.api.conferences, tags=["Conferences"])
 
 
 if __name__ == "__main__":
