@@ -1,10 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { notificationsAPI } from '../services/api/notifications';
 import { NOTIFICATION_TYPES } from '../utils/constants';
-import {
-  NOTIFICATION_ICON_COMPONENTS,
-  DEFAULT_NOTIFICATION_ICON
-} from '../utils/icons';
 
 export const useNotifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -293,7 +289,34 @@ export const useNotifications = () => {
 
   // Получить иконку для типа уведомления
   const getNotificationIcon = useCallback((type) => {
-    return NOTIFICATION_ICON_COMPONENTS[type] || DEFAULT_NOTIFICATION_ICON;
+    const icons = {
+      group_created: '👥',
+      group_updated: '✏️',
+      group_deleted: '🗑️',
+      user_added_to_group: '➕',
+      user_removed_from_group: '➖',
+      user_role_changed: '🔄',
+      project_created: '📁',
+      project_updated: '📝',
+      project_deleted: '🗑️',
+      group_added_to_project: '🔗',
+      group_removed_from_project: '🔗',
+      task_created: '✅',
+      task_updated: '✏️',
+      task_deleted: '🗑️',
+      task_status_changed: '🔄',
+      task_priority_changed: '⚡',
+      user_assigned_to_task: '👤',
+      user_unassigned_from_task: '👤',
+      task_deadline_approaching: '⏰',
+      task_overdue: '⚠️',
+      group_invitation: '📧',
+      group_invitation_accepted: '✅',
+      group_invitation_declined: '❌',
+      conference_started: '🎥',
+      conference_invite: '📞'
+    };
+    return icons[type] || '🔔';
   }, []);
 
   // Форматирование времени

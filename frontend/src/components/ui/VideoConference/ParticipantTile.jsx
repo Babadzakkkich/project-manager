@@ -13,18 +13,13 @@ export const ParticipantTile = ({
   const videoRef = useRef(null);
   const audioRef = useRef(null);
 
-  const speakingOffTimerRef = useRef(null);
-  const audioLevelRafRef = useRef(null);
-  const audioLevelContextRef = useRef(null);
-
   const [showMenu, setShowMenu] = useState(false);
   const [cameraTrack, setCameraTrack] = useState(null);
   const [screenTrack, setScreenTrack] = useState(null);
   const [audioTrack, setAudioTrack] = useState(null);
-  const [speakingNow, setSpeakingNow] = useState(Boolean(participant.isSpeaking));
 
+  const isSpeaking = participant.isSpeaking;
   const name = participant.name || participant.identity;
-  const isSpeaking = speakingNow || Boolean(isActiveSpeaker);
 
   const activeVideoTrack = useMemo(() => {
     return screenTrack || cameraTrack;
@@ -33,33 +28,6 @@ export const ParticipantTile = ({
   const videoEnabled = Boolean(activeVideoTrack);
   const audioEnabled = Boolean(audioTrack);
   const isScreenShare = Boolean(screenTrack) || participant.isScreenShareEnabled;
-
-  const clearSpeakingOffTimer = useCallback(() => {
-    if (speakingOffTimerRef.current) {
-      clearTimeout(speakingOffTimerRef.current);
-      speakingOffTimerRef.current = null;
-    }
-  }, []);
-
-  const setSpeakingState = useCallback((speaking) => {
-    const nextSpeaking =
-      typeof speaking === 'boolean'
-        ? speaking
-        : Boolean(participant.isSpeaking);
-
-    if (nextSpeaking) {
-      clearSpeakingOffTimer();
-      setSpeakingNow(true);
-      return;
-    }
-
-    if (!speakingOffTimerRef.current) {
-      speakingOffTimerRef.current = setTimeout(() => {
-        setSpeakingNow(false);
-        speakingOffTimerRef.current = null;
-      }, 300);
-    }
-  }, [participant, clearSpeakingOffTimer]);
 
   const getTrackFromPublication = useCallback((publication) => {
     return publication?.track || publication?.videoTrack || publication?.audioTrack || null;
@@ -120,144 +88,8 @@ export const ParticipantTile = ({
 
     if (source === Track.Source.Microphone) {
       setTrackSafely(setAudioTrack, nextTrack);
-
-      if (!nextTrack) {
-        setSpeakingState(false);
-      }
     }
-  }, [getTrackFromPublication, setTrackSafely, setSpeakingState]);
-
-  // Быстрая реакция на говорение через LiveKit.
-  useEffect(() => {
-    const handleSpeakingChanged = (speaking) => {
-      setSpeakingState(speaking);
-    };
-
-    setSpeakingState(participant.isSpeaking);
-
-    participant.on('isSpeakingChanged', handleSpeakingChanged);
-
-    // Оставляем редкую страховочную синхронизацию,
-    // но основную быструю реакцию ниже будет давать анализ audioTrack.
-    const speakingSyncInterval = setInterval(() => {
-      if (participant.isSpeaking) {
-        setSpeakingState(true);
-      }
-    }, 300);
-
-    return () => {
-      participant.off('isSpeakingChanged', handleSpeakingChanged);
-      clearInterval(speakingSyncInterval);
-      clearSpeakingOffTimer();
-    };
-  }, [participant, setSpeakingState, clearSpeakingOffTimer]);
-
-  // Главный фикс: быстрый анализ реального аудиотрека.
-  // Он убирает задержку в первые секунды после включения микрофона.
-  useEffect(() => {
-    if (!audioTrack) {
-      setSpeakingState(false);
-      return;
-    }
-
-    const mediaStreamTrack = audioTrack.mediaStreamTrack;
-
-    if (!mediaStreamTrack) {
-      return;
-    }
-
-    const AudioContextConstructor =
-      window.AudioContext || window.webkitAudioContext;
-
-    if (!AudioContextConstructor) {
-      return;
-    }
-
-    let stopped = false;
-    let source = null;
-    let analyser = null;
-
-    const stopAudioLevelAnalyzer = () => {
-      stopped = true;
-
-      if (audioLevelRafRef.current) {
-        cancelAnimationFrame(audioLevelRafRef.current);
-        audioLevelRafRef.current = null;
-      }
-
-      if (audioLevelContextRef.current) {
-        audioLevelContextRef.current.close().catch(() => {});
-        audioLevelContextRef.current = null;
-      }
-    };
-
-    const startAudioLevelAnalyzer = async () => {
-      try {
-        const audioContext = new AudioContextConstructor();
-        audioLevelContextRef.current = audioContext;
-
-        if (audioContext.state === 'suspended') {
-          await audioContext.resume().catch(() => {});
-        }
-
-        if (stopped) {
-          return;
-        }
-
-        const mediaStream = new MediaStream([mediaStreamTrack]);
-
-        source = audioContext.createMediaStreamSource(mediaStream);
-        analyser = audioContext.createAnalyser();
-
-        analyser.fftSize = 512;
-        analyser.smoothingTimeConstant = 0.65;
-
-        source.connect(analyser);
-
-        const data = new Uint8Array(analyser.fftSize);
-
-        const checkAudioLevel = () => {
-          if (stopped || !analyser) {
-            return;
-          }
-
-          analyser.getByteTimeDomainData(data);
-
-          let sum = 0;
-
-          for (let i = 0; i < data.length; i += 1) {
-            const normalized = (data[i] - 128) / 128;
-            sum += normalized * normalized;
-          }
-
-          const rms = Math.sqrt(sum / data.length);
-
-          // Порог чувствительности.
-          // Если рамка реагирует слишком редко — уменьши до 0.018.
-          // Если реагирует на шум — увеличь до 0.03.
-          const isVoiceDetected =
-            rms > 0.022 &&
-            mediaStreamTrack.readyState === 'live' &&
-            !mediaStreamTrack.muted;
-
-          setSpeakingState(isVoiceDetected);
-
-          audioLevelRafRef.current = requestAnimationFrame(checkAudioLevel);
-        };
-
-        checkAudioLevel();
-      } catch (err) {
-        console.warn('Audio level analyzer failed:', err);
-      }
-    };
-
-    startAudioLevelAnalyzer();
-
-    return () => {
-      stopAudioLevelAnalyzer();
-      setSpeakingState(false);
-    };
-  }, [audioTrack, setSpeakingState]);
+  }, [getTrackFromPublication, setTrackSafely]);
 
   useEffect(() => {
     syncTracksFromParticipant();
@@ -307,6 +139,8 @@ export const ParticipantTile = ({
     participant.on('trackMuted', handleTrackMuted);
     participant.on('trackUnmuted', handleTrackUnmuted);
 
+    // Важно для localParticipant:
+    // локальные публикации могут приходить отдельными событиями.
     participant.on('localTrackPublished', handleTrackPublished);
     participant.on('localTrackUnpublished', handleTrackUnpublished);
 
@@ -328,6 +162,9 @@ export const ParticipantTile = ({
     syncTracksFromParticipant
   ]);
 
+  // Важно: этот эффект специально без массива зависимостей.
+  // После updateParticipants родитель перерисовывается, а локальный participant остаётся тем же объектом.
+  // Поэтому нужно перечитывать публикации после каждого render.
   useEffect(() => {
     syncTracksFromParticipant();
   });
@@ -388,7 +225,7 @@ export const ParticipantTile = ({
 
   return (
     <div
-      className={`${styles.tile} ${isSpeaking ? styles.speaking : ''}`}
+      className={`${styles.tile} ${isSpeaking ? styles.speaking : ''} ${isActiveSpeaker ? styles.activeSpeaker : ''}`}
       onMouseEnter={() => !isLocal && setShowMenu(true)}
       onMouseLeave={() => setShowMenu(false)}
     >
