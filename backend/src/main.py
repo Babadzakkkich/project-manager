@@ -100,7 +100,7 @@ app.include_router(conferences_router, prefix=settings.api.conferences, tags=["C
 
 if __name__ == "__main__":
     uvicorn.run(
-        "main:main_app",
+        "main:app",
         host=settings.run.host,
         port=settings.run.port,
         reload=True
