@@ -2,7 +2,7 @@
   position: absolute;
   bottom: 100px;
   left: 24px;
-  z-index: 15;
+  z-index: 40;
 }
 
 .reactionsButton {
@@ -18,12 +18,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-.reactionsButton:hover {
+.reactionsButton:hover,
+.reactionsButton.active {
   background: rgba(255, 255, 255, 0.3);
   transform: scale(1.05);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.icon {
+  line-height: 1;
 }
 
 .reactionsPanel {
@@ -33,21 +42,23 @@
   display: flex;
   gap: 8px;
   padding: 12px;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.82);
   backdrop-filter: blur(10px);
   border-radius: 40px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   animation: slideUp 0.2s ease;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
 }
 
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(10px) scale(0.96);
   }
+
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -62,12 +73,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
 }
 
 .reactionButton:hover {
   background: rgba(255, 255, 255, 0.2);
-  transform: scale(1.1);
+  transform: scale(1.14);
+}
+
+.reactionButton:active {
+  transform: scale(0.94);
 }
 
 @media (max-width: 768px) {
@@ -81,10 +98,18 @@
     height: 40px;
     font-size: 20px;
   }
+
+  .reactionsPanel {
+    gap: 6px;
+    padding: 10px;
+    max-width: calc(100vw - 32px);
+    overflow-x: auto;
+  }
   
   .reactionButton {
     width: 40px;
     height: 40px;
     font-size: 24px;
+    flex: 0 0 auto;
   }
 }

@@ -66,21 +66,77 @@
   background: #0a0a0a;
 }
 
+.floatingReactionsLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 30;
+}
+
 .floatingReaction {
   position: absolute;
-  bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.8);
+  left: var(--reaction-x);
+  top: var(--reaction-y);
+  transform: translate(-50%, -50%);
   color: white;
-  padding: 12px 24px;
-  border-radius: 40px;
+  padding: 10px 16px;
+  border-radius: 999px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   font-size: 24px;
-  animation: floatUp 2s ease-out forwards;
-  z-index: 10;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  animation: reactionFloat 2.4s ease-out forwards;
+  will-change: transform, opacity;
+}
+
+.reactionEmoji {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.reactionName {
+  max-width: 160px;
+  overflow: hidden;
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@keyframes reactionFloat {
+  0% {
+    opacity: 0;
+    transform:
+      translate(-50%, 20px)
+      scale(0.78);
+  }
+
+  12% {
+    opacity: 1;
+    transform:
+      translate(-50%, 0)
+      scale(1.04);
+  }
+
+  72% {
+    opacity: 1;
+    transform:
+      translate(calc(-50% + var(--reaction-drift)), -72px)
+      scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform:
+      translate(calc(-50% + var(--reaction-drift)), -120px)
+      scale(0.96);
+  }
 }
 
 .joinRoomCard {
@@ -153,34 +209,6 @@
   margin: 0;
 }
 
-@keyframes floatUp {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, 20px);
-  }
-  20% {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-  80% {
-    opacity: 1;
-    transform: translate(-50%, -40px);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -60px);
-  }
-}
-
-.reactionEmoji {
-  font-size: 32px;
-}
-
-.reactionName {
-  font-size: 14px;
-  color: #a0aec0;
-}
-
 .loadingContainer,
 .errorContainer {
   position: fixed;
@@ -208,7 +236,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .hint {
@@ -224,4 +254,65 @@
 
 .errorContainer p {
   margin-bottom: 24px;
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: 12px 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .headerLeft {
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .headerActions {
+    justify-content: flex-end;
+  }
+
+  .roomInfo {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .roomTitle {
+    font-size: 16px;
+  }
+
+  .floatingReaction {
+    padding: 8px 12px;
+  }
+
+  .reactionEmoji {
+    font-size: 28px;
+  }
+
+  .reactionName {
+    max-width: 110px;
+    font-size: 12px;
+  }
+
+  .joinRoomCard {
+    max-width: calc(100vw - 32px);
+    padding: 36px 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .headerActions {
+    flex-direction: column;
+  }
+
+  .headerActions button {
+    width: 100%;
+  }
+
+  .joinRoomInfoItem {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
 }

@@ -1,46 +1,166 @@
 .grid {
+  position: relative;
   display: grid;
   gap: 8px;
   padding: 8px;
   width: 100%;
   height: 100%;
   background: #0a0a0a;
+  box-sizing: border-box;
 }
 
+.participantShell {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  transition:
+    transform 0.18s ease,
+    opacity 0.18s ease,
+    filter 0.18s ease;
+}
+
+.focusableShell {
+  cursor: pointer;
+}
+
+.focusableShell:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+
+/* Один участник: компактнее, чтобы не вылезал по высоте */
 .grid1 {
-  grid-template-columns: 1fr;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 24px 104px;
 }
 
+.grid1 > .participantShell {
+  width: min(100%, 880px);
+  max-width: 880px;
+  max-height: calc(100% - 104px);
+}
+
+/* Режим фокуса: крупнее обычного режима, но не уходит под нижнюю панель */
+.focusedGrid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 24px 112px;
+}
+
+.focusedShell {
+  width: min(100%, 920px);
+  max-width: 920px;
+  max-height: calc(100% - 112px);
+  cursor: zoom-out;
+}
+
+.focusedShell:hover {
+  transform: none;
+  filter: none;
+}
+
+/* Два участника */
 .grid2 {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
 }
 
+/* До четырёх участников */
 .grid4 {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
 }
 
+/* До шести участников */
 .grid6 {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
 }
 
+/* До девяти участников */
 .grid9 {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
 }
 
+/* До двенадцати участников */
 .grid12 {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
+}
+
+@media (max-width: 1200px) {
+  .grid1 > .participantShell {
+    width: min(100%, 780px);
+    max-width: 780px;
+  }
+
+  .focusedShell {
+    width: min(100%, 900px);
+    max-width: 900px;
+  }
 }
 
 @media (max-width: 768px) {
+  .grid {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .grid1 {
+    padding: 16px 16px 96px;
+  }
+
+  .focusedGrid {
+    padding: 16px 16px 104px;
+  }
+
+  .grid1 > .participantShell {
+    width: min(100%, 680px);
+    max-width: 680px;
+    max-height: calc(100% - 96px);
+  }
+
+  .focusedShell {
+    width: min(100%, 760px);
+    max-width: 760px;
+    max-height: calc(100% - 104px);
+  }
+
   .grid4,
   .grid6,
   .grid9,
   .grid12 {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 480px) {
+  .grid1 {
+    padding: 10px 10px 92px;
+  }
+
+  .focusedGrid {
+    padding: 10px 10px 100px;
+  }
+
+  .grid1 > .participantShell,
+  .focusedShell {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .grid1 > .participantShell {
+    max-height: calc(100% - 92px);
+  }
+
+  .focusedShell {
+    max-height: calc(100% - 100px);
+  }
+
   .grid2,
   .grid4,
   .grid6,

@@ -13,6 +13,9 @@ import { ReactionsBar } from './ReactionsBar';
 import { ConfirmationModal } from '../ConfirmationModal';
 import styles from './ConferenceRoom.module.css';
 
+const MAX_VISIBLE_REACTIONS = 12;
+const REACTION_LIFETIME_MS = 2400;
+
 export const ConferenceRoom = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -21,13 +24,14 @@ export const ConferenceRoom = () => {
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
-  const [floatingReaction, setFloatingReaction] = useState(null);
+  const [floatingReactions, setFloatingReactions] = useState([]);
   const [userInteracted, setUserInteracted] = useState(false);
   const [joiningRoom, setJoiningRoom] = useState(false);
   const [roomData, setRoomData] = useState(null);
 
   const hasConnected = useRef(false);
   const leaveBeaconSentRef = useRef(false);
+  const reactionTimersRef = useRef(new Map());
 
   const {
     connectionState,
@@ -52,6 +56,22 @@ export const ConferenceRoom = () => {
     isVideoEnabled,
     isScreenSharing,
   } = useConference(parseInt(roomId));
+
+  const createFallbackReactionId = () => {
+    if (window.crypto?.randomUUID) {
+      return window.crypto.randomUUID();
+    }
+
+    return `reaction_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  };
+
+  const createFallbackPosition = () => {
+    return {
+      x: Math.round(18 + Math.random() * 64),
+      y: Math.round(18 + Math.random() * 50),
+      drift: Math.round(-30 + Math.random() * 60)
+    };
+  };
 
   useEffect(() => {
     const loadRoomData = async () => {
@@ -135,16 +155,48 @@ export const ConferenceRoom = () => {
   }, [connectionState]);
 
   useEffect(() => {
+    const reactionTimers = reactionTimersRef.current;
+
     const handleReaction = (event) => {
-      const { reaction, participantName } = event.detail;
-      setFloatingReaction({ reaction, participantName });
-      setTimeout(() => setFloatingReaction(null), 2000);
+      const fallbackPosition = createFallbackPosition();
+
+      const reactionItem = {
+        id: event.detail.id || createFallbackReactionId(),
+        reaction: event.detail.reaction,
+        participantId: event.detail.participantId,
+        participantName: event.detail.participantName,
+        x: Number.isFinite(event.detail.x) ? event.detail.x : fallbackPosition.x,
+        y: Number.isFinite(event.detail.y) ? event.detail.y : fallbackPosition.y,
+        drift: Number.isFinite(event.detail.drift) ? event.detail.drift : fallbackPosition.drift,
+        createdAt: event.detail.createdAt || new Date().toISOString()
+      };
+
+      setFloatingReactions(prev => {
+        const withoutDuplicate = prev.filter(item => item.id !== reactionItem.id);
+        return [...withoutDuplicate, reactionItem].slice(-MAX_VISIBLE_REACTIONS);
+      });
+
+      const oldTimer = reactionTimers.get(reactionItem.id);
+
+      if (oldTimer) {
+        clearTimeout(oldTimer);
+      }
+
+      const timerId = setTimeout(() => {
+        setFloatingReactions(prev => prev.filter(item => item.id !== reactionItem.id));
+        reactionTimers.delete(reactionItem.id);
+      }, REACTION_LIFETIME_MS);
+
+      reactionTimers.set(reactionItem.id, timerId);
     };
 
     window.addEventListener('conference:reaction', handleReaction);
 
     return () => {
       window.removeEventListener('conference:reaction', handleReaction);
+
+      reactionTimers.forEach(timerId => clearTimeout(timerId));
+      reactionTimers.clear();
     };
   }, []);
 
@@ -325,16 +377,26 @@ export const ConferenceRoom = () => {
           onKickParticipant={kickParticipant}
         />
 
-        {floatingReaction && (
-          <div className={styles.floatingReaction}>
-            <span className={styles.reactionEmoji}>
-              {floatingReaction.reaction}
-            </span>
-            <span className={styles.reactionName}>
-              {floatingReaction.participantName}
-            </span>
-          </div>
-        )}
+        <div className={styles.floatingReactionsLayer} aria-hidden="true">
+          {floatingReactions.map((reaction) => (
+            <div
+              key={reaction.id}
+              className={styles.floatingReaction}
+              style={{
+                '--reaction-x': `${reaction.x}%`,
+                '--reaction-y': `${reaction.y}%`,
+                '--reaction-drift': `${reaction.drift}px`
+              }}
+            >
+              <span className={styles.reactionEmoji}>
+                {reaction.reaction}
+              </span>
+              <span className={styles.reactionName}>
+                {reaction.participantName}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {showChat && (
