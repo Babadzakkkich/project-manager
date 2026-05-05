@@ -15,6 +15,13 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
+.overdueIndicator {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  vertical-align: -0.15em;
+}
+
 .cardDone {
   background: #f0fff4;
   border-left-color: #38a169;

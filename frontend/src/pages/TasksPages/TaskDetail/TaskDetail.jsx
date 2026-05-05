@@ -16,12 +16,13 @@ import {
   formatDateForInput
 } from '../../../utils/helpers';
 import { 
-  getTaskStatusTranslation, 
-  getTaskStatusColor, 
+  getTaskStatusTranslation,
+  getTaskStatusColor,
   getTaskStatusIcon,
   getTaskPriorityTranslation,
   getTaskPriorityColor,
   getTaskPriorityIcon,
+  getTaskOverdueIcon,
   isTaskOverdue,
   TASK_STATUS_OPTIONS,
   TASK_PRIORITY_OPTIONS
@@ -477,7 +478,9 @@ export const TaskDetail = () => {
                     >
                       {getTaskStatusIcon(task.status)} {getTaskStatusTranslation(task.status)}
                       {isOverdue && (
-                        <span className={styles.overdueIndicator}> 🔥 Просрочена</span>
+                        <span className={styles.overdueIndicator}>
+                          {getTaskOverdueIcon({ size: 14 })} Просрочена
+                        </span>
                       )}
                     </div>
                     <div 
@@ -556,7 +559,6 @@ export const TaskDetail = () => {
                       <span className={styles.metaLabel}>Срок выполнения:</span>
                       <span className={`${styles.metaValue} ${isOverdue ? styles.overdue : ''}`}>
                         {task.deadline ? formatDate(task.deadline) : 'Не указан'}
-                        {isOverdue && ' ⚠️'}
                       </span>
                     </div>
                   </div>
