@@ -4,10 +4,51 @@ import {
   RoomEvent,
   ConnectionState,
   DataPacket_Kind,
+  Track,
 } from 'livekit-client';
 import { conferencesAPI } from '../services/api/conferences';
 import { useNotification } from './useNotification';
 import { useAuthContext } from '../contexts/AuthContext';
+
+const createReactionId = () => {
+  if (window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+
+  return `reaction_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+};
+
+const createReactionPosition = () => {
+  return {
+    x: Math.round(18 + Math.random() * 64),
+    y: Math.round(18 + Math.random() * 50),
+    drift: Math.round(-30 + Math.random() * 60),
+  };
+};
+
+const formatServerMessage = (msg, currentUserId) => {
+  return {
+    id: msg.id,
+    sender: msg.user_id?.toString(),
+    senderName: msg.user_name || 'Неизвестный',
+    message: msg.message,
+    timestamp: msg.created_at,
+    isLocal: msg.user_id === currentUserId
+  };
+};
+
+const sortMessagesByTime = (messages) => {
+  return [...messages].sort((a, b) => {
+    const timeA = new Date(a.timestamp || 0).getTime();
+    const timeB = new Date(b.timestamp || 0).getTime();
+
+    if (timeA !== timeB) {
+      return timeA - timeB;
+    }
+
+    return Number(a.id || 0) - Number(b.id || 0);
+  });
+};
 
 export const useConference = (roomId) => {
   const { user } = useAuthContext();
@@ -34,22 +75,6 @@ export const useConference = (roomId) => {
   
   const handleDataMessageRef = useRef(null);
   const updateParticipantsRef = useRef(null);
-  
-  const createReactionId = () => {
-    if (window.crypto?.randomUUID) {
-      return window.crypto.randomUUID();
-    }
-
-    return `reaction_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  };
-
-  const createReactionPosition = () => {
-    return {
-      x: Math.round(18 + Math.random() * 64),
-      y: Math.round(18 + Math.random() * 50),
-      drift: Math.round(-30 + Math.random() * 60),
-    };
-  };
 
   const dispatchReactionEvent = useCallback((reactionPayload) => {
     const reactionEvent = new CustomEvent('conference:reaction', {
@@ -73,6 +98,35 @@ export const useConference = (roomId) => {
   useEffect(() => {
     updateParticipantsRef.current = updateParticipants;
   }, [updateParticipants]);
+
+  const loadInitialMessages = useCallback(async () => {
+    if (!roomId) {
+      return;
+    }
+
+    try {
+      const historyMessages = await conferencesAPI.getRoomMessages(roomId, {
+        limit: 50
+      });
+
+      const formattedMessages = historyMessages.map((msg) =>
+        formatServerMessage(msg, user?.id)
+      );
+
+      setMessages((prev) => {
+        const existingIds = new Set(prev.map((msg) => String(msg.id)));
+
+        const mergedMessages = [
+          ...formattedMessages.filter((msg) => !existingIds.has(String(msg.id))),
+          ...prev
+        ];
+
+        return sortMessagesByTime(mergedMessages);
+      });
+    } catch (err) {
+      console.error('Failed to load conference message history:', err);
+    }
+  }, [roomId, user?.id]);
   
   const disconnect = useCallback(async () => {
     if (roomRef.current) {
@@ -104,11 +158,13 @@ export const useConference = (roomId) => {
   }, [roomId]);
   
   const addHistoryMessages = useCallback((olderMessages) => {
-    setMessages(prev => {
-      const existingIds = new Set(prev.map(msg => msg.id));
-      const newMessages = olderMessages.filter(msg => !existingIds.has(msg.id));
+    setMessages((prev) => {
+      const existingIds = new Set(prev.map((msg) => String(msg.id)));
+      const newMessages = olderMessages.filter(
+        (msg) => !existingIds.has(String(msg.id))
+      );
 
-      return [...newMessages, ...prev];
+      return sortMessagesByTime([...newMessages, ...prev]);
     });
   }, []);
   
@@ -133,26 +189,7 @@ export const useConference = (roomId) => {
       return;
     }
 
-    console.log('handleDataMessage called:', {
-      data,
-      participantId: participant.identity
-    });
-    
     if (data.type === 'chat') {
-      const isLocalMessage = messages.some(msg => 
-        msg.id === data.messageId || 
-        (
-          msg.isLocal &&
-          msg.message === data.message &&
-          Math.abs(new Date(msg.timestamp) - new Date(data.timestamp || Date.now())) < 5000
-        )
-      );
-      
-      if (isLocalMessage) {
-        console.log('Skipping local message duplicate');
-        return;
-      }
-      
       const newMessage = {
         id: data.messageId || Date.now() + Math.random(),
         sender: participant.identity,
@@ -160,8 +197,29 @@ export const useConference = (roomId) => {
         message: data.message,
         timestamp: data.timestamp || new Date().toISOString()
       };
-      
-      setMessages(prev => [...prev, newMessage]);
+
+      setMessages((prev) => {
+        const isDuplicate = prev.some((msg) => {
+          const sameId = String(msg.id) === String(newMessage.id);
+
+          const sameRecentLocalMessage =
+            msg.isLocal &&
+            msg.message === newMessage.message &&
+            Math.abs(
+              new Date(msg.timestamp).getTime() -
+              new Date(newMessage.timestamp).getTime()
+            ) < 5000;
+
+          return sameId || sameRecentLocalMessage;
+        });
+
+        if (isDuplicate) {
+          return prev;
+        }
+
+        return sortMessagesByTime([...prev, newMessage]);
+      });
+
       return;
     }
 
@@ -176,6 +234,7 @@ export const useConference = (roomId) => {
         drift: data.drift,
         createdAt: data.createdAt || new Date().toISOString()
       });
+
       return;
     }
 
@@ -185,7 +244,7 @@ export const useConference = (roomId) => {
     }
 
     console.log('Unknown data message type:', data.type);
-  }, [handleModeratorAction, messages, dispatchReactionEvent]);
+  }, [handleModeratorAction, dispatchReactionEvent]);
   
   useEffect(() => {
     handleDataMessageRef.current = handleDataMessage;
@@ -214,6 +273,7 @@ export const useConference = (roomId) => {
       .on(RoomEvent.Reconnected, () => {
         console.log('LiveKit: Reconnected');
         setConnectionState(ConnectionState.Connected);
+        updateParticipantsRef.current?.(newRoom);
       })
       .on(RoomEvent.ParticipantConnected, () => {
         console.log('LiveKit: Participant connected');
@@ -242,7 +302,10 @@ export const useConference = (roomId) => {
       .on(RoomEvent.LocalTrackPublished, (publication) => {
         console.log('LiveKit: Local track published');
 
-        if (publication?.source === 'screen_share') {
+        if (
+          publication?.source === Track.Source.ScreenShare ||
+          publication?.source === 'screen_share'
+        ) {
           setIsScreenSharing(true);
         }
 
@@ -251,7 +314,10 @@ export const useConference = (roomId) => {
       .on(RoomEvent.LocalTrackUnpublished, (publication) => {
         console.log('LiveKit: Local track unpublished');
 
-        if (publication?.source === 'screen_share') {
+        if (
+          publication?.source === Track.Source.ScreenShare ||
+          publication?.source === 'screen_share'
+        ) {
           setIsScreenSharing(false);
         }
 
@@ -286,6 +352,7 @@ export const useConference = (roomId) => {
     connectingRef.current = true;
     setIsConnecting(true);
     setError(null);
+    setMessages([]);
     
     try {
       const joinData = await conferencesAPI.joinRoom(roomId);
@@ -325,6 +392,10 @@ export const useConference = (roomId) => {
 
       setLocalParticipant(newRoom.localParticipant);
       updateParticipants(newRoom);
+
+      // Главное исправление:
+      // после подключения загружаем последние сохранённые сообщения из БД.
+      await loadInitialMessages();
     } catch (err) {
       console.error('Failed to connect to conference:', err);
       setError(err.message || 'Не удалось подключиться к созвону');
@@ -333,7 +404,12 @@ export const useConference = (roomId) => {
       hasConnectedRef.current = false;
       roomRef.current = null;
     }
-  }, [roomId, subscribeToRoomEvents, updateParticipants]);
+  }, [
+    roomId,
+    subscribeToRoomEvents,
+    updateParticipants,
+    loadInitialMessages
+  ]);
   
   const toggleAudio = useCallback(async () => {
     if (!roomRef.current) return;
@@ -387,7 +463,9 @@ export const useConference = (roomId) => {
   }, [updateParticipants, showError]);
   
   const sendChatMessage = useCallback(async (message) => {
-    if (!roomRef.current) return;
+    const currentRoom = roomRef.current;
+
+    if (!currentRoom) return;
     
     const trimmedMessage = message.trim();
 
@@ -405,19 +483,31 @@ export const useConference = (roomId) => {
       
       const encoder = new TextEncoder();
 
-      roomRef.current.localParticipant.publishData(
+      currentRoom.localParticipant.publishData(
         encoder.encode(JSON.stringify(data)),
         DataPacket_Kind.RELIABLE
       );
-      
-      setMessages(prev => [...prev, {
+
+      const localMessage = {
         id: savedMessage.id,
-        sender: roomRef.current.localParticipant.identity,
-        senderName: roomRef.current.localParticipant.name || 'Вы',
+        sender: currentRoom.localParticipant.identity,
+        senderName: currentRoom.localParticipant.name || 'Вы',
         message: trimmedMessage,
         timestamp: savedMessage.created_at,
         isLocal: true
-      }]);
+      };
+      
+      setMessages((prev) => {
+        const exists = prev.some(
+          (msg) => String(msg.id) === String(localMessage.id)
+        );
+
+        if (exists) {
+          return prev;
+        }
+
+        return sortMessagesByTime([...prev, localMessage]);
+      });
     } catch (err) {
       console.error('Failed to save message to server:', err);
       
@@ -433,24 +523,29 @@ export const useConference = (roomId) => {
       
       const encoder = new TextEncoder();
 
-      roomRef.current.localParticipant.publishData(
+      currentRoom.localParticipant.publishData(
         encoder.encode(JSON.stringify(data)),
         DataPacket_Kind.RELIABLE
       );
-      
-      setMessages(prev => [...prev, {
+
+      const tempMessage = {
         id: tempId,
-        sender: roomRef.current.localParticipant.identity,
-        senderName: roomRef.current.localParticipant.name || 'Вы',
+        sender: currentRoom.localParticipant.identity,
+        senderName: currentRoom.localParticipant.name || 'Вы',
         message: trimmedMessage,
         timestamp,
-        isLocal: true
-      }]);
+        isLocal: true,
+        isTemporary: true
+      };
+      
+      setMessages((prev) => sortMessagesByTime([...prev, tempMessage]));
     }
   }, [roomId]);
   
   const sendReaction = useCallback((reaction) => {
-    if (!roomRef.current || !reaction) return;
+    const currentRoom = roomRef.current;
+
+    if (!currentRoom || !reaction) return;
     
     const reactionId = createReactionId();
     const position = createReactionPosition();
@@ -466,7 +561,7 @@ export const useConference = (roomId) => {
     
     const encoder = new TextEncoder();
 
-    roomRef.current.localParticipant.publishData(
+    currentRoom.localParticipant.publishData(
       encoder.encode(JSON.stringify(data)),
       DataPacket_Kind.RELIABLE
     );
@@ -474,8 +569,8 @@ export const useConference = (roomId) => {
     dispatchReactionEvent({
       id: reactionId,
       reaction,
-      participantId: roomRef.current.localParticipant.identity,
-      participantName: roomRef.current.localParticipant.name || 'Вы',
+      participantId: currentRoom.localParticipant.identity,
+      participantName: currentRoom.localParticipant.name || 'Вы',
       createdAt,
       ...position
     });
