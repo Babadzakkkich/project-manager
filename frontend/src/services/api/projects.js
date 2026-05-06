@@ -1,9 +1,11 @@
 import apiClient from './client';
 import { API_ENDPOINTS } from '../../utils/constants';
 
+const PROJECTS_ROOT = `${API_ENDPOINTS.PROJECTS}/`;
+
 export const projectsAPI = {
   getAll: async () => {
-    const response = await apiClient.get(API_ENDPOINTS.PROJECTS);
+    const response = await apiClient.get(PROJECTS_ROOT);
     return response.data;
   },
 
@@ -18,7 +20,7 @@ export const projectsAPI = {
   },
 
   create: async (projectData) => {
-    const response = await apiClient.post(API_ENDPOINTS.PROJECTS, projectData);
+    const response = await apiClient.post(PROJECTS_ROOT, projectData);
     return response.data;
   },
 
@@ -33,14 +35,20 @@ export const projectsAPI = {
   },
 
   addGroups: async (projectId, groupsData) => {
-    const response = await apiClient.post(`${API_ENDPOINTS.PROJECTS}/${projectId}/add_groups`, groupsData);
+    const response = await apiClient.post(
+      `${API_ENDPOINTS.PROJECTS}/${projectId}/add_groups`,
+      groupsData
+    );
     return response.data;
   },
 
   removeGroups: async (projectId, groupsData) => {
-    const response = await apiClient.delete(`${API_ENDPOINTS.PROJECTS}/${projectId}/remove_groups`, {
-      data: groupsData
-    });
+    const response = await apiClient.delete(
+      `${API_ENDPOINTS.PROJECTS}/${projectId}/remove_groups`,
+      {
+        data: groupsData
+      }
+    );
     return response.data;
   }
 };
