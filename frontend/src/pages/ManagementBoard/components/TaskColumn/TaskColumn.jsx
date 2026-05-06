@@ -3,6 +3,7 @@ import { KanbanTaskCard } from '../KanbanTaskCard/KanbanTaskCard';
 import { getTaskStatusColor } from '../../../../utils/taskStatus';
 import { useAutoScroll } from '../../../../hooks/useAutoScroll';
 import styles from './TaskColumn.module.css';
+import { AlertTriangle } from 'lucide-react';
 
 export const TaskColumn = ({
   column,
@@ -73,7 +74,8 @@ export const TaskColumn = ({
 
       {column.maxTasks && tasks.length >= column.maxTasks && (
         <div className={styles.limitWarning}>
-          ⚠️ Лимит задач: {tasks.length}/{column.maxTasks}
+          <AlertTriangle size={14} strokeWidth={2} aria-hidden="true" />
+          Лимит задач: {tasks.length}/{column.maxTasks}
         </div>
       )}
     </div>

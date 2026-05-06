@@ -3,6 +3,7 @@ import { usersAPI } from '../../../services/api/users';
 import { Input } from '../../ui/Input';
 import { Button } from '../../ui/Button';
 import styles from './RegisterForm.module.css';
+import { CheckCircle2 } from 'lucide-react';
 
 export const RegisterForm = ({ onSwitchToLogin }) => {
   const [formData, setFormData] = useState({
@@ -95,7 +96,9 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
     return (
       <div className={styles.container}>
         <div className={styles.successContainer}>
-          <div className={styles.successIcon}>✓</div>
+          <div className={styles.successIcon}>
+            <CheckCircle2 size={42} strokeWidth={2} aria-hidden="true" />
+          </div>
           <h2 className={styles.successTitle}>Регистрация успешна!</h2>
           <p className={styles.successMessage}>
             Ваш аккаунт был успешно создан. Теперь вы можете войти в систему.

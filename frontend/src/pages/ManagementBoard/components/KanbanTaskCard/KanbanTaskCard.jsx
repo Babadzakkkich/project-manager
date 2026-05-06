@@ -16,6 +16,7 @@ import {
 } from '../../../../utils/constants';
 import { formatRelativeTime, truncateText } from '../../../../utils/helpers';
 import styles from './KanbanTaskCard.module.css';
+import { Calendar } from 'lucide-react';
 
 export const KanbanTaskCard = ({
   task,
@@ -210,7 +211,8 @@ export const KanbanTaskCard = ({
           <div className={styles.dates}>
             {task.deadline && (
               <div className={`${styles.deadline} ${overdue ? styles.overdueText : ''}`}>
-                📅 {formatRelativeTime(task.deadline)}
+                <Calendar size={14} strokeWidth={2} aria-hidden="true" />
+                {formatRelativeTime(task.deadline)}
               </div>
             )}
           </div>

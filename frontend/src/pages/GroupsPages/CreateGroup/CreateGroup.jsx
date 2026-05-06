@@ -9,6 +9,7 @@ import { useNotification } from '../../../hooks/useNotification';
 import { handleApiError } from '../../../utils/helpers';
 import plusIcon from '../../../assets/plus_icon.svg';
 import styles from './CreateGroup.module.css';
+import { CheckCircle2 } from 'lucide-react';
 
 export const CreateGroup = () => {
   const navigate = useNavigate();
@@ -283,10 +284,12 @@ export const CreateGroup = () => {
         title="Группы успешно созданы!"
         message={
           <div className={styles.successModalContent}>
-            <div className={styles.successIcon}>✓</div>
+            <div className={styles.successIcon}>
+              <CheckCircle2 size={42} strokeWidth={2} aria-hidden="true" />
+            </div>
             <p>
-              {createdGroups.length === 1 
-                ? `Группа "${createdGroups[0].name}" была успешно создана.` 
+              {createdGroups.length === 1
+                ? `Группа "${createdGroups[0].name}" была успешно создана.`
                 : `Успешно создано ${createdGroups.length} групп.`
               }
             </p>
@@ -301,6 +304,7 @@ export const CreateGroup = () => {
         confirmText="Перейти к группам"
         cancelText="Создать еще группы"
         variant="info"
+        showIcon={false}
         onCancel={handleContinueCreating}
       />
     </div>

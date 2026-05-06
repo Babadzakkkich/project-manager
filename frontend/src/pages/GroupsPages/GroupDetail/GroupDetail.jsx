@@ -14,6 +14,7 @@ import { handleApiError, getUserRoleTranslation } from '../../../utils/helpers';
 import styles from './GroupDetail.module.css';
 import { StartConferenceButton } from '../../../components/ui/StartConferenceButton';
 import { CONFERENCE_ROOM_TYPES } from '../../../utils/constants';
+import { FolderOpen } from 'lucide-react';
 
 export const GroupDetail = () => {
   const { groupId } = useParams();
@@ -494,7 +495,9 @@ export const GroupDetail = () => {
             </div>
           ) : (
             <div className={styles.emptyProjects}>
-              <div className={styles.emptyProjectsIcon}>📁</div>
+              <div className={styles.emptyProjectsIcon}>
+                <FolderOpen size={56} strokeWidth={1.8} aria-hidden="true" />
+              </div>
               <h3 className={styles.emptyProjectsTitle}>Проектов пока нет</h3>
               <p className={styles.emptyProjectsDescription}>
                 Создайте первый проект для этой группы, чтобы начать работу

@@ -30,6 +30,7 @@ import {
   getDefaultTaskTags
 } from '../../../utils/helpers';
 import styles from './CreateTask.module.css';
+import { Check, CheckCircle2, ShieldCheck, X } from 'lucide-react';
 
 export const CreateTask = () => {
   const navigate = useNavigate();
@@ -373,7 +374,8 @@ export const CreateTask = () => {
           </p>
           {isAdminMode && (
             <div className={styles.adminBadge}>
-              🛡️ Режим администратора: вы можете назначать задачу любым участникам группы
+              <ShieldCheck size={18} strokeWidth={2} aria-hidden="true" />
+              Режим администратора: вы можете назначать задачу любым участникам группы
             </div>
           )}
         </div>
@@ -483,7 +485,11 @@ export const CreateTask = () => {
                     onClick={() => handleTagToggle(tag)}
                   >
                     #{tag}
-                    {formData.tags.includes(tag) && <span className={styles.tagCheck}>✓</span>}
+                    {formData.tags.includes(tag) && (
+                      <span className={styles.tagCheck}>
+                        <Check size={14} strokeWidth={2.4} aria-hidden="true" />
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -524,7 +530,7 @@ export const CreateTask = () => {
                           className={styles.removeTag}
                           onClick={() => handleRemoveTag(tag)}
                         >
-                          ×
+                          <X size={14} strokeWidth={2.4} aria-hidden="true" />
                         </button>
                       </span>
                     ))}
@@ -749,7 +755,9 @@ export const CreateTask = () => {
         title="Задача успешно создана!"
         message={
           <div className={styles.successModalContent}>
-            <div className={styles.successIcon}>✓</div>
+            <div className={styles.successIcon}>
+              <CheckCircle2 size={42} strokeWidth={2} aria-hidden="true" />
+            </div>
             <p>
               Задача "{formData.title}" была успешно создана.
               {isAdminMode && assigneeIds.length > 0 && ` Назначена ${assigneeIds.length} пользователям.`}
@@ -760,6 +768,7 @@ export const CreateTask = () => {
         confirmText="Перейти к задаче"
         cancelText="Создать еще задачу"
         variant="info"
+        showIcon={false}
         onCancel={handleContinueCreating}
         showThirdButton={true}
         thirdButtonText="К списку задач"

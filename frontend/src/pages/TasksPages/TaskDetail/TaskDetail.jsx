@@ -10,6 +10,7 @@ import { useAuthContext } from '../../../contexts/AuthContext';
 import { useNotification } from '../../../hooks/useNotification';
 import { StartConferenceButton } from '../../../components/ui/StartConferenceButton';
 import { CONFERENCE_ROOM_TYPES } from '../../../utils/constants';
+import { Check, X } from 'lucide-react';
 import { 
   handleApiError, 
   formatDate,
@@ -391,7 +392,11 @@ export const TaskDetail = () => {
                           onClick={() => handleTagToggle(tag)}
                         >
                           #{tag}
-                          {editForm.tags.includes(tag) && <span className={styles.tagCheck}>✓</span>}
+                          {editForm.tags.includes(tag) && (
+                            <span className={styles.tagCheck}>
+                              <Check size={14} strokeWidth={2.4} aria-hidden="true" />
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -432,7 +437,7 @@ export const TaskDetail = () => {
                                 className={styles.removeTag}
                                 onClick={() => handleRemoveTag(tag)}
                               >
-                                ×
+                                <X size={14} strokeWidth={2.4} aria-hidden="true" />
                               </button>
                             </span>
                           ))}

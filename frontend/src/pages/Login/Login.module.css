@@ -86,9 +86,9 @@
 }
 
 .featureIcon {
-  font-size: 20px;
-  width: 30px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 @media (max-width: 768px) {

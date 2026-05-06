@@ -7,6 +7,7 @@ import { groupsAPI } from '../../../../services/api/groups';
 import { TASK_STATUS_OPTIONS, TASK_PRIORITY_OPTIONS } from '../../../../utils/constants';
 import { handleApiError, formatDateForInput, getDefaultTaskTags } from '../../../../utils/helpers';
 import styles from './QuickTaskForm.module.css';
+import { ShieldCheck, X } from 'lucide-react';
 
 export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
   const { showError } = useNotification();
@@ -188,7 +189,8 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
 
           {isAdminMode && (
             <div className={styles.adminBadge}>
-              🛡️ Режим администратора
+              <ShieldCheck size={16} strokeWidth={2} aria-hidden="true" />
+              Режим администратора
             </div>
           )}
 
@@ -285,7 +287,7 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
                       onClick={() => handleRemoveTag(tag)}
                       aria-label={`Удалить тег ${tag}`}
                     >
-                      ×
+                      <X size={18} strokeWidth={2.2} aria-hidden="true" />
                     </button>
                   </span>
                 ))}

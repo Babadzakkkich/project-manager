@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button';
 import { handleApiError } from '../../utils/helpers';
 import { BOARD_VIEW_MODES } from '../../utils/constants';
 import styles from './ManagementBoard.module.css';
+import { Kanban } from 'lucide-react';
 
 export const ManagementBoard = () => {
   const { showError, showSuccess } = useNotification();
@@ -248,7 +249,9 @@ export const ManagementBoard = () => {
           />
         ) : (
           <div className={styles.emptyState}>
-            <div className={styles.emptyIcon}>📋</div>
+            <div className={styles.emptyIcon}>
+              <Kanban size={56} strokeWidth={1.8} aria-hidden="true" />
+            </div>
             <h3>Выберите группу и проект</h3>
             <p>Для отображения доски выберите группу и проект из выпадающих списков выше</p>
           </div>

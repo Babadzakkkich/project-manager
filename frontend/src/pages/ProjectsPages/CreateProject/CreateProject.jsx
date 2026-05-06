@@ -11,6 +11,7 @@ import { useNotification } from '../../../hooks/useNotification';
 import { getAutoProjectStatus } from '../../../utils/projectStatus';
 import { handleApiError } from '../../../utils/helpers';
 import styles from './CreateProject.module.css';
+import { CheckCircle2 } from 'lucide-react';
 
 export const CreateProject = () => {
   const navigate = useNavigate();
@@ -363,7 +364,9 @@ export const CreateProject = () => {
         title="Проект успешно создан!"
         message={
           <div className={styles.successModalContent}>
-            <div className={styles.successIcon}>✓</div>
+            <div className={styles.successIcon}>
+              <CheckCircle2 size={42} strokeWidth={2} aria-hidden="true" />
+            </div>
             <p>
               Проект "{formData.title}" был успешно создан и прикреплен к {formData.group_ids.length} {formData.group_ids.length === 1 ? 'группе' : 'группам'}.
             </p>
@@ -373,6 +376,7 @@ export const CreateProject = () => {
         confirmText="Перейти к проекту"
         cancelText="Создать еще проект"
         variant="info"
+        showIcon={false}
         onCancel={handleContinueCreating}
         showThirdButton={true}
         thirdButtonText="К списку проектов"

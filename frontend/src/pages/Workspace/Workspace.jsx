@@ -9,6 +9,7 @@ import { useNotification } from '../../hooks/useNotification';
 import { handleApiError } from '../../utils/helpers';
 import plusIcon from '../../assets/plus_icon.svg';
 import styles from './Workspace.module.css';
+import { ClipboardList, FolderOpen } from 'lucide-react';
 
 export const Workspace = () => {
   const { showError } = useNotification();
@@ -187,7 +188,9 @@ export const Workspace = () => {
                 </div>
               ) : (
                 <div className={styles.emptyState}>
-                  <div className={styles.emptyIcon}>📁</div>
+                  <div className={styles.emptyIcon}>
+                    <FolderOpen size={48} strokeWidth={1.8} aria-hidden="true" />
+                  </div>
                   <p className={styles.emptyTitle}>Пока нет проектов</p>
                   <p className={styles.emptyDescription}>
                     Создайте свой первый проект, чтобы начать работу
@@ -234,7 +237,9 @@ export const Workspace = () => {
                 </div>
               ) : (
                 <div className={styles.emptyState}>
-                  <div className={styles.emptyIcon}>📝</div>
+                  <div className={styles.emptyIcon}>
+                    <ClipboardList size={48} strokeWidth={1.8} aria-hidden="true" />
+                  </div>
                   <p className={styles.emptyTitle}>Пока нет задач</p>
                   <p className={styles.emptyDescription}>
                     Создайте первую задачу для ваших проектов

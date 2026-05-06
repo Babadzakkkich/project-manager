@@ -4,6 +4,7 @@ import { KANBAN_CONFIG, TASK_STATUSES } from '../../../../utils/constants';
 import { sortTasksByPosition } from '../../../../utils/taskStatus';
 import { useAutoScroll } from '../../../../hooks/useAutoScroll';
 import styles from './BoardView.module.css';
+import { User, Users } from 'lucide-react';
 
 export const BoardView = ({
   tasks,
@@ -96,7 +97,17 @@ export const BoardView = ({
           <h2 className={styles.boardTitle}>Доска</h2>
           {viewMode && (
             <span className={styles.viewModeBadge}>
-              {viewMode === 'team' ? '👥 Командный режим' : '👤 Личный режим'}
+              {viewMode === 'team' ? (
+                <>
+                  <Users size={16} strokeWidth={2} aria-hidden="true" />
+                  Командный режим
+                </>
+              ) : (
+                <>
+                  <User size={16} strokeWidth={2} aria-hidden="true" />
+                  Личный режим
+                </>
+              )}
             </span>
           )}
         </div>

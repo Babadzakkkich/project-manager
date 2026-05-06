@@ -1,4 +1,5 @@
 import React from 'react';
+import { MailX } from 'lucide-react';
 import { useInvitations } from '../../hooks/useInvitations';
 import { InvitationNotification } from '../../components/ui/InvitationNotification/InvitationNotification';
 import { Button } from '../../components/ui/Button';
@@ -20,11 +21,13 @@ export const Invitations = () => {
     <div className={styles.container}>
       <div className={styles.header}>
         <h1 className={styles.title}>Приглашения</h1>
+
         <p className={styles.subtitle}>
           Приглашения в группы, ожидающие вашего ответа
         </p>
-        <Button 
-          variant="secondary" 
+
+        <Button
+          variant="secondary"
           size="small"
           onClick={loadPendingInvitations}
         >
@@ -34,9 +37,15 @@ export const Invitations = () => {
 
       {pendingInvitations.length === 0 ? (
         <div className={styles.emptyState}>
-          <div className={styles.emptyIcon}>📧</div>
+          <div className={styles.emptyIcon}>
+            <MailX size={64} strokeWidth={1.8} aria-hidden="true" />
+          </div>
+
           <h3>Нет приглашений</h3>
-          <p>У вас пока нет приглашений в группы. Они появятся здесь, когда кто-то пригласит вас.</p>
+
+          <p>
+            У вас пока нет приглашений в группы. Они появятся здесь, когда кто-то пригласит вас.
+          </p>
         </div>
       ) : (
         <div className={styles.invitationsList}>

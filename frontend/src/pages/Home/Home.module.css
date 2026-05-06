@@ -217,9 +217,10 @@
   overflow-x: hidden; /* Запрещаем горизонтальный скролл */
 }
 
-.feature {
-  text-align: center;
-  padding: 30px;
+.feature h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .feature h3 {
