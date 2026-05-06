@@ -1,3 +1,5 @@
+import React from 'react';
+
 import {
   Users,
   Pencil,
@@ -33,12 +35,30 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
+
+  Folder,
+  Mic,
+  MicOff,
+  VideoOff,
+  ScreenShare,
+  MessageCircle,
+  LogOut,
+  Copy,
+  Plus,
+  X,
+  Send,
+  SmilePlus,
+  UserX,
+  VolumeX,
+  Radio,
+  Circle,
 } from 'lucide-react';
 
 import {
   NOTIFICATION_TYPES,
   TASK_STATUSES,
   TASK_PRIORITIES,
+  CONFERENCE_ROOM_TYPES,
 } from './constants';
 
 export const NOTIFICATION_ICON_COMPONENTS = {
@@ -101,6 +121,39 @@ export const DEFAULT_TASK_PRIORITY_ICON = AlertTriangle;
 
 export const TASK_OVERDUE_ICON_COMPONENT = AlertTriangle;
 
+export const CONFERENCE_ROOM_ICON_COMPONENTS = {
+  [CONFERENCE_ROOM_TYPES.PROJECT]: Folder,
+  [CONFERENCE_ROOM_TYPES.GROUP]: Users,
+  [CONFERENCE_ROOM_TYPES.TASK]: CheckCircle2,
+  [CONFERENCE_ROOM_TYPES.INSTANT]: Phone,
+};
+
+export const DEFAULT_CONFERENCE_ROOM_ICON = Video;
+
+export const CONFERENCE_ICONS = {
+  START: Video,
+  CALL: Phone,
+  EMPTY: Video,
+  ACTIVE: Radio,
+  ENDED: Circle,
+
+  MIC_ON: Mic,
+  MIC_OFF: MicOff,
+  CAMERA_ON: Video,
+  CAMERA_OFF: VideoOff,
+  SCREEN_SHARE: ScreenShare,
+  CHAT: MessageCircle,
+  PARTICIPANTS: Users,
+  LEAVE: LogOut,
+  COPY: Copy,
+  ADD: Plus,
+  CLOSE: X,
+  SEND: Send,
+  REACTIONS: SmilePlus,
+  MUTE: VolumeX,
+  KICK: UserX,
+};
+
 export const renderIconComponent = (Icon, props = {}) => {
   if (!Icon) return null;
 
@@ -111,19 +164,17 @@ export const renderIconComponent = (Icon, props = {}) => {
     ...restProps
   } = props;
 
-  return (
-    <Icon
-      size={size}
-      strokeWidth={strokeWidth}
-      aria-hidden="true"
-      focusable="false"
-      style={{
-        display: 'inline-block',
-        verticalAlign: '-0.15em',
-        flexShrink: 0,
-        ...style,
-      }}
-      {...restProps}
-    />
-  );
+  return React.createElement(Icon, {
+    size,
+    strokeWidth,
+    'aria-hidden': 'true',
+    focusable: 'false',
+    style: {
+      display: 'inline-block',
+      verticalAlign: '-0.15em',
+      flexShrink: 0,
+      ...style,
+    },
+    ...restProps,
+  });
 };

@@ -4,6 +4,10 @@ import { Button } from '../Button';
 import { conferencesAPI } from '../../../services/api/conferences';
 import { useNotification } from '../../../hooks/useNotification';
 import { CONFERENCE_ROOM_TYPES } from '../../../utils/constants';
+import {
+  CONFERENCE_ICONS,
+  renderIconComponent,
+} from '../../../utils/icons';
 import styles from './StartConferenceButton.module.css';
 
 export const StartConferenceButton = ({
@@ -61,13 +65,13 @@ export const StartConferenceButton = ({
   const getButtonText = () => {
     switch (type) {
       case CONFERENCE_ROOM_TYPES.PROJECT:
-        return '🎥 Созвон по проекту';
+        return 'Созвон по проекту';
       case CONFERENCE_ROOM_TYPES.GROUP:
-        return '🎥 Созвон по группе';
+        return 'Созвон по группе';
       case CONFERENCE_ROOM_TYPES.TASK:
-        return '🎥 Обсудить задачу';
+        return 'Обсудить задачу';
       default:
-        return '🎥 Начать созвон';
+        return 'Начать созвон';
     }
   };
   
@@ -79,6 +83,7 @@ export const StartConferenceButton = ({
       loading={loading}
       className={`${styles.button} ${className}`}
     >
+      {renderIconComponent(CONFERENCE_ICONS.START, { size: 18 })}
       {getButtonText()}
     </Button>
   );

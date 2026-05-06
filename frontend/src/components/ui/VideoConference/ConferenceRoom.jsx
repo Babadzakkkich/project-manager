@@ -11,10 +11,26 @@ import { ChatPanel } from './ChatPanel';
 import { ParticipantsPanel } from './ParticipantsPanel';
 import { ReactionsBar } from './ReactionsBar';
 import { ConfirmationModal } from '../ConfirmationModal';
+import {
+  CONFERENCE_ROOM_ICON_COMPONENTS,
+  DEFAULT_CONFERENCE_ROOM_ICON,
+  CONFERENCE_ICONS,
+  renderIconComponent,
+} from '../../../utils/icons';
+import { CONFERENCE_ROOM_TYPE_TRANSLATIONS } from '../../../utils/constants';
 import styles from './ConferenceRoom.module.css';
 
 const MAX_VISIBLE_REACTIONS = 12;
 const REACTION_LIFETIME_MS = 2400;
+
+const InterfaceIcon = ({ icon: Icon, size = 16 }) => {
+  return renderIconComponent(Icon, { size, strokeWidth: 2 });
+};
+
+const RoomTypeIcon = ({ type, size = 16 }) => {
+  const Icon = CONFERENCE_ROOM_ICON_COMPONENTS[type] || DEFAULT_CONFERENCE_ROOM_ICON;
+  return renderIconComponent(Icon, { size, strokeWidth: 2 });
+};
 
 export const ConferenceRoom = () => {
   const { roomId } = useParams();
@@ -229,7 +245,9 @@ export const ConferenceRoom = () => {
     return (
       <div className={styles.loadingContainer}>
         <div className={styles.joinRoomCard}>
-          <div className={styles.joinRoomIcon}>🎥</div>
+          <div className={styles.joinRoomIcon}>
+            <InterfaceIcon icon={CONFERENCE_ICONS.START} size={64} />
+          </div>
 
           <h2 className={styles.joinRoomTitle}>
             {displayRoom?.title || 'Загрузка...'}
@@ -245,10 +263,8 @@ export const ConferenceRoom = () => {
               <div className={styles.joinRoomInfoItem}>
                 <span className={styles.joinRoomLabel}>Тип:</span>
                 <span className={styles.joinRoomValue}>
-                  {displayRoom.room_type === 'project' && '📁 Проект'}
-                  {displayRoom.room_type === 'group' && '👥 Группа'}
-                  {displayRoom.room_type === 'task' && '✅ Задача'}
-                  {displayRoom.room_type === 'instant' && '📞 Мгновенный'}
+                  <RoomTypeIcon type={displayRoom.room_type} />{' '}
+                  {CONFERENCE_ROOM_TYPE_TRANSLATIONS[displayRoom.room_type] || 'Созвон'}
                 </span>
               </div>
 
@@ -328,7 +344,8 @@ export const ConferenceRoom = () => {
             onClick={handleLeave}
             className={styles.leaveButton}
           >
-            ← Выйти
+            <InterfaceIcon icon={CONFERENCE_ICONS.LEAVE} />
+            Выйти
           </Button>
 
           <div className={styles.roomInfo}>
@@ -353,7 +370,8 @@ export const ConferenceRoom = () => {
             size="small"
             onClick={handleCopyLink}
           >
-            📋 Копировать ссылку
+            <InterfaceIcon icon={CONFERENCE_ICONS.COPY} />
+            Копировать ссылку
           </Button>
 
           {isModerator && (

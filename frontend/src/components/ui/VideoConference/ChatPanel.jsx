@@ -2,6 +2,10 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '../Button';
 import { Input } from '../Input';
 import { conferencesAPI } from '../../../services/api/conferences';
+import {
+  CONFERENCE_ICONS,
+  renderIconComponent,
+} from '../../../utils/icons';
 import styles from './ChatPanel.module.css';
 
 export const ChatPanel = ({
@@ -98,8 +102,13 @@ export const ChatPanel = ({
     <div className={styles.chatPanel}>
       <div className={styles.header}>
         <h3 className={styles.title}>Чат</h3>
-        <button className={styles.closeButton} onClick={onClose}>
-          ×
+        <button
+          className={styles.closeButton}
+          onClick={onClose}
+          type="button"
+          aria-label="Закрыть чат"
+        >
+          {renderIconComponent(CONFERENCE_ICONS.CLOSE, { size: 22 })}
         </button>
       </div>
       
@@ -123,7 +132,9 @@ export const ChatPanel = ({
         
         {messages.length === 0 && !loadingHistory ? (
           <div className={styles.emptyMessages}>
-            <span className={styles.emptyIcon}>💬</span>
+            <span className={styles.emptyIcon}>
+              {renderIconComponent(CONFERENCE_ICONS.CHAT, { size: 48, strokeWidth: 1.8 })}
+            </span>
             <p>Нет сообщений</p>
             <p className={styles.emptyHint}>Напишите первое сообщение</p>
           </div>
@@ -157,6 +168,7 @@ export const ChatPanel = ({
           className={styles.input}
         />
         <Button type="submit" variant="primary" size="small">
+          {renderIconComponent(CONFERENCE_ICONS.SEND, { size: 16 })}
           Отправить
         </Button>
       </form>

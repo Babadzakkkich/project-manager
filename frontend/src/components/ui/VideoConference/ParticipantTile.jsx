@@ -1,6 +1,14 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { Track } from 'livekit-client';
+import {
+  CONFERENCE_ICONS,
+  renderIconComponent,
+} from '../../../utils/icons';
 import styles from './ParticipantTile.module.css';
+
+const InterfaceIcon = ({ icon: Icon, size = 16 }) => {
+  return renderIconComponent(Icon, { size, strokeWidth: 2 });
+};
 
 export const ParticipantTile = ({
   participant,
@@ -423,18 +431,28 @@ export const ParticipantTile = ({
         </span>
 
         <div className={styles.statusIcons}>
-          {!audioEnabled && <span className={styles.mutedIcon}>🔇</span>}
-          {isScreenShare && <span className={styles.screenIcon}>🖥️</span>}
+          {!audioEnabled && (
+            <span className={styles.mutedIcon} title="Микрофон выключен">
+              <InterfaceIcon icon={CONFERENCE_ICONS.MIC_OFF} size={15} />
+            </span>
+          )}
+          {isScreenShare && (
+            <span className={styles.screenIcon} title="Демонстрация экрана">
+              <InterfaceIcon icon={CONFERENCE_ICONS.SCREEN_SHARE} size={15} />
+            </span>
+          )}
         </div>
       </div>
 
       {showMenu && !isLocal && isModerator && (
         <div className={styles.menu}>
-          <button className={styles.menuItem} onClick={handleMute}>
-            🔇 Отключить микрофон
+          <button className={styles.menuItem} onClick={handleMute} type="button">
+            <InterfaceIcon icon={CONFERENCE_ICONS.MUTE} />
+            Отключить микрофон
           </button>
-          <button className={`${styles.menuItem} ${styles.danger}`} onClick={handleKick}>
-            🚫 Удалить
+          <button className={`${styles.menuItem} ${styles.danger}`} onClick={handleKick} type="button">
+            <InterfaceIcon icon={CONFERENCE_ICONS.KICK} />
+            Удалить
           </button>
         </div>
       )}

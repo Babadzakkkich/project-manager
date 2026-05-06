@@ -1,5 +1,9 @@
 import React from 'react';
 import { Button } from '../Button';
+import {
+  CONFERENCE_ICONS,
+  renderIconComponent,
+} from '../../../utils/icons';
 import styles from './ParticipantsPanel.module.css';
 
 export const ParticipantsPanel = ({
@@ -13,12 +17,34 @@ export const ParticipantsPanel = ({
   const localParticipant = participants.find(p => p.identity === localParticipantId);
   const remoteParticipants = participants.filter(p => p.identity !== localParticipantId);
 
+  const ParticipantStatusIcons = ({ participant }) => {
+    return (
+      <>
+        {!participant.isMicrophoneEnabled && (
+          <span title="Микрофон выключен">
+            {renderIconComponent(CONFERENCE_ICONS.MIC_OFF, { size: 16 })}
+          </span>
+        )}
+        {!participant.isCameraEnabled && (
+          <span title="Камера выключена">
+            {renderIconComponent(CONFERENCE_ICONS.CAMERA_OFF, { size: 16 })}
+          </span>
+        )}
+      </>
+    );
+  };
+
   return (
     <div className={styles.panel}>
       <div className={styles.header}>
         <h3 className={styles.title}>Участники ({participants.length})</h3>
-        <button className={styles.closeButton} onClick={onClose}>
-          ×
+        <button
+          className={styles.closeButton}
+          onClick={onClose}
+          type="button"
+          aria-label="Закрыть список участников"
+        >
+          {renderIconComponent(CONFERENCE_ICONS.CLOSE, { size: 22 })}
         </button>
       </div>
       
@@ -32,8 +58,7 @@ export const ParticipantsPanel = ({
               </span>
             </div>
             <div className={styles.status}>
-              {!localParticipant.isMicrophoneEnabled && <span>🔇</span>}
-              {!localParticipant.isCameraEnabled && <span>🚫📹</span>}
+              <ParticipantStatusIcons participant={localParticipant} />
             </div>
           </div>
         )}
@@ -48,8 +73,7 @@ export const ParticipantsPanel = ({
             </div>
             <div className={styles.actions}>
               <div className={styles.status}>
-                {!participant.isMicrophoneEnabled && <span>🔇</span>}
-                {!participant.isCameraEnabled && <span>🚫📹</span>}
+                <ParticipantStatusIcons participant={participant} />
               </div>
               {isModerator && (
                 <div className={styles.modControls}>
@@ -59,7 +83,7 @@ export const ParticipantsPanel = ({
                     onClick={() => onMuteParticipant(participant.identity)}
                     title="Отключить микрофон"
                   >
-                    🔇
+                    {renderIconComponent(CONFERENCE_ICONS.MUTE, { size: 16 })}
                   </Button>
                   <Button 
                     variant="danger" 
@@ -67,7 +91,7 @@ export const ParticipantsPanel = ({
                     onClick={() => onKickParticipant(participant.identity)}
                     title="Удалить участника"
                   >
-                    🚫
+                    {renderIconComponent(CONFERENCE_ICONS.KICK, { size: 16 })}
                   </Button>
                 </div>
               )}

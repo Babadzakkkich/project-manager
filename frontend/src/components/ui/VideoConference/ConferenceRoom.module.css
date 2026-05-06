@@ -150,8 +150,16 @@
 }
 
 .joinRoomIcon {
-  font-size: 64px;
-  margin-bottom: 20px;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: rgba(0, 75, 35, 0.08);
+  color: #004B23;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .joinRoomTitle {

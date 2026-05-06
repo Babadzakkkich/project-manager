@@ -1,4 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
+import {
+  CONFERENCE_ICONS,
+  renderIconComponent,
+} from '../../../utils/icons';
 import styles from './ReactionsBar.module.css';
 
 const REACTIONS = [
@@ -55,7 +59,9 @@ export const ReactionsBar = ({ onSendReaction }) => {
         aria-label="Реакции"
         aria-expanded={showReactions}
       >
-        <span className={styles.icon}>😊</span>
+        <span className={styles.icon}>
+          {renderIconComponent(CONFERENCE_ICONS.REACTIONS, { size: 24 })}
+        </span>
       </button>
       
       {showReactions && (

@@ -1,4 +1,8 @@
 import React from 'react';
+import {
+  CONFERENCE_ICONS,
+  renderIconComponent,
+} from '../../../utils/icons';
 import styles from './ControlBar.module.css';
 
 export const ControlBar = ({
@@ -14,6 +18,10 @@ export const ControlBar = ({
   showChat,
   showParticipants
 }) => {
+  const IconView = ({ icon: Icon, size = 24 }) => {
+    return renderIconComponent(Icon, { size, strokeWidth: 2 });
+  };
+
   return (
     <div className={styles.controlBar}>
       <div className={styles.controls}>
@@ -22,9 +30,10 @@ export const ControlBar = ({
           className={`${styles.controlButton} ${!isAudioEnabled ? styles.disabled : ''}`}
           onClick={onToggleAudio}
           title={isAudioEnabled ? 'Выключить микрофон' : 'Включить микрофон'}
+          type="button"
         >
           <span className={styles.icon}>
-            {isAudioEnabled ? '🎤' : '🔇'}
+            <IconView icon={isAudioEnabled ? CONFERENCE_ICONS.MIC_ON : CONFERENCE_ICONS.MIC_OFF} />
           </span>
           <span className={styles.label}>
             {isAudioEnabled ? 'Микрофон' : 'Вкл. микрофон'}
@@ -36,9 +45,10 @@ export const ControlBar = ({
           className={`${styles.controlButton} ${!isVideoEnabled ? styles.disabled : ''}`}
           onClick={onToggleVideo}
           title={isVideoEnabled ? 'Выключить камеру' : 'Включить камеру'}
+          type="button"
         >
           <span className={styles.icon}>
-            {isVideoEnabled ? '📹' : '🚫📹'}
+            <IconView icon={isVideoEnabled ? CONFERENCE_ICONS.CAMERA_ON : CONFERENCE_ICONS.CAMERA_OFF} />
           </span>
           <span className={styles.label}>
             {isVideoEnabled ? 'Камера' : 'Вкл. камеру'}
@@ -50,8 +60,11 @@ export const ControlBar = ({
           className={`${styles.controlButton} ${isScreenSharing ? styles.active : ''}`}
           onClick={onToggleScreenShare}
           title={isScreenSharing ? 'Остановить демонстрацию' : 'Демонстрация экрана'}
+          type="button"
         >
-          <span className={styles.icon}>🖥️</span>
+          <span className={styles.icon}>
+            <IconView icon={CONFERENCE_ICONS.SCREEN_SHARE} />
+          </span>
           <span className={styles.label}>
             {isScreenSharing ? 'Стоп' : 'Экран'}
           </span>
@@ -62,8 +75,11 @@ export const ControlBar = ({
           className={`${styles.controlButton} ${showChat ? styles.active : ''}`}
           onClick={onToggleChat}
           title="Чат"
+          type="button"
         >
-          <span className={styles.icon}>💬</span>
+          <span className={styles.icon}>
+            <IconView icon={CONFERENCE_ICONS.CHAT} />
+          </span>
           <span className={styles.label}>Чат</span>
         </button>
         
@@ -72,8 +88,11 @@ export const ControlBar = ({
           className={`${styles.controlButton} ${showParticipants ? styles.active : ''}`}
           onClick={onToggleParticipants}
           title="Участники"
+          type="button"
         >
-          <span className={styles.icon}>👥</span>
+          <span className={styles.icon}>
+            <IconView icon={CONFERENCE_ICONS.PARTICIPANTS} />
+          </span>
           <span className={styles.label}>Участники</span>
         </button>
       </div>
@@ -83,8 +102,11 @@ export const ControlBar = ({
         className={`${styles.controlButton} ${styles.leaveButton}`}
         onClick={onLeave}
         title="Выйти"
+        type="button"
       >
-        <span className={styles.icon}>🚪</span>
+        <span className={styles.icon}>
+          <IconView icon={CONFERENCE_ICONS.LEAVE} />
+        </span>
         <span className={styles.label}>Выйти</span>
       </button>
     </div>

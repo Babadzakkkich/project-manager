@@ -7,6 +7,12 @@ import {
   CONFERENCE_ROOM_TYPES,
   CONFERENCE_ROOM_TYPE_TRANSLATIONS
 } from '../../utils/constants';
+import {
+  CONFERENCE_ROOM_ICON_COMPONENTS,
+  DEFAULT_CONFERENCE_ROOM_ICON,
+  CONFERENCE_ICONS,
+  renderIconComponent,
+} from '../../utils/icons';
 import { formatRelativeTime } from '../../utils/helpers';
 import styles from './Conferences.module.css';
 
@@ -85,15 +91,13 @@ export const Conferences = () => {
     navigate(`/conferences/${roomId}`);
   };
   
-  const getRoomTypeIcon = (type) => {
-    const icons = {
-      [CONFERENCE_ROOM_TYPES.PROJECT]: '📁',
-      [CONFERENCE_ROOM_TYPES.GROUP]: '👥',
-      [CONFERENCE_ROOM_TYPES.TASK]: '✅',
-      [CONFERENCE_ROOM_TYPES.INSTANT]: '📞'
-    };
+  const RoomTypeIcon = ({ type, size = 16 }) => {
+    const Icon = CONFERENCE_ROOM_ICON_COMPONENTS[type] || DEFAULT_CONFERENCE_ROOM_ICON;
+    return renderIconComponent(Icon, { size, strokeWidth: 2 });
+  };
 
-    return icons[type] || '🎥';
+  const InterfaceIcon = ({ icon: Icon, size = 16 }) => {
+    return renderIconComponent(Icon, { size, strokeWidth: 2 });
   };
 
   const getParticipantsWord = (count) => {
@@ -137,14 +141,17 @@ export const Conferences = () => {
             size="large"
             onClick={() => setShowCreateModal(true)}
           >
-            + Создать мгновенный созвон
+            <InterfaceIcon icon={CONFERENCE_ICONS.ADD} size={20} />
+            Создать мгновенный созвон
           </Button>
         </div>
       </div>
       
       {rooms.length === 0 ? (
         <div className={styles.emptyState}>
-          <div className={styles.emptyIcon}>🎥</div>
+          <div className={styles.emptyIcon}>
+            <InterfaceIcon icon={CONFERENCE_ICONS.EMPTY} size={64} />
+          </div>
           <h3>Нет активных созвонов</h3>
           <p>
             Создайте новый созвон или дождитесь, когда кто-то начнёт созвон
@@ -154,6 +161,7 @@ export const Conferences = () => {
             variant="primary"
             onClick={() => setShowCreateModal(true)}
           >
+            <InterfaceIcon icon={CONFERENCE_ICONS.ADD} />
             Создать созвон
           </Button>
         </div>
@@ -166,11 +174,15 @@ export const Conferences = () => {
               <div key={room.id} className={styles.roomCard}>
                 <div className={styles.roomHeader}>
                   <span className={styles.roomType}>
-                    {getRoomTypeIcon(room.room_type)}{' '}
+                    <RoomTypeIcon type={room.room_type} />{' '}
                     {CONFERENCE_ROOM_TYPE_TRANSLATIONS[room.room_type]}
                   </span>
                   <span className={`${styles.status} ${room.is_active ? styles.active : ''}`}>
-                    {room.is_active ? '🟢 Идёт' : '⚪ Завершён'}
+                    <InterfaceIcon
+                      icon={room.is_active ? CONFERENCE_ICONS.ACTIVE : CONFERENCE_ICONS.ENDED}
+                      size={13}
+                    />{' '}
+                    {room.is_active ? 'Идёт' : 'Завершён'}
                   </span>
                 </div>
                 
@@ -206,6 +218,7 @@ export const Conferences = () => {
                     onClick={() => handleJoinRoom(room.id)}
                     className={styles.joinButton}
                   >
+                    <InterfaceIcon icon={CONFERENCE_ICONS.CALL} />
                     Присоединиться
                   </Button>
                 )}
@@ -230,8 +243,9 @@ export const Conferences = () => {
                 className={styles.closeButton}
                 onClick={() => setShowCreateModal(false)}
                 type="button"
+                aria-label="Закрыть окно создания созвона"
               >
-                ×
+                <InterfaceIcon icon={CONFERENCE_ICONS.CLOSE} size={22} />
               </button>
             </div>
             
@@ -265,6 +279,7 @@ export const Conferences = () => {
                   onClick={handleCreateInstant}
                   disabled={!createForm.title.trim()}
                 >
+                  <InterfaceIcon icon={CONFERENCE_ICONS.ADD} />
                   Создать
                 </Button>
               </div>
