@@ -52,11 +52,11 @@ export const Notification = ({
       onClick={onClick}
       role="alert"
     >
-      <div className={styles.content}>
-        <div className={styles.icon}>
-          <Icon size={18} strokeWidth={2} aria-hidden="true" />
-        </div>
+      <div className={styles.icon}>
+        <Icon size={20} strokeWidth={2} aria-hidden="true" />
+      </div>
 
+      <div className={styles.content}>
         <span className={styles.message}>{message}</span>
       </div>
 

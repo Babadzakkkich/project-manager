@@ -109,15 +109,11 @@ export const formatRelativeTime = (dateString) => {
 };
 
 const getDayWord = (days) => {
-  if (days === 1) return 'день';
-  if (days >= 2 && days <= 4) return 'дня';
-  return 'дней';
+  return getRussianPluralForm(days, RUSSIAN_PLURAL_FORMS.DAY);
 };
 
 const getWeekWord = (weeks) => {
-  if (weeks === 1) return 'неделю';
-  if (weeks >= 2 && weeks <= 4) return 'недели';
-  return 'недель';
+  return getRussianPluralForm(weeks, RUSSIAN_PLURAL_FORMS.WEEK);
 };
 
 export const getUserRoleTranslation = (role) => {
@@ -305,4 +301,41 @@ export const isValidTaskPriority = (priority) => {
 
 export const isValidBoardViewMode = (mode) => {
   return Object.values(BOARD_VIEW_MODES).includes(mode);
+};
+
+export const RUSSIAN_PLURAL_FORMS = {
+  TASK: ['задача', 'задачи', 'задач'],
+  GROUP: ['группа', 'группы', 'групп'],
+  PROJECT: ['проект', 'проекта', 'проектов'],
+  USER: ['пользователь', 'пользователя', 'пользователей'],
+  PARTICIPANT: ['участник', 'участника', 'участников'],
+  NOTIFICATION: ['уведомление', 'уведомления', 'уведомлений'],
+  INVITATION: ['приглашение', 'приглашения', 'приглашений'],
+  DAY: ['день', 'дня', 'дней'],
+  WEEK: ['неделя', 'недели', 'недель'],
+};
+
+export const getRussianPluralForm = (count, forms) => {
+  const number = Math.abs(Number(count)) || 0;
+  const lastTwoDigits = number % 100;
+  const lastDigit = number % 10;
+
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
+    return forms[2];
+  }
+
+  if (lastDigit === 1) {
+    return forms[0];
+  }
+
+  if (lastDigit >= 2 && lastDigit <= 4) {
+    return forms[1];
+  }
+
+  return forms[2];
+};
+
+export const formatRussianCount = (count, forms) => {
+  const number = Number(count) || 0;
+  return `${number} ${getRussianPluralForm(number, forms)}`;
 };

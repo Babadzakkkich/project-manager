@@ -1,150 +1,96 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { BarChart3, Bell, CheckCircle2, TrendingUp, Users } from 'lucide-react';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { Pagination, EffectCards } from 'swiper/modules';
-
-import 'swiper/css';
-import 'swiper/css/pagination';
-import 'swiper/css/effect-cards';
+import {
+  ArrowRight,
+  Bell,
+  FolderKanban,
+  Users,
+  Video,
+} from 'lucide-react';
 
 import { Button } from '../../components/ui/Button';
+import logo from '../../assets/logo.png';
 import styles from './Home.module.css';
 
-const CARD_ICONS = {
-  teams: Users,
-  projects: BarChart3,
-  tasks: CheckCircle2,
-  analytics: TrendingUp,
-  notifications: Bell,
-};
-
-// eslint-disable-next-line no-unused-vars
-const FeatureIcon = ({ icon: Icon, size = 64 }) => (
-  <Icon size={size} strokeWidth={1.8} aria-hidden="true" />
-);
+const FEATURES = [
+  {
+    icon: Users,
+    title: 'Команды и роли',
+    description: 'Создание групп, назначение участников и разграничение прав доступа.',
+  },
+  {
+    icon: FolderKanban,
+    title: 'Проекты и задачи',
+    description: 'Связь проектов, групп, задач, исполнителей, сроков и статусов.',
+  },
+  {
+    icon: Bell,
+    title: 'Уведомления',
+    description: 'Оповещения о приглашениях, изменениях задач, проектах и созвонах.',
+  },
+  {
+    icon: Video,
+    title: 'Рабочие созвоны',
+    description: 'Обсуждение проектов, групп и отдельных задач в едином пространстве.',
+  },
+];
 
 export const Home = () => {
-  const cards = [
-    {
-      id: 1,
-      color: 'linear-gradient(135deg, #38B000, #004B23)',
-      icon: CARD_ICONS.teams,
-      title: 'Управление командами',
-      description: 'Создавайте группы, назначайте роли и координируйте работу участников',
-    },
-    {
-      id: 2,
-      color: 'linear-gradient(135deg, #007200, #004B23)',
-      icon: CARD_ICONS.projects,
-      title: 'Контроль проектов',
-      description: 'Отслеживайте прогресс, сроки выполнения и загруженность команды',
-    },
-    {
-      id: 3,
-      color: 'linear-gradient(135deg, #006400, #004B23)',
-      icon: CARD_ICONS.tasks,
-      title: 'Постановка задач',
-      description: 'Четко формулируйте цели, назначайте ответственных и контролируйте выполнение',
-    },
-    {
-      id: 4,
-      color: 'linear-gradient(135deg, #38B000, #006400)',
-      icon: CARD_ICONS.analytics,
-      title: 'Аналитика проектов',
-      description: 'Детальная статистика по задачам, срокам и эффективности команды',
-    },
-    {
-      id: 5,
-      color: 'linear-gradient(135deg, #007200, #38B000)',
-      icon: CARD_ICONS.notifications,
-      title: 'Уведомления',
-      description: 'Мгновенные оповещения о новых задачах, дедлайнах и изменениях',
-    },
-  ];
-
   return (
-    <div className={styles.container}>
-      <div className={styles.hero}>
+    <main className={styles.page}>
+      <div className={styles.backgroundGlow} />
+      <div className={styles.backgroundGlowSecond} />
+
+      <section className={styles.hero}>
         <div className={styles.content}>
+          <div className={styles.brand}>
+            <img src={logo} alt="Syncro" className={styles.logo} />
+          </div>
+
+          <div className={styles.eyebrow}>
+            Веб-сервис для автоматизации проектной деятельности
+          </div>
+
           <h1 className={styles.title}>
-            Проектный менеджер
-            <span className={styles.highlight}> Syncro</span>
+            Рабочее пространство для проектов, задач и команд
           </h1>
 
           <p className={styles.subtitle}>
-            Эффективное управление проектами, задачами и командами.
-            Создавайте группы, распределяйте задачи и контролируйте выполнение в одном месте.
+            Syncro объединяет группы, проекты, задачи, уведомления и рабочие
+            созвоны в одном интерфейсе, чтобы участники команды видели общий
+            контекст и быстрее переходили от планирования к выполнению.
           </p>
 
-          <div className={styles.buttons}>
-            <Button as={Link} to="/login" variant="primary" size="large">
+          <div className={styles.actions}>
+            <Button to="/login" variant="primary" size="large">
               Начать работу
+              <ArrowRight size={18} strokeWidth={2} aria-hidden="true" />
             </Button>
 
-            <Button as={Link} to="/register" variant="secondary" size="large">
+            <Button to="/register" variant="secondary" size="large">
               Зарегистрироваться
             </Button>
           </div>
         </div>
 
-        <div className={styles.swiperContainer}>
-          <Swiper
-            effect="cards"
-            grabCursor
-            modules={[EffectCards, Pagination]}
-            pagination={{ clickable: true }}
-            className={styles.mySwiper}
-          >
-            {cards.map(card => (
-              <SwiperSlide key={card.id} className={styles.swiperSlide}>
-                <div
-                  className={styles.cardContent}
-                  style={{ background: card.color }}
-                >
-                  <div className={styles.cardIcon}>
-                    <FeatureIcon icon={card.icon} />
-                  </div>
+        <div className={styles.featuresPanel} aria-label="Возможности Syncro">
+          {FEATURES.map((feature) => {
+            const Icon = feature.icon;
 
-                  <h3 className={styles.cardTitle}>{card.title}</h3>
-
-                  <p className={styles.cardDescription}>{card.description}</p>
-
-                  <div className={styles.cardFooter}>
-                    <span className={styles.cardFeature}>Подробнее →</span>
-                  </div>
+            return (
+              <article key={feature.title} className={styles.feature}>
+                <div className={styles.featureIcon}>
+                  <Icon size={26} strokeWidth={2} aria-hidden="true" />
                 </div>
-              </SwiperSlide>
-            ))}
-          </Swiper>
-        </div>
-      </div>
 
-      <div className={styles.features}>
-        <div className={styles.feature}>
-          <h3>
-            <Users size={24} strokeWidth={2} aria-hidden="true" />
-            Управление командами
-          </h3>
-          <p>Создавайте группы и эффективно распределяйте роли</p>
+                <div className={styles.featureContent}>
+                  <h3>{feature.title}</h3>
+                  <p>{feature.description}</p>
+                </div>
+              </article>
+            );
+          })}
         </div>
-
-        <div className={styles.feature}>
-          <h3>
-            <BarChart3 size={24} strokeWidth={2} aria-hidden="true" />
-            Контроль проектов
-          </h3>
-          <p>Отслеживайте прогресс и сроки выполнения</p>
-        </div>
-
-        <div className={styles.feature}>
-          <h3>
-            <CheckCircle2 size={24} strokeWidth={2} aria-hidden="true" />
-            Постановка задач
-          </h3>
-          <p>Четко формулируйте цели и назначайте ответственных</p>
-        </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 };

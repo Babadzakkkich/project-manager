@@ -1,97 +1,372 @@
 .controlBar {
-  display: flex;
-  justify-content: space-between;
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-5);
+  z-index: 120;
+  display: inline-flex;
   align-items: center;
-  padding: 16px 24px;
-  background: rgba(0, 0, 0, 0.8);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  justify-content: center;
+  gap: var(--space-3);
+  transform: translateX(-50%);
+  max-width: calc(100vw - var(--space-8));
+  padding: var(--space-2);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-pill);
+  background: rgba(7, 19, 13, 0.78);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(18px);
 }
 
 .controls {
-  display: flex;
-  gap: 8px;
-  flex: 1;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  gap: var(--space-2);
 }
 
 .controlButton {
-  display: flex;
-  flex-direction: column;
+  min-width: 68px;
+  height: 56px;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex-direction: column;
   gap: 4px;
-  padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  border-radius: 12px;
-  color: white;
+  padding: 0 var(--space-3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.86);
+  font: inherit;
   cursor: pointer;
-  transition: all 0.2s ease;
-  min-width: 70px;
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base),
+    transform var(--transition-base),
+    box-shadow var(--transition-base);
 }
 
 .controlButton:hover {
-  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
 }
 
-.controlButton.disabled {
-  background: rgba(229, 62, 62, 0.3);
+.controlButton:active {
+  transform: translateY(0);
 }
 
-.controlButton.disabled:hover {
-  background: rgba(229, 62, 62, 0.5);
-}
-
-.controlButton.active {
-  background: #004B23;
-}
-
-.controlButton.active:hover {
-  background: #006400;
+.controlButton:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(158, 240, 26, 0.22),
+    0 12px 28px rgba(0, 0, 0, 0.2);
 }
 
 .icon {
-  font-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .label {
-  font-size: 12px;
-  font-weight: 500;
+  max-width: 74px;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: var(--font-extrabold);
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.offState {
+  border-color: rgba(217, 45, 32, 0.28);
+  background: rgba(217, 45, 32, 0.16);
+  color: #ffb4a9;
+}
+
+.offState:hover {
+  border-color: rgba(217, 45, 32, 0.42);
+  background: rgba(217, 45, 32, 0.24);
+  color: #ffffff;
+}
+
+.active {
+  border-color: rgba(158, 240, 26, 0.34);
+  background: rgba(56, 176, 0, 0.22);
+  color: #ccff33;
+}
+
+.active:hover {
+  border-color: rgba(158, 240, 26, 0.46);
+  background: rgba(56, 176, 0, 0.3);
+  color: #ffffff;
 }
 
 .leaveButton {
-  background: rgba(229, 62, 62, 0.3);
+  border-color: rgba(217, 45, 32, 0.38);
+  background: rgba(217, 45, 32, 0.2);
+  color: #ffb4a9;
 }
 
 .leaveButton:hover {
-  background: rgba(229, 62, 62, 0.6);
+  border-color: rgba(217, 45, 32, 0.58);
+  background: rgba(217, 45, 32, 0.34);
+  color: #ffffff;
 }
 
-@media (max-width: 768px) {
+.divider {
+  width: 1px;
+  height: 34px;
+  flex-shrink: 0;
+  margin: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Reactions */
+
+.reactionControl {
+  position: relative;
+}
+
+.reactionsPanel {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + var(--space-3));
+  z-index: 140;
+  width: 292px;
+  padding: var(--space-3);
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-2xl);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(56, 176, 0, 0.16), transparent 36%),
+    rgba(15, 23, 42, 0.98);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.46);
+  backdrop-filter: blur(18px);
+  animation: reactionsAppear 0.18s ease-out;
+}
+
+@keyframes reactionsAppear {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+.reactionsHeader {
+  margin-bottom: var(--space-3);
+  padding: 0 var(--space-1);
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 10px;
+  font-weight: var(--font-extrabold);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-wide);
+}
+
+.reactionsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.reactionButton {
+  min-width: 0;
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+  padding: var(--space-2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background var(--transition-base),
+    border-color var(--transition-base),
+    transform var(--transition-base),
+    box-shadow var(--transition-base);
+}
+
+.reactionButton:hover {
+  transform: translateY(-2px) scale(1.03);
+  border-color: rgba(158, 240, 26, 0.28);
+  background: rgba(56, 176, 0, 0.18);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+}
+
+.reactionButton:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.reactionButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(158, 240, 26, 0.18);
+}
+
+.reactionEmoji {
+  display: block;
+  font-size: 26px;
+  line-height: 1;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.24));
+}
+
+.reactionName {
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 10px;
+  font-weight: var(--font-bold);
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 940px) {
   .controlBar {
-    padding: 12px 16px;
+    bottom: var(--space-4);
+    width: calc(100vw - var(--space-6));
+    justify-content: space-between;
+    border-radius: var(--radius-2xl);
   }
-  
+
+  .controls {
+    min-width: 0;
+    flex: 1;
+  }
+
   .controlButton {
-    padding: 8px 12px;
-    min-width: 50px;
+    min-width: 0;
+    flex: 1;
+    height: 52px;
+    padding: 0 var(--space-2);
   }
-  
-  .icon {
-    font-size: 20px;
+
+  .reactionControl {
+    flex: 1;
+    min-width: 0;
   }
-  
+
+  .reactionControl .controlButton {
+    width: 100%;
+  }
+
   .label {
     font-size: 10px;
   }
 }
 
-@media (max-width: 480px) {
-  .controlButton {
-    padding: 6px 8px;
-    min-width: 40px;
+@media (max-width: 700px) {
+  .controlBar {
+    left: var(--space-2);
+    right: var(--space-2);
+    bottom: var(--space-2);
+    width: auto;
+    max-width: none;
+    transform: none;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border-radius: var(--radius-xl);
   }
-  
+
+  .controls {
+    gap: var(--space-1);
+  }
+
+  .controlButton {
+    height: 48px;
+    border-radius: var(--radius-xl);
+  }
+
   .label {
     display: none;
+  }
+
+  .divider {
+    height: 30px;
+    margin: 0 2px;
+  }
+
+  .leaveButton {
+    max-width: 56px;
+    flex: 0 0 56px;
+  }
+
+  .reactionsPanel {
+    left: auto;
+    right: 0;
+    bottom: calc(100% + var(--space-3));
+    width: min(292px, calc(100vw - var(--space-4)));
+    transform: none;
+    border-radius: var(--radius-xl);
+  }
+
+  @keyframes reactionsAppear {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+}
+
+@media (max-width: 460px) {
+  .controlBar {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .controls {
+    gap: 5px;
+  }
+
+  .controlButton {
+    height: 46px;
+    padding: 0 8px;
+  }
+
+  .leaveButton {
+    max-width: 50px;
+    flex-basis: 50px;
+  }
+
+  .divider {
+    display: none;
+  }
+
+  .reactionsPanel {
+    right: calc(-50px - var(--space-1));
+    width: calc(100vw - var(--space-4));
+  }
+
+  .reactionButton {
+    height: 62px;
+  }
+
+  .reactionName {
+    display: none;
+  }
+
+  .reactionEmoji {
+    font-size: 28px;
   }
 }

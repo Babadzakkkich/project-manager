@@ -1,32 +1,31 @@
 .overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  inset: 0;
   z-index: 1000;
-  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: rgba(3, 8, 5, 0.58);
+  backdrop-filter: blur(8px);
 }
 
 .modal {
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-  max-width: 480px;
-  width: 100%;
+  width: min(100%, 480px);
   overflow: hidden;
-  animation: slideIn 0.2s ease-out;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xl);
+  animation: modalAppear var(--transition-slow);
 }
 
-@keyframes slideIn {
+@keyframes modalAppear {
   from {
     opacity: 0;
-    transform: translateY(-20px) scale(0.95);
+    transform: translateY(12px) scale(0.98);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -34,93 +33,130 @@
 }
 
 .header {
-  padding: 24px;
-  border-bottom: 1px solid #e2e8f0;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
 }
 
-.header.danger {
-  background: #fed7d7;
-  border-bottom-color: #feb2b2;
+.titleGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
-.header.warning {
-  background: #feebc8;
-  border-bottom-color: #fbd38d;
+.icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: var(--radius-xl);
 }
 
-.header.info {
-  background: #bee3f8;
-  border-bottom-color: #90cdf4;
+.danger .icon {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.warning .icon {
+  background: var(--color-warning-bg);
+  color: #b45309;
+}
+
+.info .icon {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+}
+
+.success .icon {
+  background: var(--color-success-bg);
+  color: var(--color-success);
 }
 
 .title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #2d3748;
+  color: var(--color-text-main);
+  font-family: var(--font-accent);
+  font-size: var(--text-xl);
+  font-weight: var(--font-extrabold);
+  line-height: var(--line-tight);
+  letter-spacing: var(--letter-tight);
 }
 
 .closeButton {
-  background: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
   border: none;
-  font-size: 24px;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-text-muted);
   cursor: pointer;
-  color: #718096;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
+  transition:
+    background var(--transition-base),
+    color var(--transition-base);
 }
 
-.closeButton:hover {
-  background: rgba(0, 0, 0, 0.1);
+.closeButton:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-text-main);
+}
+
+.closeButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .content {
-  padding: 32px 24px;
-  text-align: center;
-}
-
-.icon {
-  margin-bottom: 16px;
-  color: #dd6b20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: var(--space-6);
 }
 
 .message {
   margin: 0;
-  font-size: 16px;
-  line-height: 1.5;
-  color: #4a5568;
+  color: var(--color-text-soft);
+  font-size: var(--text-md);
+  line-height: var(--line-relaxed);
 }
 
 .footer {
-  padding: 24px;
-  border-top: 1px solid #e2e8f0;
   display: flex;
-  gap: 12px;
   justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
 }
 
 @media (max-width: 640px) {
-  .modal {
-    max-width: 100%;
-    margin: 20px;
+  .overlay {
+    align-items: flex-end;
+    padding: var(--space-3);
   }
-  
+
+  .modal {
+    border-radius: var(--radius-2xl) var(--radius-2xl) var(--radius-xl) var(--radius-xl);
+  }
+
+  .header,
+  .content,
+  .footer {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
   .footer {
     flex-direction: column-reverse;
   }
-  
-  .footer button {
+
+  .footer button,
+  .footer a {
     width: 100%;
   }
 }

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
+import { CheckCircle2, UserPlus } from 'lucide-react';
+
 import { usersAPI } from '../../../services/api/users';
 import { Input } from '../../ui/Input';
 import { Button } from '../../ui/Button';
 import styles from './RegisterForm.module.css';
-import { CheckCircle2 } from 'lucide-react';
 
 export const RegisterForm = ({ onSwitchToLogin }) => {
   const [formData, setFormData] = useState({
@@ -19,61 +20,65 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
-    if (errors[name]) {
+
+    if (errors[name] || errors.submit) {
       setErrors(prev => ({
         ...prev,
-        [name]: ''
+        [name]: '',
+        submit: '',
       }));
     }
   };
 
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!formData.login.trim()) {
       newErrors.login = 'Логин обязателен';
     } else if (formData.login.length < 3) {
       newErrors.login = 'Логин должен содержать минимум 3 символа';
     }
-    
+
     if (!formData.email.trim()) {
       newErrors.email = 'Email обязателен';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Введите корректный email';
     }
-    
+
     if (!formData.name.trim()) {
       newErrors.name = 'Имя обязательно';
     } else if (formData.name.length < 2) {
       newErrors.name = 'Имя должно содержать минимум 2 символа';
     }
-    
+
     if (!formData.password) {
       newErrors.password = 'Пароль обязателен';
     } else if (formData.password.length < 6) {
       newErrors.password = 'Пароль должен содержать минимум 6 символов';
     }
-    
+
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = 'Подтверждение пароля обязательно';
     } else if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Пароли не совпадают';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
-    
+
     setLoading(true);
+
     try {
       await usersAPI.register({
         login: formData.login,
@@ -81,7 +86,7 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
         name: formData.name,
         password: formData.password,
       });
-      
+
       setSuccess(true);
       setErrors({});
     } catch (error) {
@@ -97,14 +102,18 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
       <div className={styles.container}>
         <div className={styles.successContainer}>
           <div className={styles.successIcon}>
-            <CheckCircle2 size={42} strokeWidth={2} aria-hidden="true" />
+            <CheckCircle2 size={34} strokeWidth={2} aria-hidden="true" />
           </div>
-          <h2 className={styles.successTitle}>Регистрация успешна!</h2>
+
+          <h2 className={styles.successTitle}>Аккаунт создан</h2>
+
           <p className={styles.successMessage}>
-            Ваш аккаунт был успешно создан. Теперь вы можете войти в систему.
+            Регистрация завершена. Теперь вы можете войти в Syncro и перейти к
+            рабочему пространству.
           </p>
-          <Button 
-            variant="primary" 
+
+          <Button
+            variant="primary"
             size="large"
             onClick={onSwitchToLogin}
             className={styles.successButton}
@@ -119,10 +128,14 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Регистрация</h1>
-        <p className={styles.subtitle}>Создайте новый аккаунт</p>
+        <div>
+          <h1 className={styles.title}>Регистрация</h1>
+          <p className={styles.subtitle}>
+            Создайте аккаунт, чтобы начать работу с проектами и задачами.
+          </p>
+        </div>
       </div>
-      
+
       <form onSubmit={handleSubmit} className={styles.form}>
         <Input
           label="Логин"
@@ -135,7 +148,7 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
           disabled={loading}
           autoComplete="username"
         />
-        
+
         <Input
           label="Email"
           name="email"
@@ -143,11 +156,11 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
           value={formData.email}
           onChange={handleChange}
           error={errors.email}
-          placeholder="Введите ваш email"
+          placeholder="Введите email"
           disabled={loading}
           autoComplete="email"
         />
-        
+
         <Input
           label="Имя"
           name="name"
@@ -155,11 +168,11 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
           value={formData.name}
           onChange={handleChange}
           error={errors.name}
-          placeholder="Введите ваше имя"
+          placeholder="Введите имя"
           disabled={loading}
           autoComplete="name"
         />
-        
+
         <Input
           label="Пароль"
           name="password"
@@ -171,7 +184,7 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
           disabled={loading}
           autoComplete="new-password"
         />
-        
+
         <Input
           label="Подтверждение пароля"
           name="confirmPassword"
@@ -183,26 +196,29 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
           disabled={loading}
           autoComplete="new-password"
         />
-        
+
         {errors.submit && (
-          <div className={styles.submitError}>{errors.submit}</div>
+          <div className={styles.submitError} role="alert">
+            {errors.submit}
+          </div>
         )}
-        
-        <Button 
-          type="submit" 
-          variant="primary" 
-          size="large" 
+
+        <Button
+          type="submit"
+          variant="primary"
+          size="large"
           loading={loading}
           className={styles.submitButton}
         >
           Зарегистрироваться
         </Button>
       </form>
-      
+
       <div className={styles.footer}>
-        <p>Уже есть аккаунт?</p>
-        <button 
-          type="button" 
+        <span>Уже есть аккаунт?</span>
+
+        <button
+          type="button"
           className={styles.switchButton}
           onClick={onSwitchToLogin}
           disabled={loading}

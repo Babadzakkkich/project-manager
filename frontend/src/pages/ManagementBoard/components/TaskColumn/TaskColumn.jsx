@@ -1,9 +1,10 @@
 import React from 'react';
+import { AlertTriangle, Inbox } from 'lucide-react';
+
 import { KanbanTaskCard } from '../KanbanTaskCard/KanbanTaskCard';
 import { getTaskStatusColor } from '../../../../utils/taskStatus';
 import { useAutoScroll } from '../../../../hooks/useAutoScroll';
 import styles from './TaskColumn.module.css';
-import { AlertTriangle } from 'lucide-react';
 
 export const TaskColumn = ({
   column,
@@ -12,9 +13,13 @@ export const TaskColumn = ({
   onDragStart,
   onDrop,
   draggedTask,
-  viewMode
+  viewMode,
 }) => {
   const { handleDragOver, stopAutoScroll } = useAutoScroll();
+
+  const safeTasks = Array.isArray(tasks) ? tasks : [];
+  const statusColor = getTaskStatusColor(column.status);
+  const isLimitReached = column.maxTasks && safeTasks.length >= column.maxTasks;
 
   const handleDragOverColumn = (e) => {
     e.preventDefault();
@@ -24,43 +29,52 @@ export const TaskColumn = ({
   const handleDropColumn = (e) => {
     e.preventDefault();
     stopAutoScroll();
-    onDrop();
+
+    if (draggedTask) {
+      onDrop();
+    }
   };
 
   const handleDragEnd = () => {
     stopAutoScroll();
   };
 
-  const statusColor = getTaskStatusColor(column.status);
-
   return (
-    <div 
+    <section
       className={`${styles.column} ${draggedTask ? styles.dragOver : ''}`}
+      style={{ '--column-accent': statusColor }}
       onDragOver={handleDragOverColumn}
       onDrop={handleDropColumn}
       onDragEnd={handleDragEnd}
+      aria-label={`Колонка ${column.title}`}
     >
-      <div className={styles.columnHeader} style={{ borderTopColor: statusColor }}>
-        <div className={styles.columnTitle}>
+      <header className={styles.columnHeader}>
+        <div className={styles.headerTop}>
           <h3 className={styles.title}>{column.title}</h3>
-          <span className={styles.taskCount}>({tasks.length})</span>
+
+          <span className={styles.taskCount}>
+            {safeTasks.length}
+          </span>
         </div>
-        <div 
-          className={styles.statusIndicator}
-          style={{ backgroundColor: statusColor }}
-        />
-      </div>
+
+        <div className={styles.headerLine} />
+      </header>
 
       <div className={styles.tasksList}>
-        {tasks.length === 0 ? (
-          <div className={styles.emptyColumn}>
-            <p className={styles.emptyText}>Нет задач</p>
-            <div className={styles.dropHint}>
-              Перетащите задачу сюда
+        {safeTasks.length === 0 ? (
+          <div className={`${styles.emptyColumn} ${draggedTask ? styles.emptyDropReady : ''}`}>
+            <div className={styles.emptyIcon}>
+              <Inbox size={22} strokeWidth={1.8} aria-hidden="true" />
             </div>
+
+            <p className={styles.emptyText}>Нет задач</p>
+
+            <span className={styles.dropHint}>
+              {draggedTask ? 'Отпустите задачу здесь' : 'Перетащите сюда'}
+            </span>
           </div>
         ) : (
-          tasks.map((task) => (
+          safeTasks.map((task) => (
             <KanbanTaskCard
               key={task.id}
               task={task}
@@ -72,12 +86,12 @@ export const TaskColumn = ({
         )}
       </div>
 
-      {column.maxTasks && tasks.length >= column.maxTasks && (
+      {isLimitReached && (
         <div className={styles.limitWarning}>
           <AlertTriangle size={14} strokeWidth={2} aria-hidden="true" />
-          Лимит задач: {tasks.length}/{column.maxTasks}
+          Лимит: {safeTasks.length}/{column.maxTasks}
         </div>
       )}
-    </div>
+    </section>
   );
 };

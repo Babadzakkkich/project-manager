@@ -1,6 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { BarChart3, CheckCircle2, Users } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import {
+  ArrowLeft,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react';
+
 import { useAuthContext } from '../../contexts/AuthContext';
 import { LoginForm } from '../../components/auth/LoginForm';
 import { RegisterForm } from '../../components/auth/RegisterForm';
@@ -10,6 +15,7 @@ export const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
   const { isAuthenticated } = useAuthContext();
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (location.pathname === '/register') {
@@ -23,52 +29,47 @@ export const Login = () => {
     return <Navigate to="/workspace" replace />;
   }
 
+  const switchToLogin = () => {
+    setIsLogin(true);
+    navigate('/login');
+  };
+
+  const switchToRegister = () => {
+    setIsLogin(false);
+    navigate('/register');
+  };
+
   return (
-    <div className={styles.container}>
-      <div className={styles.background}>
-        <div className={styles.backgroundPattern}></div>
-      </div>
+    <main className={styles.page}>
+      <div className={styles.backgroundGlow} />
 
-      <div className={styles.content}>
-        <div className={styles.formContainer}>
+      <div className={styles.shell}>
+        <section className={styles.formPanel}>
+          <Link to="/" className={styles.backLink}>
+            <ArrowLeft size={17} strokeWidth={2} aria-hidden="true" />
+            На главную
+          </Link>
+
           {isLogin ? (
-            <LoginForm onSwitchToRegister={() => setIsLogin(false)} />
+            <LoginForm onSwitchToRegister={switchToRegister} />
           ) : (
-            <RegisterForm onSwitchToLogin={() => setIsLogin(true)} />
+            <RegisterForm onSwitchToLogin={switchToLogin} />
           )}
-        </div>
+        </section>
 
-        <div className={styles.infoPanel}>
-          <h2 className={styles.infoTitle}>Syncro</h2>
+        <section className={styles.infoPanel}>
 
-          <p className={styles.infoText}>
-            Присоединяйтесь к тысячам команд, которые уже используют Syncro для управления своими проектами.
+          <h1 className={styles.title}>
+            Вход в среду управления проектной деятельностью
+          </h1>
+
+          <p className={styles.subtitle}>
+            Авторизуйтесь в Syncro, чтобы перейти к группам, проектам, задачам,
+            уведомлениям и рабочим созвонам. Если аккаунта ещё нет, создайте его
+            через форму регистрации.
           </p>
-
-          <div className={styles.features}>
-            <div className={styles.feature}>
-              <span className={styles.featureIcon}>
-                <Users size={22} strokeWidth={2} aria-hidden="true" />
-              </span>
-              <span>Управление командами</span>
-            </div>
-
-            <div className={styles.feature}>
-              <span className={styles.featureIcon}>
-                <BarChart3 size={22} strokeWidth={2} aria-hidden="true" />
-              </span>
-              <span>Контроль проектов</span>
-            </div>
-
-            <div className={styles.feature}>
-              <span className={styles.featureIcon}>
-                <CheckCircle2 size={22} strokeWidth={2} aria-hidden="true" />
-              </span>
-              <span>Постановка задач</span>
-            </div>
-          </div>
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 };
