@@ -1,48 +1,176 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  ClipboardList,
+  Plus,
+  RotateCcw,
+  Users,
+} from 'lucide-react';
+
 import { tasksAPI } from '../../../services/api/tasks';
 import { groupsAPI } from '../../../services/api/groups';
 import { Button } from '../../../components/ui/Button';
 import { FilterSort } from '../../../components/ui/FilterSort';
 import { TaskCard } from '../../../components/ui/TaskCard';
 import { useAuthContext } from '../../../contexts/AuthContext';
-import { handleApiError } from '../../../utils/helpers';
+import {
+  formatRussianCount,
+  getRussianPluralForm,
+  handleApiError,
+  RUSSIAN_PLURAL_FORMS,
+} from '../../../utils/helpers';
+import {
+  TASK_PRIORITY_OPTIONS,
+  TASK_STATUS_OPTIONS,
+  getTaskPriorityTranslation,
+  getTaskStatusTranslation,
+  isTaskOverdue,
+} from '../../../utils/taskStatus';
+import { TASK_STATUSES } from '../../../utils/constants';
 import styles from './Tasks.module.css';
+
+const TASK_DONE_STATUSES = [TASK_STATUSES.DONE, 'completed'];
+const TASK_CANCELLED_STATUSES = [TASK_STATUSES.CANCELLED];
+
+const getDateMs = (value) => {
+  if (!value) return 0;
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+};
+
+const compareText = (a = '', b = '') => {
+  return String(a || '').localeCompare(String(b || ''), 'ru-RU');
+};
+
+const getProjectFilterValue = (task) => {
+  return String(task.project?.id || task.project?.title || '');
+};
 
 export const Tasks = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [adminGroupsLoading, setAdminGroupsLoading] = useState(true);
   const [error, setError] = useState('');
+
   const [filters, setFilters] = useState({});
   const [sort, setSort] = useState('');
   const [viewMode, setViewMode] = useState('my');
+
   const [adminGroups, setAdminGroups] = useState([]);
   const [groupUsers, setGroupUsers] = useState([]);
   const [projectOptions, setProjectOptions] = useState([]);
-  
+
   const { user } = useAuthContext();
 
   const isAdmin = useMemo(() => {
     return adminGroups.length > 0;
   }, [adminGroups]);
 
+  const loadAdminGroups = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      setAdminGroupsLoading(true);
+
+      const groupsData = await groupsAPI.getMyGroups();
+      const safeGroups = Array.isArray(groupsData) ? groupsData : [];
+
+      const userAdminGroups = safeGroups.filter((group) =>
+        group.users?.some((groupUser) =>
+          groupUser.id === user.id &&
+          (groupUser.role === 'admin' || groupUser.role === 'super_admin')
+        )
+      );
+
+      setAdminGroups(userAdminGroups);
+
+      const uniqueUsers = [];
+
+      userAdminGroups.forEach((group) => {
+        if (!Array.isArray(group.users)) return;
+
+        group.users.forEach((groupUser) => {
+          if (!uniqueUsers.some((item) => item.id === groupUser.id)) {
+            uniqueUsers.push(groupUser);
+          }
+        });
+      });
+
+      setGroupUsers(uniqueUsers);
+    } catch (err) {
+      console.error('Error loading admin groups:', err);
+      setAdminGroups([]);
+      setGroupUsers([]);
+    } finally {
+      setAdminGroupsLoading(false);
+    }
+  }, [user?.id]);
+
+  const loadTasks = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const tasksData =
+        isAdmin && viewMode === 'all'
+          ? await tasksAPI.getTeamTasks()
+          : await tasksAPI.getMyTasks();
+
+      setTasks(Array.isArray(tasksData) ? tasksData : []);
+    } catch (err) {
+      console.error('Error loading tasks:', err);
+      setError(handleApiError(err));
+      setTasks([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [isAdmin, viewMode]);
+
+  useEffect(() => {
+    loadAdminGroups();
+  }, [loadAdminGroups]);
+
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
+
+  useEffect(() => {
+    const projectsMap = new Map();
+
+    tasks.forEach((task) => {
+      const projectValue = getProjectFilterValue(task);
+
+      if (!projectValue) return;
+
+      projectsMap.set(projectValue, {
+        value: projectValue,
+        label: task.project?.title || 'Проект без названия',
+      });
+    });
+
+    setProjectOptions(
+      Array.from(projectsMap.values()).sort((a, b) => compareText(a.label, b.label))
+    );
+  }, [tasks]);
+
   const filterOptions = useMemo(() => {
     const baseOptions = [
       {
         key: 'status',
         label: 'Статус задачи',
-        options: [
-          { value: 'in_progress', label: 'В процессе' },
-          { value: 'completed', label: 'Завершена' },
-          { value: 'planned', label: 'Запланирована' },
-          { value: 'on_hold', label: 'Приостановлена' },
-          { value: 'cancelled', label: 'Отменена' }
-        ]
+        options: TASK_STATUS_OPTIONS,
+      },
+      {
+        key: 'priority',
+        label: 'Приоритет',
+        options: TASK_PRIORITY_OPTIONS,
       },
       {
         key: 'project',
         label: 'Проект',
-        options: projectOptions
-      }
+        options: projectOptions,
+      },
     ];
 
     if (isAdmin && viewMode === 'all') {
@@ -53,12 +181,14 @@ export const Tasks = () => {
           label: 'Исполнитель',
           options: [
             { value: 'all', label: 'Все исполнители' },
-            ...groupUsers.map(user => ({
-              value: user.id.toString(),
-              label: `${user.login} (${user.email})`
-            }))
-          ]
-        }
+            ...groupUsers.map((groupUser) => ({
+              value: String(groupUser.id),
+              label: groupUser.email
+                ? `${groupUser.login || groupUser.name || 'Пользователь'} (${groupUser.email})`
+                : groupUser.login || groupUser.name || 'Пользователь',
+            })),
+          ],
+        },
       ];
     }
 
@@ -72,144 +202,112 @@ export const Tasks = () => {
     { value: 'deadline_desc', label: 'Дальние сроки' },
     { value: 'created_at_desc', label: 'Сначала новые' },
     { value: 'created_at_asc', label: 'Сначала старые' },
-    { value: 'status', label: 'По статусу' }
+    { value: 'status', label: 'По статусу' },
+    { value: 'priority', label: 'По приоритету' },
   ];
-
-  const loadAdminGroups = useCallback(async () => {
-    try {
-      const groups = await groupsAPI.getMyGroups();
-      const adminGroups = groups.filter(group => 
-        group.users?.some(u => u.id === user.id && u.role === 'admin')
-      );
-      setAdminGroups(adminGroups);
-      
-      const allUsers = [];
-      adminGroups.forEach(group => {
-        if (group.users) {
-          group.users.forEach(user => {
-            if (!allUsers.some(u => u.id === user.id)) {
-              allUsers.push(user);
-            }
-          });
-        }
-      });
-      setGroupUsers(allUsers);
-    // eslint-disable-next-line no-unused-vars
-    } catch (err) {
-      // Ошибка загрузки групп не критична для основного функционала
-    }
-  }, [user]);
-
-  const loadTasks = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
-      
-      let tasksData;
-      if (isAdmin && viewMode === 'all') {
-        tasksData = await tasksAPI.getTeamTasks();
-      } else {
-        tasksData = await tasksAPI.getMyTasks();
-      }
-      setTasks(tasksData);
-    } catch (err) {
-      setError(handleApiError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [isAdmin, viewMode]);
-
-  useEffect(() => {
-    const uniqueProjects = [...new Set(tasks.map(task => task.project?.title).filter(Boolean))];
-    const newProjectOptions = uniqueProjects.map(projectTitle => ({
-      value: projectTitle,
-      label: projectTitle
-    }));
-    setProjectOptions(newProjectOptions);
-  }, [tasks]);
-
-  useEffect(() => {
-    loadAdminGroups();
-  }, [loadAdminGroups]);
-
-  useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
-
-  const handleDeleteTask = async (taskId, taskTitle) => {
-    if (!window.confirm(`Вы уверены, что хотите удалить задачу "${taskTitle}"? Это действие нельзя отменить.`)) {
-      return;
-    }
-
-    try {
-      await tasksAPI.delete(taskId);
-      setTasks(prev => prev.filter(task => task.id !== taskId));
-    } catch (err) {
-      setError(handleApiError(err));
-    }
-  };
 
   const getUserRoleInTask = useCallback((task) => {
     if (!user || !task.group) {
-      return 'member';
+      return 'viewer';
     }
-    
-    if (task.group.users && Array.isArray(task.group.users)) {
-      const userInGroup = task.group.users.find(u => u.id === user.id);
-      if (userInGroup && userInGroup.role === 'admin') {
-        return 'admin';
-      }
+
+    const userInGroup = task.group.users?.find((groupUser) => groupUser.id === user.id);
+
+    if (
+      userInGroup &&
+      (userInGroup.role === 'admin' || userInGroup.role === 'super_admin')
+    ) {
+      return 'admin';
     }
-    
-    const isAssignee = task.assignees?.some(assignee => assignee.id === user.id);
+
+    const isAssignee = task.assignees?.some((assignee) => assignee.id === user.id);
+
     if (isAssignee) {
       return 'assignee';
     }
-    
-    return 'member';
+
+    return 'viewer';
   }, [user]);
+
+  const canDeleteTask = useCallback((task) => {
+    const role = getUserRoleInTask(task);
+    return role === 'admin' || role === 'assignee';
+  }, [getUserRoleInTask]);
+
+  const handleDeleteTask = async (taskId) => {
+    await tasksAPI.delete(taskId);
+    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+  };
 
   const filteredAndSortedTasks = useMemo(() => {
     let result = [...tasks];
 
     if (filters.status) {
-      result = result.filter(task => task.status === filters.status);
+      result = result.filter((task) => task.status === filters.status);
+    }
+
+    if (filters.priority) {
+      result = result.filter((task) => task.priority === filters.priority);
     }
 
     if (filters.project) {
-      result = result.filter(task => task.project?.title === filters.project);
+      result = result.filter((task) => getProjectFilterValue(task) === filters.project);
     }
 
-    if (filters.assignee && isAdmin && viewMode === 'all' && filters.assignee !== 'all') {
-      const assigneeId = parseInt(filters.assignee);
-      result = result.filter(task => 
-        task.assignees?.some(assignee => assignee.id === assigneeId)
+    if (
+      filters.assignee &&
+      filters.assignee !== 'all' &&
+      isAdmin &&
+      viewMode === 'all'
+    ) {
+      const assigneeId = Number(filters.assignee);
+
+      result = result.filter((task) =>
+        task.assignees?.some((assignee) => assignee.id === assigneeId)
       );
     }
 
     if (sort) {
       switch (sort) {
         case 'title_asc':
-          result.sort((a, b) => a.title.localeCompare(b.title));
+          result.sort((a, b) => compareText(a.title, b.title));
           break;
+
         case 'title_desc':
-          result.sort((a, b) => b.title.localeCompare(a.title));
+          result.sort((a, b) => compareText(b.title, a.title));
           break;
+
         case 'deadline_asc':
-          result.sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+          result.sort((a, b) => getDateMs(a.deadline) - getDateMs(b.deadline));
           break;
+
         case 'deadline_desc':
-          result.sort((a, b) => new Date(b.deadline) - new Date(a.deadline));
+          result.sort((a, b) => getDateMs(b.deadline) - getDateMs(a.deadline));
           break;
+
         case 'created_at_desc':
-          result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          result.sort((a, b) => getDateMs(b.created_at) - getDateMs(a.created_at));
           break;
+
         case 'created_at_asc':
-          result.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+          result.sort((a, b) => getDateMs(a.created_at) - getDateMs(b.created_at));
           break;
+
         case 'status':
-          result.sort((a, b) => a.status.localeCompare(b.status));
+          result.sort((a, b) =>
+            compareText(getTaskStatusTranslation(a.status), getTaskStatusTranslation(b.status))
+          );
           break;
+
+        case 'priority':
+          result.sort((a, b) =>
+            compareText(
+              getTaskPriorityTranslation(a.priority),
+              getTaskPriorityTranslation(b.priority)
+            )
+          );
+          break;
+
         default:
           break;
       }
@@ -224,27 +322,35 @@ export const Tasks = () => {
     }
 
     const grouped = {};
-    
-    filteredAndSortedTasks.forEach(task => {
+
+    filteredAndSortedTasks.forEach((task) => {
       if (task.assignees && task.assignees.length > 0) {
-        task.assignees.forEach(assignee => {
+        task.assignees.forEach((assignee) => {
           if (!grouped[assignee.id]) {
             grouped[assignee.id] = {
               user: assignee,
-              tasks: []
+              tasks: [],
             };
           }
+
           grouped[assignee.id].tasks.push(task);
         });
-      } else {
-        if (!grouped['unassigned']) {
-          grouped['unassigned'] = {
-            user: { id: 'unassigned', login: 'Без исполнителя', email: '' },
-            tasks: []
-          };
-        }
-        grouped['unassigned'].tasks.push(task);
+
+        return;
       }
+
+      if (!grouped.unassigned) {
+        grouped.unassigned = {
+          user: {
+            id: 'unassigned',
+            login: 'Без исполнителя',
+            email: '',
+          },
+          tasks: [],
+        };
+      }
+
+      grouped.unassigned.tasks.push(task);
     });
 
     return Object.values(grouped);
@@ -252,25 +358,36 @@ export const Tasks = () => {
 
   const taskStats = useMemo(() => {
     const total = filteredAndSortedTasks.length;
-    const completed = filteredAndSortedTasks.filter(task => task.status === 'completed').length;
-    const overdue = filteredAndSortedTasks.filter(task => {
-      const deadline = new Date(task.deadline);
-      const today = new Date();
-      return deadline < today && task.status !== 'completed';
-    }).length;
-    const inProgress = filteredAndSortedTasks.filter(task => task.status === 'in_progress').length;
 
-    return { total, completed, overdue, inProgress };
+    const completed = filteredAndSortedTasks.filter((task) =>
+      TASK_DONE_STATUSES.includes(task.status)
+    ).length;
+
+    const active = filteredAndSortedTasks.filter((task) =>
+      !TASK_DONE_STATUSES.includes(task.status) &&
+      !TASK_CANCELLED_STATUSES.includes(task.status)
+    ).length;
+
+    const overdue = filteredAndSortedTasks.filter((task) =>
+      isTaskOverdue(task.deadline, task.status)
+    ).length;
+
+    return {
+      total,
+      active,
+      completed,
+      overdue,
+    };
   }, [filteredAndSortedTasks]);
 
-  const canDeleteTask = useCallback((task) => {
-    const userRole = getUserRoleInTask(task);
-    return userRole === 'admin' || userRole === 'assignee';
-  }, [getUserRoleInTask]);
+  const hasActiveFilters = Object.keys(filters).some((key) => {
+    return filters[key] && filters[key] !== '' && filters[key] !== 'all';
+  });
 
   const handleViewModeChange = (newMode) => {
     setViewMode(newMode);
     setFilters({});
+    setSort('');
   };
 
   const getPageTitle = () => {
@@ -279,13 +396,13 @@ export const Tasks = () => {
 
   const getPageSubtitle = () => {
     if (viewMode === 'my') {
-      return 'Задачи, назначенные на вас';
-    } else {
-      return `Все задачи в ${adminGroups.length} группах, которыми вы управляете`;
+      return 'Задачи, назначенные на вас или доступные через ваши рабочие группы.';
     }
+
+    return `Все задачи в ${formatRussianCount(adminGroups.length, RUSSIAN_PLURAL_FORMS.GROUP)}, которыми вы управляете.`;
   };
 
-  if (loading) {
+  if (loading || adminGroupsLoading) {
     return (
       <div className={styles.loadingContainer}>
         <div className={styles.spinner}></div>
@@ -297,18 +414,32 @@ export const Tasks = () => {
   if (error) {
     return (
       <div className={styles.errorContainer}>
-        <h2>Ошибка</h2>
+        <div className={styles.errorIcon}>
+          <AlertTriangle size={42} strokeWidth={1.8} aria-hidden="true" />
+        </div>
+
+        <h2>Не удалось загрузить задачи</h2>
         <p>{error}</p>
-        <Button onClick={loadTasks}>Попробовать снова</Button>
+
+        <Button onClick={loadTasks} variant="primary">
+          Попробовать снова
+        </Button>
       </div>
     );
   }
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <div className={styles.headerTop}>
+      <section className={styles.hero}>
+        <div className={styles.heroContent}>
           <h1 className={styles.title}>{getPageTitle()}</h1>
+
+          <p className={styles.subtitle}>
+            {getPageSubtitle()}
+          </p>
+        </div>
+
+        <div className={styles.heroActions}>
           {isAdmin && (
             <div className={styles.viewModeSwitcher}>
               <Button
@@ -318,6 +449,7 @@ export const Tasks = () => {
               >
                 Мои задачи
               </Button>
+
               <Button
                 variant={viewMode === 'all' ? 'primary' : 'secondary'}
                 size="medium"
@@ -327,44 +459,65 @@ export const Tasks = () => {
               </Button>
             </div>
           )}
+
+          <Button to="/tasks/create" variant="primary" size="medium">
+            <Plus size={17} strokeWidth={2} aria-hidden="true" />
+            Создать задачу
+          </Button>
         </div>
-        <p className={styles.subtitle}>
-          {getPageSubtitle()}
-        </p>
-        <Button 
-          to="/tasks/create" 
-          variant="primary" 
-          size="large"
-          className={styles.createButton}
+      </section>
+
+      <section className={styles.statsGrid} aria-label="Сводка по задачам">
+        <article className={styles.statCard}>
+          <span className={styles.statValue}>{taskStats.total}</span>
+          <span className={styles.statLabel}>
+            {getRussianPluralForm(taskStats.total, [
+              'задача всего',
+              'задачи всего',
+              'задач всего',
+            ])}
+          </span>
+        </article>
+
+        <article className={styles.statCard}>
+          <span className={styles.statValue}>{taskStats.active}</span>
+          <span className={styles.statLabel}>
+            {getRussianPluralForm(taskStats.active, [
+              'задача в работе',
+              'задачи в работе',
+              'задач в работе',
+            ])}
+          </span>
+        </article>
+
+        <article className={styles.statCard}>
+          <span className={styles.statValue}>{taskStats.completed}</span>
+          <span className={styles.statLabel}>
+            {getRussianPluralForm(taskStats.completed, [
+              'задача выполнена',
+              'задачи выполнены',
+              'задач выполнено',
+            ])}
+          </span>
+        </article>
+
+        <article
+          className={`${styles.statCard} ${
+            taskStats.overdue > 0 ? styles.warningCard : ''
+          }`}
         >
-          Создать новую задачу
-        </Button>
-      </div>
+          <span className={styles.statValue}>{taskStats.overdue}</span>
+          <span className={styles.statLabel}>
+            {getRussianPluralForm(taskStats.overdue, [
+              'задача просрочена',
+              'задачи просрочены',
+              'задач просрочено',
+            ])}
+          </span>
+        </article>
+      </section>
 
-      {filteredAndSortedTasks.length > 0 && (
-        <div className={styles.statsContainer}>
-          <div className={styles.stats}>
-            <div className={styles.statItem}>
-              <span className={styles.statNumber}>{taskStats.total}</span>
-              <span className={styles.statLabel}>Всего</span>
-            </div>
-            <div className={styles.statItem}>
-              <span className={styles.statNumber}>{taskStats.inProgress}</span>
-              <span className={styles.statLabel}>В работе</span>
-            </div>
-            <div className={styles.statItem}>
-              <span className={styles.statNumber}>{taskStats.completed}</span>
-              <span className={styles.statLabel}>Завершено</span>
-            </div>
-            <div className={`${styles.statItem} ${taskStats.overdue > 0 ? styles.overdueStat : ''}`}>
-              <span className={styles.statNumber}>{taskStats.overdue}</span>
-              <span className={styles.statLabel}>Просрочено</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {filteredAndSortedTasks.length > 0 && (
+      {(tasks.length > 0 || hasActiveFilters) && (
         <FilterSort
           filters={filterOptions}
           sortOptions={sortOptions}
@@ -372,102 +525,135 @@ export const Tasks = () => {
           selectedSort={sort}
           onFilterChange={setFilters}
           onSortChange={setSort}
+          className={styles.filterSort}
         />
       )}
 
+      <div className={styles.tasksInfo}>
+        <span className={styles.tasksCount}>
+          Найдено: {formatRussianCount(
+            filteredAndSortedTasks.length,
+            RUSSIAN_PLURAL_FORMS.TASK
+          )}
+        </span>
+
+        {hasActiveFilters && (
+          <button
+            type="button"
+            className={styles.resetButton}
+            onClick={() => setFilters({})}
+          >
+            <RotateCcw size={15} strokeWidth={2} aria-hidden="true" />
+            Сбросить фильтры
+          </button>
+        )}
+      </div>
+
       {filteredAndSortedTasks.length === 0 ? (
         <div className={styles.emptyState}>
-          {Object.keys(filters).length > 0 ? (
+          <div className={styles.emptyIcon}>
+            <ClipboardList size={42} strokeWidth={1.8} aria-hidden="true" />
+          </div>
+
+          {hasActiveFilters ? (
             <>
               <h2>Задачи не найдены</h2>
-              <p>Попробуйте изменить параметры фильтрации</p>
-              <Button 
+              <p>Попробуйте изменить параметры фильтрации.</p>
+
+              <Button
                 onClick={() => setFilters({})}
-                variant="primary" 
-                size="large"
+                variant="primary"
+                size="medium"
               >
+                <RotateCcw size={16} strokeWidth={2} aria-hidden="true" />
                 Сбросить фильтры
               </Button>
             </>
           ) : (
             <>
-              <h2>Задачи не найдены</h2>
+              <h2>Задач пока нет</h2>
+
               <p>
-                {viewMode === 'my' 
-                  ? 'Создайте свою первую задачу или дождитесь назначения'
-                  : 'В ваших группах пока нет задач'
-                }
+                {viewMode === 'my'
+                  ? 'Создайте первую задачу или дождитесь назначения от администратора группы.'
+                  : 'В группах, которыми вы управляете, пока нет задач.'}
               </p>
+
+              <Button to="/tasks/create" variant="primary" size="medium">
+                <Plus size={16} strokeWidth={2} aria-hidden="true" />
+                Создать задачу
+              </Button>
             </>
           )}
         </div>
-      ) : (
-        <>
-          <div className={styles.tasksInfo}>
-            <span className={styles.tasksCount}>
-              Найдено задач: {filteredAndSortedTasks.length}
-            </span>
-          </div>
-
-          {viewMode === 'all' && isAdmin ? (
-            <div className={styles.groupedTasks}>
-              {groupedTasks && groupedTasks.map(group => (
-                <div key={group.user.id} className={styles.userTaskGroup}>
-                  <div className={styles.userHeader}>
-                    <h3 className={styles.userName}>
-                      {group.user.login}
-                      {group.user.email && (
-                        <span className={styles.userEmail}> ({group.user.email})</span>
-                      )}
-                    </h3>
-                    <span className={styles.taskCount}>
-                      {group.tasks.length} задач
-                    </span>
+      ) : viewMode === 'all' && isAdmin ? (
+        <div className={styles.groupedTasks}>
+          {groupedTasks?.map((group) => (
+            <section key={group.user.id} className={styles.userTaskGroup}>
+              <div className={styles.userHeader}>
+                <div className={styles.userHeaderMain}>
+                  <div className={styles.userAvatar}>
+                    {(group.user.name || group.user.login || '?').charAt(0).toUpperCase()}
                   </div>
-                  <div className={styles.userTasksGrid}>
-                    {group.tasks.map((task) => {
-                      const userRole = getUserRoleInTask(task);
-                      const canDelete = canDeleteTask(task);
-                      
-                      return (
-                        <TaskCard
-                          key={task.id}
-                          task={task}
-                          showDetailsButton={true}
-                          compact={false}
-                          showDeleteButton={canDelete}
-                          userRole={userRole}
-                          currentUserId={user.id}
-                          onDelete={() => handleDeleteTask(task.id, task.title)}
-                        />
-                      );
-                    })}
+
+                  <div>
+                    <h2 className={styles.userName}>
+                      {group.user.name || group.user.login || 'Пользователь'}
+                    </h2>
+
+                    {group.user.email && (
+                      <p className={styles.userEmail}>{group.user.email}</p>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className={styles.tasksGrid}>
-              {filteredAndSortedTasks.map((task) => {
-                const userRole = getUserRoleInTask(task);
-                const canDelete = canDeleteTask(task);
-                
-                return (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    showDetailsButton={true}
-                    compact={false}
-                    showDeleteButton={canDelete}
-                    userRole={userRole}
-                    currentUserId={user.id}
-                    onDelete={() => handleDeleteTask(task.id, task.title)}
-                  />
-                );
-              })}
-            </div>
-          )}
-        </>
+
+                <span className={styles.taskCount}>
+                  {formatRussianCount(group.tasks.length, RUSSIAN_PLURAL_FORMS.TASK)}
+                </span>
+              </div>
+
+              <div className={styles.userTasksGrid}>
+                {group.tasks.map((task) => {
+                  const role = getUserRoleInTask(task);
+                  const canDelete = canDeleteTask(task);
+
+                  return (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      showDetailsButton
+                      compact={false}
+                      showDeleteButton={canDelete}
+                      userRole={role}
+                      currentUserId={user?.id}
+                      onDelete={() => handleDeleteTask(task.id)}
+                    />
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div className={styles.tasksGrid}>
+          {filteredAndSortedTasks.map((task) => {
+            const role = getUserRoleInTask(task);
+            const canDelete = canDeleteTask(task);
+
+            return (
+              <TaskCard
+                key={task.id}
+                task={task}
+                showDetailsButton
+                compact={false}
+                showDeleteButton={canDelete}
+                userRole={role}
+                currentUserId={user?.id}
+                onDelete={() => handleDeleteTask(task.id)}
+              />
+            );
+          })}
+        </div>
       )}
     </div>
   );

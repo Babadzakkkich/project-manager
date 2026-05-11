@@ -1,10 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { BellOff } from 'lucide-react';
+import {
+  Bell,
+  BellOff,
+  CheckCheck,
+  ChevronRight,
+  EyeOff,
+  Inbox,
+} from 'lucide-react';
 import { useNotifications } from '../../../hooks/useNotifications';
 import { useInvitations } from '../../../hooks/useInvitations';
 import { InvitationNotification } from '../InvitationNotification/InvitationNotification';
-import notificationSvg from '../../../assets/notifications/notification.svg';
 import styles from './NotificationBell.module.css';
 
 export const NotificationBell = () => {
@@ -60,6 +66,16 @@ export const NotificationBell = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const regularNotifications = notifications.filter(
+    notification => notification.type !== 'group_invitation'
+  );
+
+  const hasRegularUnread = unreadCount > 0;
+  const totalUnreadCount = unreadCount + pendingInvitations.length;
+  const hasUnread = totalUnreadCount > 0;
+  const hasInvitations = pendingInvitations.length > 0 && showInvitations;
+  const hasHiddenInvitations = pendingInvitations.length > 0 && !showInvitations;
+
   const handleNotificationClick = async (notification) => {
     if (notification.type !== 'group_invitation' && !notification.is_read) {
       await markAsRead(notification.id);
@@ -80,7 +96,18 @@ export const NotificationBell = () => {
       urgent: styles.priorityUrgent,
     };
 
-    return classes[priority] || '';
+    return classes[priority] || styles.priorityMedium;
+  };
+
+  const getPriorityLabel = (priority) => {
+    const labels = {
+      low: 'Низкий',
+      medium: 'Обычный',
+      high: 'Высокий',
+      urgent: 'Срочно',
+    };
+
+    return labels[priority] || 'Обычный';
   };
 
   const getTimeAgo = (dateString) => {
@@ -98,7 +125,7 @@ export const NotificationBell = () => {
     });
   };
 
-  const NotificationTypeIcon = ({ type, size = 20 }) => {
+  const NotificationTypeIcon = ({ type, size = 18 }) => {
     const Icon = getNotificationIcon(type);
 
     return (
@@ -114,23 +141,39 @@ export const NotificationBell = () => {
     const link = getNotificationLink(notification);
 
     const content = (
-      <div
+      <article
         className={`${styles.notification} ${
           !notification.is_read ? styles.unread : ''
         } ${getPriorityClass(notification.priority)}`}
       >
-        <div className={styles.icon}>
+        <div className={styles.notificationIcon}>
           <NotificationTypeIcon type={notification.type} />
         </div>
 
-        <div className={styles.content}>
-          <div className={styles.title}>{notification.title}</div>
-          <div className={styles.message}>{notification.content}</div>
-          <div className={styles.time}>{getTimeAgo(notification.created_at)}</div>
+        <div className={styles.notificationBody}>
+          <div className={styles.notificationTopline}>
+            <h4 className={styles.notificationTitle}>{notification.title}</h4>
+
+            {!notification.is_read && (
+              <span className={styles.unreadDot} aria-label="Непрочитано" />
+            )}
+          </div>
+
+          <p className={styles.notificationMessage}>{notification.content}</p>
+
+          <div className={styles.notificationMeta}>
+            <span>{getTimeAgo(notification.created_at)}</span>
+            <span className={styles.metaDivider} />
+            <span>{getPriorityLabel(notification.priority)}</span>
+          </div>
         </div>
 
-        {!notification.is_read && <div className={styles.unreadDot} />}
-      </div>
+        {link && (
+          <span className={styles.notificationArrow}>
+            <ChevronRight size={17} strokeWidth={2} aria-hidden="true" />
+          </span>
+        )}
+      </article>
     );
 
     if (link) {
@@ -147,39 +190,28 @@ export const NotificationBell = () => {
     }
 
     return (
-      <div
+      <button
         key={notification.id}
-        className={styles.notificationWrapper}
+        type="button"
+        className={styles.notificationButton}
         onClick={() => handleNotificationClick(notification)}
       >
         {content}
-      </div>
+      </button>
     );
   };
-
-  const regularNotifications = notifications.filter(
-    notification => notification.type !== 'group_invitation'
-  );
-
-  const totalUnreadCount = unreadCount + pendingInvitations.length;
-  const hasUnread = totalUnreadCount > 0;
-  const hasInvitations = pendingInvitations.length > 0 && showInvitations;
 
   return (
     <div className={styles.bellContainer}>
       <button
         ref={buttonRef}
-        className={styles.bellButton}
+        className={`${styles.bellButton} ${isOpen ? styles.open : ''}`}
         onClick={() => setIsOpen(!isOpen)}
-        aria-label="Уведомления"
+        aria-label={hasUnread ? `Уведомления: ${totalUnreadCount}` : 'Уведомления'}
         aria-expanded={isOpen}
         type="button"
       >
-        <img
-          src={notificationSvg}
-          alt="Уведомления"
-          className={styles.bellIcon}
-        />
+        <Bell size={22} strokeWidth={2} aria-hidden="true" />
 
         {hasUnread && (
           <span className={styles.badge}>
@@ -191,78 +223,123 @@ export const NotificationBell = () => {
       {isOpen && (
         <div className={styles.dropdown} ref={dropdownRef}>
           <div className={styles.header}>
-            <h3 className={styles.title}>Уведомления</h3>
-
-            <div className={styles.headerActions}>
-              {hasUnread && (
-                <button
-                  className={styles.markAllReadButton}
-                  onClick={handleMarkAllAsRead}
-                  type="button"
-                >
-                  Все прочитано
-                </button>
-              )}
-
-              {hasInvitations && (
-                <button
-                  className={styles.hideInvitationsButton}
-                  onClick={() => setShowInvitations(false)}
-                  type="button"
-                >
-                  Скрыть приглашения
-                </button>
-              )}
+            <div>
+              <h3 className={styles.title}>Уведомления</h3>
+              <p className={styles.subtitle}>
+                События проектов, задач и групп
+              </p>
             </div>
+
+            {hasRegularUnread && (
+              <button
+                className={styles.markAllReadButton}
+                onClick={handleMarkAllAsRead}
+                type="button"
+              >
+                <CheckCheck size={16} strokeWidth={2} aria-hidden="true" />
+                Прочитать
+              </button>
+            )}
           </div>
 
           <div className={styles.list}>
             {hasInvitations && (
-              <div className={styles.invitationsSection}>
-                <div className={styles.sectionTitle}>
-                  Приглашения ({pendingInvitations.length})
+              <section className={styles.section}>
+                <div className={styles.sectionHeader}>
+                  <div className={styles.sectionTitleWrap}>
+                    <span className={styles.sectionIcon}>
+                      <Inbox size={16} strokeWidth={2} aria-hidden="true" />
+                    </span>
+                    <h4 className={styles.sectionTitle}>Требуют действия</h4>
+                    <span className={styles.sectionCounter}>
+                      {pendingInvitations.length}
+                    </span>
+                  </div>
+
+                  <button
+                    className={styles.hideInvitationsButton}
+                    onClick={() => setShowInvitations(false)}
+                    type="button"
+                  >
+                    <EyeOff size={15} strokeWidth={2} aria-hidden="true" />
+                    Скрыть
+                  </button>
                 </div>
 
-                {pendingInvitations.map(invitation => (
-                  <InvitationNotification
-                    key={invitation.id}
-                    invitation={invitation}
-                    onProcessed={() => {
-                      loadPendingInvitations();
-                      forceRefresh();
-                    }}
-                  />
-                ))}
-              </div>
+                <div className={styles.invitationsList}>
+                  {pendingInvitations.map(invitation => (
+                    <InvitationNotification
+                      key={invitation.id}
+                      invitation={invitation}
+                      onProcessed={() => {
+                        loadPendingInvitations();
+                        forceRefresh();
+                      }}
+                    />
+                  ))}
+                </div>
+              </section>
             )}
 
-            {isLoading && regularNotifications.length === 0 && !hasInvitations ? (
-              <div className={styles.loadingState}>
-                <div className={styles.spinner}></div>
-                <p>Загрузка уведомлений...</p>
-              </div>
-            ) : regularNotifications.length === 0 && !hasInvitations ? (
-              <div className={styles.emptyState}>
-                <span className={styles.emptyIcon}>
-                  <BellOff size={42} strokeWidth={1.8} aria-hidden="true" />
-                </span>
-                <p>Нет уведомлений</p>
-              </div>
-            ) : (
-              regularNotifications
-                .slice(0, 10)
-                .map(notification => renderNotificationContent(notification))
+            {hasHiddenInvitations && (
+              <button
+                type="button"
+                className={styles.showInvitationsButton}
+                onClick={() => setShowInvitations(true)}
+              >
+                Показать приглашения ({pendingInvitations.length})
+              </button>
             )}
+
+            {(regularNotifications.length > 0 || isLoading) && (
+              <section className={styles.section}>
+                <div className={styles.sectionHeader}>
+                  <div className={styles.sectionTitleWrap}>
+                    <span className={styles.sectionIcon}>
+                      <Bell size={16} strokeWidth={2} aria-hidden="true" />
+                    </span>
+                    <h4 className={styles.sectionTitle}>Последние события</h4>
+                  </div>
+                </div>
+
+                {isLoading && regularNotifications.length === 0 ? (
+                  <div className={styles.loadingState}>
+                    <div className={styles.spinner}></div>
+                    <p>Загрузка уведомлений...</p>
+                  </div>
+                ) : (
+                  <div className={styles.notificationsList}>
+                    {regularNotifications
+                      .slice(0, 10)
+                      .map(notification => renderNotificationContent(notification))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {!isLoading &&
+              regularNotifications.length === 0 &&
+              !hasInvitations &&
+              !hasHiddenInvitations && (
+                <div className={styles.emptyState}>
+                  <span className={styles.emptyIcon}>
+                    <BellOff size={42} strokeWidth={1.8} aria-hidden="true" />
+                  </span>
+                  <h4>Нет уведомлений</h4>
+                  <p>Новые события по проектам и задачам появятся здесь.</p>
+                </div>
+              )}
           </div>
 
-          {(regularNotifications.length > 0 || hasInvitations) && (
+          {(regularNotifications.length > 0 || pendingInvitations.length > 0) && (
             <div className={styles.footer}>
               <Link
                 to="/notifications"
                 className={styles.viewAllLink}
                 onClick={() => setIsOpen(false)}
               >
-                Посмотреть все
+                Посмотреть все уведомления
+                <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
               </Link>
             </div>
           )}

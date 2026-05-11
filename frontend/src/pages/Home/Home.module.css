@@ -1,312 +1,301 @@
-.container {
+.page {
+  position: relative;
   min-height: 100vh;
-  background: linear-gradient(135deg, #004B23 0%, #006400 50%, #007200 100%);
-  color: white;
-  overflow-x: hidden; /* Запрещаем горизонтальный скролл на всём контейнере */
+  overflow: hidden;
+  padding: var(--space-8);
+  background:
+    radial-gradient(circle at 12% 18%, rgba(56, 176, 0, 0.16), transparent 30%),
+    radial-gradient(circle at 85% 72%, rgba(0, 107, 53, 0.18), transparent 34%),
+    linear-gradient(135deg, #07110c 0%, #0b1710 42%, #030805 100%);
+  color: var(--color-text-inverse);
+}
+
+.backgroundGlow {
+  position: absolute;
+  inset: auto -120px -180px auto;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: rgba(56, 176, 0, 0.16);
+  filter: blur(70px);
+  pointer-events: none;
+}
+
+.backgroundGlowSecond {
+  position: absolute;
+  inset: 8% auto auto -160px;
+  width: 360px;
+  height: 360px;
+  border-radius: 50%;
+  background: rgba(158, 240, 26, 0.08);
+  filter: blur(80px);
+  pointer-events: none;
 }
 
 .hero {
+  position: relative;
+  z-index: 1;
+  width: min(1360px, 100%);
+  min-height: calc(100vh - 64px);
+  margin: 0 auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 60px 20px;
-  min-height: 80vh;
-  gap: 40px;
-  overflow-x: hidden; /* Запрещаем горизонтальный скролл в hero */
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-10);
+  padding: var(--space-8) 0;
 }
 
 .content {
-  flex: 1;
-  max-width: 500px;
+  width: min(980px, 100%);
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo {
+  width: min(460px, 86vw);
+  height: 190px;
+  object-fit: contain;
+  object-position: center;
+}
+
+.eyebrow {
+  width: fit-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  padding: 10px 16px;
+  border: 1px solid rgba(56, 176, 0, 0.24);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.065);
+  color: var(--color-brand-300);
+  font-size: clamp(var(--text-sm), 1.35vw, var(--text-md));
+  font-weight: var(--font-extrabold);
+  line-height: var(--line-normal);
+  backdrop-filter: blur(14px);
 }
 
 .title {
-  font-size: 48px;
-  font-weight: 800;
-  margin-bottom: 24px;
-  line-height: 1.2;
-}
-
-.highlight {
-  color: #38B000;
+  max-width: 980px;
+  margin: 0;
+  color: var(--color-text-inverse);
+  font-family: var(--font-accent);
+  font-size: clamp(42px, 5.4vw, 82px);
+  font-weight: var(--font-extrabold);
+  line-height: 0.98;
+  letter-spacing: -0.06em;
 }
 
 .subtitle {
-  font-size: 20px;
-  margin-bottom: 40px;
-  line-height: 1.6;
-  opacity: 0.9;
+  max-width: 780px;
+  margin: var(--space-6) auto 0;
+  color: var(--color-text-inverse-muted);
+  font-size: var(--text-lg);
+  line-height: var(--line-relaxed);
 }
 
-.buttons {
+.actions {
   display: flex;
-  gap: 20px;
+  align-items: center;
+  justify-content: center;
   flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-8);
 }
 
-/* Стили для контейнера Swiper */
-.swiperContainer {
-  flex: 1.2;
-  max-width: 700px;
-  height: 550px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  perspective: 1000px;
-  overflow: visible; /* Оставляем visible для эффекта, но контролируем через родителя */
-  position: relative;
-  left: -20px; /* Сдвигаем контейнер влево, чтобы компенсировать выезд карт */
+.actions :global(.secondary) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-inverse);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: none;
 }
 
-.mySwiper {
+.actions :global(.secondary:hover) {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--color-text-inverse);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.featuresPanel {
   width: 100%;
-  height: 100%;
-  padding: 20px 0 50px 0;
-  overflow: visible; /* Важно: оставляем visible для теней */
-}
-
-/* Исправляем позиционирование слайдов */
-.swiperSlide {
-  width: 320px;
-  height: 450px;
-  border-radius: 24px;
-  overflow: visible;
-  transition: transform 0.3s ease;
-  /* Центрируем стопку */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-/* Стили для контейнера карт */
-:global(.swiper-cards) {
-  overflow: visible;
-}
-
-/* Исправляем позицию первого слайда */
-:global(.swiper-slide:first-child) {
-  margin-left: 0 !important;
-}
-
-/* Корректировка трансформаций для эффекта cards */
-:global(.swiper-cards .swiper-slide) {
-  transform-origin: center center !important; /* Меняем точку трансформации на центр */
-}
-
-.cardContent {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border-radius: 24px;
-  padding: 30px 20px;
-  box-shadow: 
-    0 20px 40px rgba(0, 0, 0, 0.4),
-    0 0 0 2px rgba(255, 255, 255, 0.1) inset;
-  text-align: center;
-  transition: all 0.3s ease;
-  position: relative;
-  backdrop-filter: blur(10px);
-  /* Добавляем margin для компенсации */
-  margin: 0 auto;
-}
-
-.cardContent:hover {
-  transform: translateY(-10px) scale(1.02);
-  box-shadow: 
-    0 30px 60px rgba(0, 0, 0, 0.5),
-    0 0 0 3px rgba(255, 255, 255, 0.2) inset;
-}
-
-.cardIcon {
-  font-size: 64px;
-  margin-bottom: 20px;
-  animation: float 3s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
-.cardTitle {
-  font-size: 28px;
-  font-weight: 700;
-  margin-bottom: 16px;
-  color: white;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.cardDescription {
-  font-size: 16px;
-  line-height: 1.6;
-  margin-bottom: 24px;
-  color: rgba(255, 255, 255, 0.9);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  max-width: 260px;
-}
-
-.cardFooter {
-  margin-top: auto;
-  width: 100%;
-}
-
-.cardFeature {
-  display: inline-block;
-  padding: 8px 20px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 30px;
-  font-size: 14px;
-  font-weight: 600;
-  color: white;
-  backdrop-filter: blur(5px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  transition: all 0.3s ease;
-}
-
-.cardFeature:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateX(5px);
-}
-
-/* Кастомные стили для пагинации */
-.mySwiper :global(.swiper-pagination) {
-  bottom: 10px !important; /* Поднимаем пагинацию выше */
-}
-
-.mySwiper :global(.swiper-pagination-bullet) {
-  width: 10px;
-  height: 10px;
-  background: white;
-  opacity: 0.5;
-  transition: all 0.3s ease;
-}
-
-.mySwiper :global(.swiper-pagination-bullet-active) {
-  background: #38B000;
-  opacity: 1;
-  width: 20px;
-  border-radius: 10px;
-}
-
-.mySwiper :global(.swiper-pagination-bullet-active-dynamic) {
-  transform: scale(1.2);
-}
-
-/* Стили для теней карт */
-.mySwiper :global(.swiper-slide-shadow-cards) {
-  border-radius: 24px;
-  background: rgba(0, 0, 0, 0.3);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-}
-
-.features {
+  min-width: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 40px;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 80px 20px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  overflow-x: hidden; /* Запрещаем горизонтальный скролл */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
 }
 
-.feature h3 {
-  display: inline-flex;
+.feature {
+  position: relative;
+  min-height: 150px;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: var(--radius-2xl);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(56, 176, 0, 0.1), transparent 38%),
+    rgba(255, 255, 255, 0.055);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+  transition:
+    transform var(--transition-base),
+    border-color var(--transition-base),
+    background var(--transition-base);
+}
+
+.feature:hover {
+  transform: translateY(-3px);
+  border-color: rgba(56, 176, 0, 0.26);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(56, 176, 0, 0.14), transparent 38%),
+    rgba(255, 255, 255, 0.075);
+}
+
+.featureIcon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: var(--radius-xl);
+  background: rgba(56, 176, 0, 0.14);
+  color: var(--color-brand-300);
+  box-shadow: inset 0 0 0 1px rgba(56, 176, 0, 0.16);
+}
+
+.featureContent {
+  min-width: 0;
 }
 
 .feature h3 {
-  font-size: 24px;
-  margin-bottom: 16px;
+  margin: 0;
+  color: var(--color-text-inverse);
+  font-family: var(--font-accent);
+  font-size: var(--text-lg);
+  font-weight: var(--font-extrabold);
+  line-height: var(--line-tight);
+  letter-spacing: var(--letter-tight);
 }
 
 .feature p {
-  opacity: 0.8;
-  line-height: 1.6;
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-inverse-muted);
+  font-size: var(--text-sm);
+  line-height: var(--line-relaxed);
 }
 
-/* Адаптивность */
-@media (max-width: 1024px) {
+@media (max-width: 1180px) {
   .hero {
-    flex-direction: column;
-    text-align: center;
-    padding: 40px 20px;
+    min-height: auto;
+    padding-top: var(--space-8);
+    padding-bottom: var(--space-8);
   }
-  
-  .content {
-    max-width: 100%;
+
+  .featuresPanel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  
-  .swiperContainer {
-    width: 100%;
-    max-width: 600px;
-    height: 500px;
-    left: 0; /* Убираем сдвиг на мобильных */
-  }
-  
-  .title {
-    font-size: 42px;
-  }
-  
-  .buttons {
-    justify-content: center;
+
+  .feature {
+    min-height: 136px;
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 760px) {
+  .page {
+    padding: var(--space-5);
+  }
+
+  .hero {
+    gap: var(--space-8);
+  }
+
+  .brand {
+    margin-bottom: var(--space-3);
+  }
+
+  .logo {
+    width: min(320px, 88vw);
+    height: 136px;
+  }
+
+  .eyebrow {
+    padding: 9px 13px;
+    border-radius: var(--radius-xl);
+    font-size: var(--text-sm);
+  }
+
   .title {
-    font-size: 36px;
+    font-size: clamp(36px, 12vw, 56px);
   }
-  
-  .swiperContainer {
-    height: 450px;
+
+  .subtitle {
+    font-size: var(--text-md);
   }
-  
-  .swiperSlide {
-    width: 280px;
-    height: 400px;
+
+  .actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
   }
-  
-  .cardIcon {
-    font-size: 54px;
+
+  .actions a,
+  .actions button {
+    width: 100%;
   }
-  
-  .cardTitle {
-    font-size: 24px;
+
+  .featuresPanel {
+    grid-template-columns: 1fr;
   }
-  
-  .cardDescription {
-    font-size: 14px;
+
+  .feature {
+    min-height: 126px;
   }
 }
 
 @media (max-width: 480px) {
-  .swiperContainer {
-    height: 400px;
+  .page {
+    padding: var(--space-4);
   }
-  
-  .swiperSlide {
-    width: 260px;
-    height: 380px;
+
+  .hero {
+    gap: var(--space-7);
+    padding-top: var(--space-5);
+    padding-bottom: var(--space-5);
   }
-  
-  .cardIcon {
-    font-size: 48px;
+
+  .logo {
+    width: min(260px, 88vw);
+    height: 112px;
   }
-  
-  .cardTitle {
-    font-size: 22px;
+
+  .eyebrow {
+    width: 100%;
+    line-height: var(--line-normal);
+    text-align: center;
   }
-  
-  .cardDescription {
-    font-size: 13px;
+
+  .feature {
+    align-items: center;
+    min-height: auto;
+    padding: var(--space-4);
+  }
+
+  .featureIcon {
+    width: 50px;
+    height: 50px;
   }
 }

@@ -1,6 +1,22 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ConnectionState } from 'livekit-client';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  ClipboardList,
+  Copy,
+  FolderKanban,
+  Loader2,
+  PhoneOff,
+  Radio,
+  Users,
+  Video,
+  VideoOff,
+  Zap,
+} from 'lucide-react';
+
 import { useConference } from '../../../hooks/useConference';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { conferencesAPI } from '../../../services/api/conferences';
@@ -9,33 +25,102 @@ import { ParticipantGrid } from './ParticipantGrid';
 import { ControlBar } from './ControlBar';
 import { ChatPanel } from './ChatPanel';
 import { ParticipantsPanel } from './ParticipantsPanel';
-import { ReactionsBar } from './ReactionsBar';
 import { ConfirmationModal } from '../ConfirmationModal';
 import {
-  CONFERENCE_ROOM_ICON_COMPONENTS,
-  DEFAULT_CONFERENCE_ROOM_ICON,
-  CONFERENCE_ICONS,
-  renderIconComponent,
-} from '../../../utils/icons';
-import { CONFERENCE_ROOM_TYPE_TRANSLATIONS } from '../../../utils/constants';
+  CONFERENCE_ROOM_TYPES,
+  CONFERENCE_ROOM_TYPE_TRANSLATIONS,
+} from '../../../utils/constants';
 import styles from './ConferenceRoom.module.css';
 
 const MAX_VISIBLE_REACTIONS = 12;
 const REACTION_LIFETIME_MS = 2400;
 
-const InterfaceIcon = ({ icon: Icon, size = 16 }) => {
-  return renderIconComponent(Icon, { size, strokeWidth: 2 });
+const PARTICIPANT_FORMS = ['участник', 'участника', 'участников'];
+
+const getRussianPluralForm = (count, forms) => {
+  const number = Math.abs(Number(count)) || 0;
+  const lastTwoDigits = number % 100;
+  const lastDigit = number % 10;
+
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
+    return forms[2];
+  }
+
+  if (lastDigit === 1) {
+    return forms[0];
+  }
+
+  if (lastDigit >= 2 && lastDigit <= 4) {
+    return forms[1];
+  }
+
+  return forms[2];
 };
 
-const RoomTypeIcon = ({ type, size = 16 }) => {
-  const Icon = CONFERENCE_ROOM_ICON_COMPONENTS[type] || DEFAULT_CONFERENCE_ROOM_ICON;
-  return renderIconComponent(Icon, { size, strokeWidth: 2 });
+const getRoomTypeConfig = (type) => {
+  switch (type) {
+    case CONFERENCE_ROOM_TYPES.PROJECT:
+      return {
+        label: CONFERENCE_ROOM_TYPE_TRANSLATIONS[type] || 'Проект',
+        Icon: FolderKanban,
+      };
+
+    case CONFERENCE_ROOM_TYPES.GROUP:
+      return {
+        label: CONFERENCE_ROOM_TYPE_TRANSLATIONS[type] || 'Группа',
+        Icon: Users,
+      };
+
+    case CONFERENCE_ROOM_TYPES.TASK:
+      return {
+        label: CONFERENCE_ROOM_TYPE_TRANSLATIONS[type] || 'Задача',
+        Icon: ClipboardList,
+      };
+
+    case CONFERENCE_ROOM_TYPES.INSTANT:
+      return {
+        label: CONFERENCE_ROOM_TYPE_TRANSLATIONS[type] || 'Мгновенный',
+        Icon: Zap,
+      };
+
+    default:
+      return {
+        label: 'Созвон',
+        Icon: Video,
+      };
+  }
+};
+
+const getCreatorName = (creator) => {
+  return creator?.name || creator?.login || creator?.email || 'Неизвестно';
+};
+
+const getConnectionLabel = (connectionState) => {
+  if (connectionState === ConnectionState.Connected) {
+    return 'Подключено';
+  }
+
+  if (connectionState === ConnectionState.Connecting) {
+    return 'Подключение';
+  }
+
+  if (connectionState === ConnectionState.Reconnecting) {
+    return 'Переподключение';
+  }
+
+  if (connectionState === ConnectionState.Disconnected) {
+    return 'Отключено';
+  }
+
+  return 'Ожидание';
 };
 
 export const ConferenceRoom = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuthContext();
+
+  const numericRoomId = useMemo(() => Number.parseInt(roomId, 10), [roomId]);
 
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
@@ -44,10 +129,12 @@ export const ConferenceRoom = () => {
   const [userInteracted, setUserInteracted] = useState(false);
   const [joiningRoom, setJoiningRoom] = useState(false);
   const [roomData, setRoomData] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   const hasConnected = useRef(false);
   const leaveBeaconSentRef = useRef(false);
   const reactionTimersRef = useRef(new Map());
+  const copiedTimerRef = useRef(null);
 
   const {
     connectionState,
@@ -63,7 +150,6 @@ export const ConferenceRoom = () => {
     toggleVideo,
     toggleScreenShare,
     sendChatMessage,
-    sendReaction,
     muteParticipant,
     kickParticipant,
     endConference,
@@ -71,7 +157,17 @@ export const ConferenceRoom = () => {
     isAudioEnabled,
     isVideoEnabled,
     isScreenSharing,
-  } = useConference(parseInt(roomId));
+    sendReaction,
+  } = useConference(numericRoomId);
+
+  const displayRoom = roomData || roomInfo;
+  const roomType = getRoomTypeConfig(displayRoom?.room_type);
+  const RoomTypeIcon = roomType.Icon;
+
+  const participantLabel = getRussianPluralForm(
+    participants.length,
+    PARTICIPANT_FORMS
+  );
 
   const createFallbackReactionId = () => {
     if (window.crypto?.randomUUID) {
@@ -81,13 +177,11 @@ export const ConferenceRoom = () => {
     return `reaction_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   };
 
-  const createFallbackPosition = () => {
-    return {
-      x: Math.round(18 + Math.random() * 64),
-      y: Math.round(18 + Math.random() * 50),
-      drift: Math.round(-30 + Math.random() * 60)
-    };
-  };
+  const createFallbackPosition = () => ({
+    x: Math.round(18 + Math.random() * 64),
+    y: Math.round(18 + Math.random() * 50),
+    drift: Math.round(-30 + Math.random() * 60),
+  });
 
   useEffect(() => {
     const loadRoomData = async () => {
@@ -122,16 +216,12 @@ export const ConferenceRoom = () => {
   }, [connect, disconnect, roomId, userInteracted]);
 
   useEffect(() => {
-    if (!roomId || !userInteracted) {
-      return;
-    }
+    if (!roomId || !userInteracted) return;
 
     const leaveUrl = `/api/conferences/rooms/${roomId}/leave-beacon`;
 
     const sendLeaveBeacon = () => {
-      if (leaveBeaconSentRef.current) {
-        return;
-      }
+      if (leaveBeaconSentRef.current) return;
 
       leaveBeaconSentRef.current = true;
 
@@ -147,11 +237,10 @@ export const ConferenceRoom = () => {
         fetch(leaveUrl, {
           method: 'POST',
           credentials: 'include',
-          keepalive: true
+          keepalive: true,
         }).catch(() => {});
-      // eslint-disable-next-line no-unused-vars
-      } catch (err) {
-        // Страница уже закрывается, поэтому ошибку здесь не показываем.
+      } catch {
+        // Страница закрывается, поэтому ошибку здесь не показываем.
       }
     };
 
@@ -183,12 +272,14 @@ export const ConferenceRoom = () => {
         participantName: event.detail.participantName,
         x: Number.isFinite(event.detail.x) ? event.detail.x : fallbackPosition.x,
         y: Number.isFinite(event.detail.y) ? event.detail.y : fallbackPosition.y,
-        drift: Number.isFinite(event.detail.drift) ? event.detail.drift : fallbackPosition.drift,
-        createdAt: event.detail.createdAt || new Date().toISOString()
+        drift: Number.isFinite(event.detail.drift)
+          ? event.detail.drift
+          : fallbackPosition.drift,
+        createdAt: event.detail.createdAt || new Date().toISOString(),
       };
 
-      setFloatingReactions(prev => {
-        const withoutDuplicate = prev.filter(item => item.id !== reactionItem.id);
+      setFloatingReactions((prev) => {
+        const withoutDuplicate = prev.filter((item) => item.id !== reactionItem.id);
         return [...withoutDuplicate, reactionItem].slice(-MAX_VISIBLE_REACTIONS);
       });
 
@@ -199,7 +290,9 @@ export const ConferenceRoom = () => {
       }
 
       const timerId = setTimeout(() => {
-        setFloatingReactions(prev => prev.filter(item => item.id !== reactionItem.id));
+        setFloatingReactions((prev) =>
+          prev.filter((item) => item.id !== reactionItem.id)
+        );
         reactionTimers.delete(reactionItem.id);
       }, REACTION_LIFETIME_MS);
 
@@ -211,8 +304,16 @@ export const ConferenceRoom = () => {
     return () => {
       window.removeEventListener('conference:reaction', handleReaction);
 
-      reactionTimers.forEach(timerId => clearTimeout(timerId));
+      reactionTimers.forEach((timerId) => clearTimeout(timerId));
       reactionTimers.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) {
+        clearTimeout(copiedTimerRef.current);
+      }
     };
   }, []);
 
@@ -231,67 +332,111 @@ export const ConferenceRoom = () => {
     navigate(-1);
   };
 
-  const handleCopyLink = () => {
+  const handleCopyLink = async () => {
     const url = window.location.href;
 
-    navigator.clipboard?.writeText(url).catch((err) => {
+    try {
+      await navigator.clipboard?.writeText(url);
+      setCopied(true);
+
+      if (copiedTimerRef.current) {
+        clearTimeout(copiedTimerRef.current);
+      }
+
+      copiedTimerRef.current = setTimeout(() => {
+        setCopied(false);
+      }, 1800);
+    } catch (err) {
       console.error('Failed to copy:', err);
-    });
+    }
   };
 
   if (!userInteracted) {
-    const displayRoom = roomData || roomInfo;
-
     return (
-      <div className={styles.loadingContainer}>
-        <div className={styles.joinRoomCard}>
-          <div className={styles.joinRoomIcon}>
-            <InterfaceIcon icon={CONFERENCE_ICONS.START} size={64} />
-          </div>
+      <div className={styles.preJoinScreen}>
+        <div className={styles.preJoinShell}>
+          <section className={styles.preJoinInfo}>
+            <button
+              type="button"
+              className={styles.backButton}
+              onClick={() => navigate('/conferences')}
+            >
+              <ArrowLeft size={17} strokeWidth={2} aria-hidden="true" />
+              К списку созвонов
+            </button>
 
-          <h2 className={styles.joinRoomTitle}>
-            {displayRoom?.title || 'Загрузка...'}
-          </h2>
+            <div className={styles.roomTypeBadge}>
+              <RoomTypeIcon size={16} strokeWidth={2} aria-hidden="true" />
+              {roomType.label}
+            </div>
 
-          <p className={styles.joinRoomDescription}>
-            Вы приглашены присоединиться к созвону.
-            Нажмите кнопку ниже, чтобы войти.
-          </p>
+            <h1 className={styles.preJoinTitle}>
+              {displayRoom?.title || 'Загрузка созвона...'}
+            </h1>
 
-          {displayRoom && (
-            <div className={styles.joinRoomInfo}>
-              <div className={styles.joinRoomInfoItem}>
-                <span className={styles.joinRoomLabel}>Тип:</span>
-                <span className={styles.joinRoomValue}>
-                  <RoomTypeIcon type={displayRoom.room_type} />{' '}
-                  {CONFERENCE_ROOM_TYPE_TRANSLATIONS[displayRoom.room_type] || 'Созвон'}
-                </span>
-              </div>
+            <p className={styles.preJoinDescription}>
+              Перед входом проверьте, что браузеру разрешён доступ к микрофону
+              и камере. Подключение к комнате начнётся только после нажатия кнопки.
+            </p>
 
-              {displayRoom.creator && (
-                <div className={styles.joinRoomInfoItem}>
-                  <span className={styles.joinRoomLabel}>Создатель:</span>
-                  <span className={styles.joinRoomValue}>
-                    {displayRoom.creator.login}
+            {displayRoom && (
+              <div className={styles.preJoinDetails}>
+                <div className={styles.detailItem}>
+                  <span className={styles.detailLabel}>Тип</span>
+                  <span className={styles.detailValue}>
+                    <RoomTypeIcon size={15} strokeWidth={2} aria-hidden="true" />
+                    {roomType.label}
                   </span>
                 </div>
-              )}
+
+                {displayRoom.creator && (
+                  <div className={styles.detailItem}>
+                    <span className={styles.detailLabel}>Создатель</span>
+                    <span className={styles.detailValue}>
+                      <Users size={15} strokeWidth={2} aria-hidden="true" />
+                      {getCreatorName(displayRoom.creator)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          <section className={styles.preJoinPanel}>
+            <div className={styles.previewBox}>
+              <div className={styles.previewIcon}>
+                <VideoOff size={42} strokeWidth={1.8} aria-hidden="true" />
+              </div>
+
+              <div>
+                <h2>Предпросмотр недоступен</h2>
+                <p>
+                  Камера и микрофон будут запрошены при входе в созвон.
+                </p>
+              </div>
             </div>
-          )}
 
-          <Button
-            variant="primary"
-            size="large"
-            onClick={handleJoinRoom}
-            className={styles.joinButton}
-            disabled={!displayRoom}
-          >
-            {displayRoom ? 'Войти в созвон' : 'Загрузка...'}
-          </Button>
+            <div className={styles.preJoinActions}>
+              <Button
+                variant="primary"
+                size="large"
+                onClick={handleJoinRoom}
+                className={styles.joinButton}
+                disabled={!displayRoom}
+              >
+                <Video size={18} strokeWidth={2} aria-hidden="true" />
+                {displayRoom ? 'Войти в созвон' : 'Загрузка...'}
+              </Button>
 
-          <p className={styles.joinRoomHint}>
-            При входе потребуется доступ к микрофону и камере
-          </p>
+              <Button
+                variant="secondary"
+                size="large"
+                onClick={() => navigate('/conferences')}
+              >
+                Отмена
+              </Button>
+            </div>
+          </section>
         </div>
       </div>
     );
@@ -304,8 +449,15 @@ export const ConferenceRoom = () => {
   ) {
     return (
       <div className={styles.loadingContainer}>
-        <div className={styles.spinner}></div>
+        <Loader2
+          size={42}
+          strokeWidth={2}
+          className={styles.loadingIcon}
+          aria-hidden="true"
+        />
+
         <p>Подключение к созвону...</p>
+
         <p className={styles.hint}>
           Пожалуйста, разрешите доступ к микрофону и камере
         </p>
@@ -316,7 +468,13 @@ export const ConferenceRoom = () => {
   if (connectionState === ConnectionState.Reconnecting) {
     return (
       <div className={styles.loadingContainer}>
-        <div className={styles.spinner}></div>
+        <Loader2
+          size={42}
+          strokeWidth={2}
+          className={styles.loadingIcon}
+          aria-hidden="true"
+        />
+
         <p>Переподключение...</p>
       </div>
     );
@@ -325,9 +483,14 @@ export const ConferenceRoom = () => {
   if (error) {
     return (
       <div className={styles.errorContainer}>
+        <div className={styles.errorIcon}>
+          <AlertTriangle size={42} strokeWidth={1.8} aria-hidden="true" />
+        </div>
+
         <h2>Ошибка подключения</h2>
         <p>{error}</p>
-        <Button onClick={() => navigate(-1)}>
+
+        <Button onClick={() => navigate(-1)} variant="primary">
           Вернуться назад
         </Button>
       </div>
@@ -336,42 +499,58 @@ export const ConferenceRoom = () => {
 
   return (
     <div className={styles.room}>
-      <div className={styles.header}>
-        <div className={styles.headerLeft}>
-          <Button
-            variant="secondary"
-            size="small"
+      <header className={styles.topBar}>
+        <div className={styles.topBarLeft}>
+          <button
+            type="button"
+            className={styles.iconBackButton}
             onClick={handleLeave}
-            className={styles.leaveButton}
+            aria-label="Выйти из созвона"
           >
-            <InterfaceIcon icon={CONFERENCE_ICONS.LEAVE} />
-            Выйти
-          </Button>
+            <ArrowLeft size={19} strokeWidth={2.2} aria-hidden="true" />
+          </button>
 
-          <div className={styles.roomInfo}>
-            <h2 className={styles.roomTitle}>
-              {roomInfo?.title || 'Созвон'}
-            </h2>
+          <div className={styles.roomTitleBlock}>
+            <div className={styles.roomTitleRow}>
+              <RoomTypeIcon size={17} strokeWidth={2} aria-hidden="true" />
 
-            <span className={styles.participantCount}>
-              {participants.length}{' '}
-              {participants.length === 1
-                ? 'участник'
-                : participants.length >= 2 && participants.length <= 4
-                ? 'участника'
-                : 'участников'}
-            </span>
+              <h1 className={styles.roomTitle}>
+                {roomInfo?.title || displayRoom?.title || 'Созвон'}
+              </h1>
+            </div>
+
+            <div className={styles.roomMeta}>
+              <span className={styles.connectionBadge}>
+                <Radio size={13} strokeWidth={2.2} aria-hidden="true" />
+                {getConnectionLabel(connectionState)}
+              </span>
+
+              <span>
+                {participants.length} {participantLabel}
+              </span>
+
+              {isModerator && (
+                <span className={styles.moderatorBadge}>
+                  Модератор
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className={styles.headerActions}>
+        <div className={styles.topBarActions}>
           <Button
             variant="secondary"
             size="small"
             onClick={handleCopyLink}
+            className={styles.topActionButton}
           >
-            <InterfaceIcon icon={CONFERENCE_ICONS.COPY} />
-            Копировать ссылку
+            {copied ? (
+              <CheckCircle2 size={16} strokeWidth={2} aria-hidden="true" />
+            ) : (
+              <Copy size={16} strokeWidth={2} aria-hidden="true" />
+            )}
+            {copied ? 'Скопировано' : 'Ссылка'}
           </Button>
 
           {isModerator && (
@@ -379,14 +558,16 @@ export const ConferenceRoom = () => {
               variant="danger"
               size="small"
               onClick={() => setShowEndModal(true)}
+              className={styles.endButton}
             >
-              Завершить созвон
+              <PhoneOff size={16} strokeWidth={2} aria-hidden="true" />
+              Завершить
             </Button>
           )}
         </div>
-      </div>
+      </header>
 
-      <div className={styles.mainArea}>
+      <main className={styles.mainArea}>
         <ParticipantGrid
           participants={participants}
           localParticipantId={user?.id?.toString()}
@@ -403,43 +584,46 @@ export const ConferenceRoom = () => {
               style={{
                 '--reaction-x': `${reaction.x}%`,
                 '--reaction-y': `${reaction.y}%`,
-                '--reaction-drift': `${reaction.drift}px`
+                '--reaction-drift': `${reaction.drift}px`,
               }}
             >
               <span className={styles.reactionEmoji}>
                 {reaction.reaction}
               </span>
+
               <span className={styles.reactionName}>
                 {reaction.participantName}
               </span>
             </div>
           ))}
         </div>
-      </div>
+      </main>
 
       {showChat && (
-        <ChatPanel
-          roomId={parseInt(roomId)}
-          messages={messages}
-          onSendMessage={sendChatMessage}
-          onClose={() => setShowChat(false)}
-          currentUserId={user?.id}
-          _addHistoryMessages={addHistoryMessages}
-        />
+        <div className={styles.sidePanelLayer}>
+          <ChatPanel
+            roomId={numericRoomId}
+            messages={messages}
+            onSendMessage={sendChatMessage}
+            onClose={() => setShowChat(false)}
+            currentUserId={user?.id}
+            _addHistoryMessages={addHistoryMessages}
+          />
+        </div>
       )}
 
       {showParticipants && (
-        <ParticipantsPanel
-          participants={participants}
-          localParticipantId={user?.id?.toString()}
-          isModerator={isModerator}
-          onMuteParticipant={muteParticipant}
-          onKickParticipant={kickParticipant}
-          onClose={() => setShowParticipants(false)}
-        />
+        <div className={styles.sidePanelLayer}>
+          <ParticipantsPanel
+            participants={participants}
+            localParticipantId={user?.id?.toString()}
+            isModerator={isModerator}
+            onMuteParticipant={muteParticipant}
+            onKickParticipant={kickParticipant}
+            onClose={() => setShowParticipants(false)}
+          />
+        </div>
       )}
-
-      <ReactionsBar onSendReaction={sendReaction} />
 
       <ControlBar
         isAudioEnabled={isAudioEnabled}
@@ -448,11 +632,12 @@ export const ConferenceRoom = () => {
         onToggleAudio={toggleAudio}
         onToggleVideo={toggleVideo}
         onToggleScreenShare={toggleScreenShare}
-        onToggleChat={() => setShowChat(!showChat)}
-        onToggleParticipants={() => setShowParticipants(!showParticipants)}
+        onToggleChat={() => setShowChat((value) => !value)}
+        onToggleParticipants={() => setShowParticipants((value) => !value)}
         onLeave={handleLeave}
         showChat={showChat}
         showParticipants={showParticipants}
+        onSendReaction={sendReaction}
       />
 
       <ConfirmationModal

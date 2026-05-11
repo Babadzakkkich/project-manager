@@ -1,9 +1,22 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  CalendarDays,
+  Crown,
+  ExternalLink,
+  FolderKanban,
+  Trash2,
+  Users,
+} from 'lucide-react';
 import { Button } from '../Button';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { useNotification } from '../../../hooks/useNotification';
-import { getUserRoleTranslation, formatDate } from '../../../utils/helpers';
+import {
+  formatDate,
+  getRussianPluralForm,
+  getUserRoleTranslation,
+  RUSSIAN_PLURAL_FORMS,
+} from '../../../utils/helpers';
 import styles from './GroupCard.module.css';
 
 export const GroupCard = ({
@@ -18,7 +31,7 @@ export const GroupCard = ({
 
   const getUserRoleInGroup = () => {
     if (!currentUserId || !group.users) return null;
-    
+
     const currentUserInGroup = group.users.find(u => u.id === currentUserId);
     return currentUserInGroup ? currentUserInGroup.role : null;
   };
@@ -26,12 +39,18 @@ export const GroupCard = ({
   const userRole = getUserRoleInGroup();
   const isAdmin = userRole === 'admin' || userRole === 'super_admin';
 
+  const usersCount = group.users?.length || 0;
+  const projectsCount = group.projects?.length || 0;
+
   const handleDeleteClick = () => {
     setShowDeleteModal(true);
   };
 
   const handleConfirmDelete = async () => {
+    if (!onDelete) return;
+
     setIsDeleting(true);
+
     try {
       await onDelete(group.id, group.name);
       showSuccess(`Группа "${group.name}" успешно удалена`);
@@ -50,56 +69,98 @@ export const GroupCard = ({
 
   return (
     <>
-      <div className={styles.card}>
-        <div className={styles.header}>
-          <h3 className={styles.name}>{group.name}</h3>
-          {userRole && (
-            <span className={styles.role}>
-              {getUserRoleTranslation(userRole)}
-            </span>
-          )}
+      <article className={styles.card}>
+        <div className={styles.topLine}>
+          <div className={styles.groupIcon}>
+            <Users size={22} strokeWidth={2} aria-hidden="true" />
+          </div>
+
+          <div className={styles.titleSection}>
+            <h3 className={styles.name}>{group.name}</h3>
+
+            <div className={styles.badges}>
+              {userRole && (
+                <span className={`${styles.role} ${styles[userRole] || ''}`}>
+                  {userRole === 'super_admin' && (
+                    <Crown size={13} strokeWidth={2} aria-hidden="true" />
+                  )}
+                  {getUserRoleTranslation(userRole)}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-        
-        {group.description && (
+
+        {group.description ? (
           <p className={styles.description}>{group.description}</p>
+        ) : (
+          <p className={styles.descriptionMuted}>Описание группы не указано</p>
         )}
-        
+
+        <div className={styles.metaPanel}>
+          <div className={styles.metaItem}>
+            <span className={styles.metaIcon}>
+              <CalendarDays size={16} strokeWidth={2} aria-hidden="true" />
+            </span>
+
+            <span className={styles.metaContent}>
+              <span className={styles.metaLabel}>Создана</span>
+              <span className={styles.metaValue}>{formatDate(group.created_at)}</span>
+            </span>
+          </div>
+        </div>
+
         <div className={styles.stats}>
           <div className={styles.stat}>
-            <span className={styles.statNumber}>{group.users?.length || 0}</span>
-            <span className={styles.statLabel}>участников</span>
+            <span className={styles.statIcon}>
+              <Users size={18} strokeWidth={2} aria-hidden="true" />
+            </span>
+
+            <span className={styles.statText}>
+              <span className={styles.statNumber}>{usersCount}</span>
+              <span className={styles.statLabel}>
+                {getRussianPluralForm(usersCount, RUSSIAN_PLURAL_FORMS.PARTICIPANT)}
+              </span>
+            </span>
           </div>
+
           <div className={styles.stat}>
-            <span className={styles.statNumber}>{group.projects?.length || 0}</span>
-            <span className={styles.statLabel}>проектов</span>
+            <span className={styles.statIcon}>
+              <FolderKanban size={18} strokeWidth={2} aria-hidden="true" />
+            </span>
+
+            <span className={styles.statText}>
+              <span className={styles.statNumber}>{projectsCount}</span>
+              <span className={styles.statLabel}>
+                {getRussianPluralForm(projectsCount, RUSSIAN_PLURAL_FORMS.PROJECT)}
+              </span>
+            </span>
           </div>
         </div>
-        
+
         <div className={styles.footer}>
-          <span className={styles.createdDate}>
-            Создана: {formatDate(group.created_at)}
-          </span>
-          <div className={styles.actions}>
-            <Link 
-              to={`/groups/${group.id}`} 
-              className={styles.viewButton}
+          <Link
+            to={`/groups/${group.id}`}
+            className={styles.viewButton}
+          >
+            Открыть группу
+            <ExternalLink size={15} strokeWidth={2} aria-hidden="true" />
+          </Link>
+
+          {showDeleteButton && isAdmin && (
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={handleDeleteClick}
+              className={styles.deleteButton}
+              disabled={isDeleting}
             >
-              Подробнее
-            </Link>
-            {showDeleteButton && isAdmin && (
-              <Button
-                variant="secondary"
-                size="small"
-                onClick={handleDeleteClick}
-                className={styles.deleteButton}
-                disabled={isDeleting}
-              >
-                {isDeleting ? 'Удаление...' : 'Удалить'}
-              </Button>
-            )}
-          </div>
+              <Trash2 size={15} strokeWidth={2} aria-hidden="true" />
+              {isDeleting ? 'Удаление...' : 'Удалить'}
+            </Button>
+          )}
         </div>
-      </div>
+      </article>
 
       <ConfirmationModal
         isOpen={showDeleteModal}
@@ -107,7 +168,7 @@ export const GroupCard = ({
         onConfirm={handleConfirmDelete}
         title="Удаление группы"
         message={`Вы уверены, что хотите удалить группу "${group.name}"? Это действие нельзя отменить. Все проекты и данные группы будут потеряны.`}
-        confirmText={isDeleting ? "Удаление..." : "Удалить группу"}
+        confirmText={isDeleting ? 'Удаление...' : 'Удалить группу'}
         cancelText="Отмена"
         variant="danger"
         isLoading={isDeleting}

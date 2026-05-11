@@ -1,5 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  ArrowLeft,
+  Crown,
+  FolderKanban,
+  MailPlus,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  UserMinus,
+  Users,
+} from 'lucide-react';
+
 import { groupsAPI } from '../../../services/api/groups';
 import { projectsAPI } from '../../../services/api/projects';
 import { Button } from '../../../components/ui/Button';
@@ -8,78 +21,95 @@ import { ProjectCard } from '../../../components/ui/ProjectCard';
 import { ItemsModal } from '../../../components/ui/ItemsModal';
 import { ConfirmationModal } from '../../../components/ui/ConfirmationModal';
 import { Notification } from '../../../components/ui/Notification';
+import { StartConferenceButton } from '../../../components/ui/StartConferenceButton';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { useNotification } from '../../../hooks/useNotification';
-import { handleApiError, getUserRoleTranslation } from '../../../utils/helpers';
-import styles from './GroupDetail.module.css';
-import { StartConferenceButton } from '../../../components/ui/StartConferenceButton';
+import {
+  formatDate,
+  getRussianPluralForm,
+  getUserRoleTranslation,
+  handleApiError,
+  RUSSIAN_PLURAL_FORMS,
+} from '../../../utils/helpers';
 import { CONFERENCE_ROOM_TYPES } from '../../../utils/constants';
-import { FolderOpen } from 'lucide-react';
+import styles from './GroupDetail.module.css';
+
+const getUserName = (user) => {
+  return user?.name || user?.login || user?.email || 'Пользователь';
+};
+
+const getInitial = (user) => {
+  return getUserName(user).charAt(0).toUpperCase();
+};
 
 export const GroupDetail = () => {
   const { groupId } = useParams();
   const navigate = useNavigate();
+
   const [group, setGroup] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', description: '' });
+
   const [userRole, setUserRole] = useState('');
-  
-  // Состояния для приглашений
+
   const [invitingUser, setInvitingUser] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('member');
   const [inviting, setInviting] = useState(false);
-  
+
   const [editingUser, setEditingUser] = useState(null);
   const [showProjectsModal, setShowProjectsModal] = useState(false);
-  
+
   const [showDeleteGroupModal, setShowDeleteGroupModal] = useState(false);
   const [showRemoveUserModal, setShowRemoveUserModal] = useState(null);
-  
+
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const [isRemovingUser, setIsRemovingUser] = useState(false);
 
   const { user } = useAuthContext();
-  const { 
-    notification, 
-    showSuccess, 
-    showError, 
-    hideNotification 
+
+  const {
+    notification,
+    showSuccess,
+    showError,
+    hideNotification,
   } = useNotification();
 
   const loadGroup = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
+
       const groupData = await groupsAPI.getById(groupId);
-      
+      const projectRefs = Array.isArray(groupData.projects) ? groupData.projects : [];
+
       const projectsWithDetails = await Promise.all(
-        groupData.projects.map(async (project) => {
+        projectRefs.map(async (project) => {
           try {
-            const fullProject = await projectsAPI.getById(project.id);
-            return fullProject;
+            return await projectsAPI.getById(project.id);
           } catch (err) {
             console.error(`Error loading project ${project.id}:`, err);
             return project;
           }
         })
       );
-      
+
       setGroup({
         ...groupData,
-        projects: projectsWithDetails
+        projects: projectsWithDetails,
       });
-      
+
       setEditForm({
         name: groupData.name,
-        description: groupData.description || ''
+        description: groupData.description || '',
       });
     } catch (err) {
       console.error('Error loading group:', err);
-      const errorMessage = handleApiError(err);
-      setError(errorMessage);
+      setError(handleApiError(err));
+      setGroup(null);
     } finally {
       setLoading(false);
     }
@@ -91,8 +121,7 @@ export const GroupDetail = () => {
       setUserRole(roleData.role);
     } catch (err) {
       console.error('Error loading user role:', err);
-      const errorMessage = handleApiError(err);
-      setError(errorMessage);
+      setError(handleApiError(err));
     }
   }, [groupId]);
 
@@ -101,53 +130,62 @@ export const GroupDetail = () => {
       loadGroup();
       loadUserRole();
     }
-  }, [loadGroup, loadUserRole, groupId]);
+  }, [groupId, loadGroup, loadUserRole]);
 
-  const getDisplayProjects = useCallback(() => {
+  const displayProjects = useMemo(() => {
     if (!group?.projects) return [];
-    
+
     return [...group.projects]
-      .sort((a, b) => a.title.localeCompare(b.title))
+      .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''), 'ru-RU'))
       .slice(0, 3);
   }, [group?.projects]);
 
   const handleUpdateGroup = async (e) => {
     e.preventDefault();
+
+    if (!editForm.name.trim()) {
+      showError('Название группы обязательно');
+      return;
+    }
+
     try {
-      const updatedGroup = await groupsAPI.update(groupId, editForm);
-      setGroup(updatedGroup);
+      await groupsAPI.update(groupId, {
+        name: editForm.name.trim(),
+        description: editForm.description.trim(),
+      });
+
+      await loadGroup();
       setEditing(false);
       showSuccess('Группа успешно обновлена');
     } catch (err) {
       console.error('Error updating group:', err);
-      const errorMessage = handleApiError(err);
-      showError(`Не удалось обновить группу: ${errorMessage}`);
+      showError(`Не удалось обновить группу: ${handleApiError(err)}`);
     }
   };
 
-  // Новая функция для отправки приглашения
   const handleInviteUser = async (e) => {
     e.preventDefault();
-    
+
     if (!inviteEmail.trim()) {
       showError('Введите email пользователя');
       return;
     }
-    
+
     setInviting(true);
+
     try {
       await groupsAPI.inviteUser(groupId, {
-        email: inviteEmail,
-        role: inviteRole
+        email: inviteEmail.trim(),
+        role: inviteRole,
       });
+
+      showSuccess(`Приглашение отправлено на ${inviteEmail}`);
       setInviteEmail('');
       setInviteRole('member');
       setInvitingUser(false);
-      showSuccess(`Приглашение отправлено на ${inviteEmail}`);
     } catch (err) {
       console.error('Error inviting user:', err);
-      const errorMessage = handleApiError(err);
-      showError(`Не удалось отправить приглашение: ${errorMessage}`);
+      showError(`Не удалось отправить приглашение: ${handleApiError(err)}`);
     } finally {
       setInviting(false);
     }
@@ -161,16 +199,17 @@ export const GroupDetail = () => {
     if (!showRemoveUserModal) return;
 
     setIsRemovingUser(true);
+
     try {
       await groupsAPI.removeUsers(groupId, {
-        user_ids: [showRemoveUserModal.userId]
+        user_ids: [showRemoveUserModal.userId],
       });
+
       await loadGroup();
-      showSuccess(`Пользователь ${showRemoveUserModal.userLogin} удален из группы`);
+      showSuccess(`Пользователь ${showRemoveUserModal.userLogin} удалён из группы`);
     } catch (err) {
       console.error('Error removing user:', err);
-      const errorMessage = handleApiError(err);
-      showError(`Не удалось удалить пользователя из группы: ${errorMessage}`);
+      showError(`Не удалось удалить пользователя из группы: ${handleApiError(err)}`);
     } finally {
       setIsRemovingUser(false);
       setShowRemoveUserModal(null);
@@ -179,38 +218,34 @@ export const GroupDetail = () => {
 
   const handleChangeUserRole = async (userId, newRole) => {
     try {
-      const userToUpdate = group.users.find(u => u.id === userId);
+      const userToUpdate = group.users.find((item) => item.id === userId);
+
       if (!userToUpdate) return;
 
       await groupsAPI.changeUserRole(groupId, {
         user_email: userToUpdate.email,
-        role: newRole
+        role: newRole,
       });
-      
+
       setEditingUser(null);
       await loadGroup();
       showSuccess(`Роль пользователя ${userToUpdate.login} изменена`);
     } catch (err) {
       console.error('Error changing user role:', err);
-      const errorMessage = handleApiError(err);
-      showError(`Не удалось изменить роль пользователя: ${errorMessage}`);
+      showError(`Не удалось изменить роль пользователя: ${handleApiError(err)}`);
     }
-  };
-
-  const handleDeleteGroupClick = () => {
-    setShowDeleteGroupModal(true);
   };
 
   const handleConfirmDeleteGroup = async () => {
     setIsDeletingGroup(true);
+
     try {
       await groupsAPI.delete(groupId);
       showSuccess(`Группа "${group.name}" успешно удалена`);
       navigate('/groups');
     } catch (err) {
       console.error('Error deleting group:', err);
-      const errorMessage = handleApiError(err);
-      showError(`Не удалось удалить группу: ${errorMessage}`);
+      showError(`Не удалось удалить группу: ${handleApiError(err)}`);
     } finally {
       setIsDeletingGroup(false);
       setShowDeleteGroupModal(false);
@@ -218,21 +253,19 @@ export const GroupDetail = () => {
   };
 
   const handleCreateProject = () => {
-    navigate('/projects/create', { 
-      state: { 
-        preselectedGroup: { 
-          id: group.id, 
-          name: group.name 
-        } 
-      } 
+    navigate('/projects/create', {
+      state: {
+        preselectedGroup: {
+          id: group.id,
+          name: group.name,
+        },
+      },
     });
   };
 
   const isAdmin = userRole === 'admin' || userRole === 'super_admin';
-  const isCurrentUser = (userItem) => userItem.id === user?.id;
-  const hasAccessToGroup = group && group.users?.some(u => u.id === user?.id);
-
-  const displayProjects = getDisplayProjects();
+  const isCurrentUser = (item) => item.id === user?.id;
+  const hasAccessToGroup = group && group.users?.some((item) => item.id === user?.id);
   const hasMoreProjects = group?.projects && group.projects.length > 3;
 
   if (loading) {
@@ -247,9 +280,12 @@ export const GroupDetail = () => {
   if (error || !group || !hasAccessToGroup) {
     return (
       <div className={styles.errorContainer}>
-        <h2>Ошибка</h2>
-        <p>{error || 'Группа не найдена или у вас нет доступа'}</p>
-        <Button onClick={() => navigate('/groups')}>Вернуться к группам</Button>
+        <h2>Не удалось открыть группу</h2>
+        <p>{error || 'Группа не найдена или у вас нет доступа.'}</p>
+
+        <Button onClick={() => navigate('/groups')} variant="primary">
+          Вернуться к группам
+        </Button>
       </div>
     );
   }
@@ -264,39 +300,56 @@ export const GroupDetail = () => {
         duration={5000}
       />
 
-      <div className={styles.header}>
-        <Button 
-          variant="secondary" 
-          onClick={() => navigate('/groups')}
-          className={styles.backButton}
-        >
-          ← Назад к группам
-        </Button>
-        
-        <div className={styles.headerInfo}>
+      <section className={styles.hero}>
+        <div className={styles.heroContent}>
+          <button
+            type="button"
+            className={styles.backButton}
+            onClick={() => navigate('/groups')}
+          >
+            <ArrowLeft size={17} strokeWidth={2} aria-hidden="true" />
+            К группам
+          </button>
+
           {editing ? (
             <form onSubmit={handleUpdateGroup} className={styles.editForm}>
               <Input
+                label="Название группы"
                 value={editForm.name}
-                onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
                 placeholder="Название группы"
                 required
               />
-              <Input
-                value={editForm.description}
-                onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Описание группы"
-              />
+
+              <div className={styles.textareaGroup}>
+                <label className={styles.label} htmlFor="group-description">
+                  Описание группы
+                </label>
+
+                <textarea
+                  id="group-description"
+                  value={editForm.description}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
+                  placeholder="Описание группы"
+                  className={styles.textarea}
+                  rows={4}
+                  maxLength={500}
+                />
+              </div>
+
               <div className={styles.editActions}>
-                <Button type="submit" variant="primary">Сохранить</Button>
-                <Button 
-                  type="button" 
-                  variant="secondary" 
+                <Button type="submit" variant="primary">
+                  Сохранить
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="secondary"
                   onClick={() => {
                     setEditing(false);
                     setEditForm({
                       name: group.name,
-                      description: group.description || ''
+                      description: group.description || '',
                     });
                   }}
                 >
@@ -307,15 +360,16 @@ export const GroupDetail = () => {
           ) : (
             <>
               <h1 className={styles.title}>{group.name}</h1>
-              {group.description && (
-                <p className={styles.description}>{group.description}</p>
-              )}
+
+              <p className={styles.subtitle}>
+                {group.description || 'Описание группы не указано.'}
+              </p>
             </>
           )}
         </div>
 
         {isAdmin && !editing && (
-          <div className={styles.headerActions}>
+          <div className={styles.heroActions}>
             <StartConferenceButton
               type={CONFERENCE_ROOM_TYPES.GROUP}
               id={group.id}
@@ -323,70 +377,110 @@ export const GroupDetail = () => {
               variant="primary"
               size="medium"
             />
-            <Button 
-              variant="secondary" 
+
+            <Button
+              variant="secondary"
               onClick={() => setEditing(true)}
             >
+              <Pencil size={16} strokeWidth={2} aria-hidden="true" />
               Редактировать
             </Button>
-            <Button 
-              variant="secondary" 
-              onClick={handleDeleteGroupClick}
+
+            <Button
+              variant="secondary"
+              onClick={() => setShowDeleteGroupModal(true)}
               className={styles.deleteButton}
               disabled={isDeletingGroup}
             >
-              {isDeletingGroup ? 'Удаление...' : 'Удалить группу'}
+              <Trash2 size={16} strokeWidth={2} aria-hidden="true" />
+              {isDeletingGroup ? 'Удаление...' : 'Удалить'}
             </Button>
           </div>
         )}
-      </div>
+      </section>
+
+      <section className={styles.statsGrid} aria-label="Сводка группы">
+        <article className={styles.statCard}>
+          <span className={styles.statValue}>{group.users?.length || 0}</span>
+          <span className={styles.statLabel}>
+            {getRussianPluralForm(group.users?.length || 0, RUSSIAN_PLURAL_FORMS.PARTICIPANT)}
+          </span>
+        </article>
+
+        <article className={styles.statCard}>
+          <span className={styles.statValue}>{group.projects?.length || 0}</span>
+          <span className={styles.statLabel}>
+            {getRussianPluralForm(group.projects?.length || 0, RUSSIAN_PLURAL_FORMS.PROJECT)}
+          </span>
+        </article>
+
+        <article className={styles.statCard}>
+          <span className={styles.statValue}>{getUserRoleTranslation(userRole)}</span>
+          <span className={styles.statLabel}>ваша роль</span>
+        </article>
+
+        <article className={styles.statCard}>
+          <span className={styles.statValue}>{formatDate(group.created_at)}</span>
+          <span className={styles.statLabel}>дата создания</span>
+        </article>
+      </section>
 
       <div className={styles.content}>
-        <div className={styles.section}>
+        <section className={styles.section}>
           <div className={styles.sectionHeader}>
-            <h2>Участники группы</h2>
+            <div>
+              <h2>Участники</h2>
+              <p>Состав группы и роли пользователей.</p>
+            </div>
+
             {isAdmin && (
-              <Button 
-                variant="primary" 
+              <Button
+                variant="primary"
                 size="small"
-                onClick={() => setInvitingUser(!invitingUser)}
+                onClick={() => setInvitingUser((value) => !value)}
               >
-                {invitingUser ? 'Отмена' : 'Пригласить участника'}
+                <MailPlus size={16} strokeWidth={2} aria-hidden="true" />
+                {invitingUser ? 'Скрыть форму' : 'Пригласить'}
               </Button>
             )}
           </div>
 
-          {/* Форма отправки приглашения */}
           {invitingUser && (
-            <form onSubmit={handleInviteUser} className={styles.addUserForm}>
-              <div className={styles.addUserFields}>
+            <form onSubmit={handleInviteUser} className={styles.inviteForm}>
+              <div className={styles.inviteFields}>
                 <Input
                   label="Email пользователя"
                   type="email"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="Введите email пользователя"
+                  placeholder="user@example.com"
                   required
                   disabled={inviting}
                 />
-                <div className={styles.roleSelect}>
-                  <label>Роль:</label>
-                  <select 
-                    value={inviteRole} 
+
+                <div className={styles.selectGroup}>
+                  <label htmlFor="invite-role">Роль</label>
+
+                  <select
+                    id="invite-role"
+                    value={inviteRole}
                     onChange={(e) => setInviteRole(e.target.value)}
                     disabled={inviting}
+                    className={styles.select}
                   >
                     <option value="member">Участник</option>
                     <option value="admin">Администратор</option>
                   </select>
                 </div>
               </div>
-              <div className={styles.inviteHint}>
-                <small>Приглашение будет отправлено пользователю. Он сможет принять или отклонить его.</small>
-              </div>
-              <Button 
-                type="submit" 
-                variant="primary" 
+
+              <p className={styles.formHint}>
+                Приглашение появится у пользователя в разделе уведомлений и приглашений.
+              </p>
+
+              <Button
+                type="submit"
+                variant="primary"
                 loading={inviting}
                 disabled={!inviteEmail.trim() || inviting}
               >
@@ -397,21 +491,29 @@ export const GroupDetail = () => {
 
           <div className={styles.usersList}>
             {group.users?.map((userItem) => (
-              <div key={userItem.id} className={styles.userCard}>
-                <div className={styles.userInfo}>
-                  <span className={styles.userLogin}>
-                    {userItem.login}
-                    {isCurrentUser(userItem) && (
-                      <span className={styles.currentUserBadge}> (Вы)</span>
-                    )}
-                  </span>
-                  <span className={styles.userEmail}>{userItem.email}</span>
+              <article key={userItem.id} className={styles.userCard}>
+                <div className={styles.userMain}>
+                  <div className={styles.avatar}>{getInitial(userItem)}</div>
+
+                  <div className={styles.userInfo}>
+                    <div className={styles.userName}>
+                      {getUserName(userItem)}
+                      {isCurrentUser(userItem) && (
+                        <span className={styles.currentUserBadge}>Вы</span>
+                      )}
+                    </div>
+
+                    <div className={styles.userMeta}>
+                      {userItem.login && <span>@{userItem.login}</span>}
+                      {userItem.email && <span>{userItem.email}</span>}
+                    </div>
+                  </div>
                 </div>
-                
+
                 <div className={styles.userActions}>
                   {editingUser === userItem.id ? (
                     <div className={styles.roleEdit}>
-                      <select 
+                      <select
                         value={userItem.role}
                         onChange={(e) => handleChangeUserRole(userItem.id, e.target.value)}
                         className={styles.roleSelectSmall}
@@ -419,54 +521,63 @@ export const GroupDetail = () => {
                         <option value="member">Участник</option>
                         <option value="admin">Администратор</option>
                       </select>
-                      <Button 
-                        variant="secondary" 
+
+                      <Button
+                        variant="secondary"
                         size="small"
                         onClick={() => setEditingUser(null)}
-                        className={styles.cancelEditButton}
                       >
                         Отмена
                       </Button>
                     </div>
                   ) : (
-                    <span className={styles.userRole}>
+                    <span className={`${styles.userRole} ${styles[userItem.role] || ''}`}>
+                      {userItem.role === 'super_admin' && (
+                        <Crown size={13} strokeWidth={2} aria-hidden="true" />
+                      )}
                       {getUserRoleTranslation(userItem.role)}
                     </span>
                   )}
-                  
+
                   {isAdmin && !isCurrentUser(userItem) && (
                     <div className={styles.actionButtons}>
-                      <Button 
-                        variant="secondary" 
+                      <Button
+                        variant="secondary"
                         size="small"
                         onClick={() => setEditingUser(userItem.id)}
-                        className={styles.editRoleButton}
                       >
-                        Изменить роль
+                        <ShieldCheck size={15} strokeWidth={2} aria-hidden="true" />
+                        Роль
                       </Button>
-                      <Button 
-                        variant="secondary" 
+
+                      <Button
+                        variant="secondary"
                         size="small"
                         onClick={() => handleRemoveUserClick(userItem.id, userItem.login)}
                         className={styles.removeButton}
                         disabled={isRemovingUser}
                       >
-                        {isRemovingUser ? 'Удаление...' : 'Удалить'}
+                        <UserMinus size={15} strokeWidth={2} aria-hidden="true" />
+                        Удалить
                       </Button>
                     </div>
                   )}
                 </div>
-              </div>
+              </article>
             ))}
           </div>
-        </div>
+        </section>
 
-        <div className={styles.section}>
+        <section className={styles.section}>
           <div className={styles.sectionHeader}>
-            <h2>Проекты группы</h2>
+            <div>
+              <h2>Проекты группы</h2>
+              <p>Проекты, связанные с этой группой.</p>
+            </div>
+
             {group.projects?.length > 0 && (
-              <Button 
-                variant="primary" 
+              <Button
+                variant="primary"
                 size="small"
                 onClick={() => setShowProjectsModal(true)}
               >
@@ -477,41 +588,50 @@ export const GroupDetail = () => {
 
           {group.projects?.length > 0 ? (
             <div className={styles.projectsSection}>
-              <div className={styles.projectsListCompact}>
+              <div className={styles.projectsList}>
                 {displayProjects.map((project) => (
                   <ProjectCard
                     key={project.id}
                     project={project}
-                    showDetailsButton={true}
-                    compact={true}
+                    showDetailsButton
+                    compact
                   />
                 ))}
               </div>
+
               {hasMoreProjects && (
-                <div className={styles.moreProjects}>
-                  <p>И еще {group.projects.length - 3} проектов...</p>
-                </div>
+                <button
+                  type="button"
+                  className={styles.moreProjects}
+                  onClick={() => setShowProjectsModal(true)}
+                >
+                  Ещё {group.projects.length - 3} проектов
+                  <FolderKanban size={16} strokeWidth={2} aria-hidden="true" />
+                </button>
               )}
             </div>
           ) : (
             <div className={styles.emptyProjects}>
               <div className={styles.emptyProjectsIcon}>
-                <FolderOpen size={56} strokeWidth={1.8} aria-hidden="true" />
+                <FolderKanban size={46} strokeWidth={1.8} aria-hidden="true" />
               </div>
-              <h3 className={styles.emptyProjectsTitle}>Проектов пока нет</h3>
-              <p className={styles.emptyProjectsDescription}>
-                Создайте первый проект для этой группы, чтобы начать работу
+
+              <h3>Проектов пока нет</h3>
+
+              <p>
+                Создайте первый проект для этой группы, чтобы начать работу.
               </p>
-              <Button 
-                variant="primary" 
+
+              <Button
+                variant="primary"
                 onClick={handleCreateProject}
-                className={styles.createProjectButton}
               >
+                <Plus size={16} strokeWidth={2} aria-hidden="true" />
                 Создать проект
               </Button>
             </div>
           )}
-        </div>
+        </section>
       </div>
 
       <ItemsModal
@@ -529,7 +649,7 @@ export const GroupDetail = () => {
         onConfirm={handleConfirmDeleteGroup}
         title="Удаление группы"
         message={`Вы уверены, что хотите удалить группу "${group.name}"? Это действие нельзя отменить. Все проекты и данные группы будут потеряны.`}
-        confirmText={isDeletingGroup ? "Удаление..." : "Удалить группу"}
+        confirmText={isDeletingGroup ? 'Удаление...' : 'Удалить группу'}
         cancelText="Отмена"
         variant="danger"
         isLoading={isDeletingGroup}
@@ -541,7 +661,7 @@ export const GroupDetail = () => {
         onConfirm={handleConfirmRemoveUser}
         title="Удаление пользователя из группы"
         message={`Вы уверены, что хотите удалить пользователя "${showRemoveUserModal?.userLogin}" из группы?`}
-        confirmText={isRemovingUser ? "Удаление..." : "Удалить"}
+        confirmText={isRemovingUser ? 'Удаление...' : 'Удалить'}
         cancelText="Отмена"
         variant="warning"
         isLoading={isRemovingUser}

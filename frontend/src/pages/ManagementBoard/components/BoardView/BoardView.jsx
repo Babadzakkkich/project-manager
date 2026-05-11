@@ -1,48 +1,64 @@
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
+
 import { TaskColumn } from '../TaskColumn/TaskColumn';
-import { KANBAN_CONFIG, TASK_STATUSES } from '../../../../utils/constants';
+import { KANBAN_CONFIG } from '../../../../utils/constants';
 import { sortTasksByPosition } from '../../../../utils/taskStatus';
 import { useAutoScroll } from '../../../../hooks/useAutoScroll';
 import styles from './BoardView.module.css';
-import { User, Users } from 'lucide-react';
 
 export const BoardView = ({
   tasks,
   onTaskStatusChange,
   onBulkUpdate,
   viewMode,
-  filters
+  filters,
 }) => {
   const [draggedTask, setDraggedTask] = useState(null);
   const { handleDragOver, stopAutoScroll } = useAutoScroll();
+
+  const safeTasks = useMemo(() => {
+    return Array.isArray(tasks) ? tasks : [];
+  }, [tasks]);
 
   const filterTasks = useCallback((taskList) => {
     let filtered = taskList;
 
     if (filters.assignee) {
-      filtered = filtered.filter(task => 
-        task.assignees && task.assignees.some(assignee => assignee.id === parseInt(filters.assignee))
+      filtered = filtered.filter((task) =>
+        task.assignees?.some((assignee) => assignee.id === Number(filters.assignee))
       );
     }
 
     if (filters.priority) {
-      filtered = filtered.filter(task => task.priority === filters.priority);
+      filtered = filtered.filter((task) => task.priority === filters.priority);
     }
 
     if (filters.tags) {
-      filtered = filtered.filter(task => 
-        task.tags && task.tags.includes(filters.tags)
+      filtered = filtered.filter((task) =>
+        task.tags?.includes(filters.tags)
       );
     }
 
     return filtered;
   }, [filters]);
 
-  const tasksByStatus = KANBAN_CONFIG.COLUMNS.reduce((acc, column) => {
-    const columnTasks = tasks.filter(task => task.status === column.status);
-    acc[column.status] = sortTasksByPosition(filterTasks(columnTasks));
-    return acc;
-  }, {});
+  const tasksByStatus = useMemo(() => {
+    return KANBAN_CONFIG.COLUMNS.reduce((acc, column) => {
+      const columnTasks = safeTasks.filter((task) => task.status === column.status);
+
+      acc[column.status] = sortTasksByPosition(filterTasks(columnTasks));
+      return acc;
+    }, {});
+  }, [safeTasks, filterTasks]);
+
+  const filteredTasksCount = useMemo(() => {
+    return Object.values(tasksByStatus).reduce(
+      (total, columnTasks) => total + columnTasks.length,
+      0
+    );
+  }, [tasksByStatus]);
+
+  const hasActiveFilters = Object.values(filters || {}).some(Boolean);
 
   const handleDragStart = (task) => {
     setDraggedTask(task);
@@ -63,14 +79,14 @@ export const BoardView = ({
 
     try {
       const tasksInColumn = tasksByStatus[newStatus] || [];
-      const maxPosition = tasksInColumn.length > 0 
-        ? Math.max(...tasksInColumn.map(t => t.position || 0))
+      const maxPosition = tasksInColumn.length > 0
+        ? Math.max(...tasksInColumn.map((task) => task.position || 0))
         : 0;
-      
+
       const updates = [{
         task_id: draggedTask.id,
         status: newStatus,
-        position: maxPosition + 1000
+        position: maxPosition + KANBAN_CONFIG.DEFAULT_POSITION_STEP,
       }];
 
       await onBulkUpdate(updates);
@@ -82,65 +98,22 @@ export const BoardView = ({
     }
   };
 
-  const totalTasks = tasks.length;
-  const completedTasks = tasksByStatus[TASK_STATUSES.DONE]?.length || 0;
-  const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
   return (
-    <div 
+    <div
       className={styles.boardView}
       onDragOver={handleDragOverBoard}
       onDragEnd={handleDragEnd}
+      style={{ '--board-columns-count': KANBAN_CONFIG.COLUMNS.length }}
     >
-      <div className={styles.boardHeader}>
-        <div className={styles.headerLeft}>
-          <h2 className={styles.boardTitle}>Доска</h2>
-          {viewMode && (
-            <span className={styles.viewModeBadge}>
-              {viewMode === 'team' ? (
-                <>
-                  <Users size={16} strokeWidth={2} aria-hidden="true" />
-                  Командный режим
-                </>
-              ) : (
-                <>
-                  <User size={16} strokeWidth={2} aria-hidden="true" />
-                  Личный режим
-                </>
-              )}
-            </span>
-          )}
+      {hasActiveFilters && (
+        <div className={styles.filterResult}>
+          Показано задач: <strong>{filteredTasksCount}</strong>
+          <span>из {safeTasks.length}</span>
         </div>
-        
-        <div className={styles.boardStats}>
-          <div className={styles.progressSection}>
-            <div className={styles.progressBar}>
-              <div 
-                className={styles.progressFill} 
-                style={{ width: `${progressPercentage}%` }}
-              />
-            </div>
-            <span className={styles.progressText}>
-              {progressPercentage}% завершено
-            </span>
-          </div>
-          
-          <div className={styles.statsGroup}>
-            <span className={styles.stat}>
-              Всего: <strong>{totalTasks}</strong>
-            </span>
-            <span className={styles.stat}>
-              Выполнено: <strong>{completedTasks}</strong>
-            </span>
-            <span className={styles.stat}>
-              В работе: <strong>{totalTasks - completedTasks}</strong>
-            </span>
-          </div>
-        </div>
-      </div>
+      )}
 
       <div className={styles.columnsContainer}>
-        {KANBAN_CONFIG.COLUMNS.map(column => (
+        {KANBAN_CONFIG.COLUMNS.map((column) => (
           <TaskColumn
             key={column.id}
             column={column}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, Info, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
 import { Button } from '../Button';
 import styles from './ConfirmationModal.module.css';
 
@@ -7,6 +7,7 @@ const MODAL_ICONS = {
   danger: AlertTriangle,
   warning: AlertTriangle,
   info: Info,
+  success: CheckCircle2,
 };
 
 export const ConfirmationModal = ({
@@ -36,33 +37,51 @@ export const ConfirmationModal = ({
       danger: styles.danger,
       warning: styles.warning,
       info: styles.info,
+      success: styles.success,
     };
 
     return variantClasses[variant] || styles.danger;
   };
 
+  const confirmVariant = variant === 'danger' ? 'danger' : 'primary';
+
   return (
-    <div className={styles.overlay} onClick={handleOverlayClick}>
-      <div className={styles.modal}>
-        <div className={`${styles.header} ${getVariantClass()}`}>
-          <h2 className={styles.title}>{title}</h2>
+    <div
+      className={styles.overlay}
+      onClick={handleOverlayClick}
+      role="presentation"
+    >
+      <div
+        className={`${styles.modal} ${getVariantClass()}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirmation-modal-title"
+      >
+        <div className={styles.header}>
+          <div className={styles.titleGroup}>
+            {showIcon && (
+              <div className={styles.icon}>
+                <Icon size={22} strokeWidth={2} aria-hidden="true" />
+              </div>
+            )}
+
+            <h2 id="confirmation-modal-title" className={styles.title}>
+              {title}
+            </h2>
+          </div>
 
           <button
             className={styles.closeButton}
             onClick={onClose}
             aria-label="Закрыть"
             type="button"
+            disabled={isLoading}
           >
-            <X size={22} strokeWidth={2} aria-hidden="true" />
+            <X size={20} strokeWidth={2} aria-hidden="true" />
           </button>
         </div>
 
         <div className={styles.content}>
-          {showIcon && (
-            <div className={styles.icon}>
-              <Icon size={48} strokeWidth={1.8} aria-hidden="true" />
-            </div>
-          )}
           <p className={styles.message}>{message}</p>
         </div>
 
@@ -76,7 +95,7 @@ export const ConfirmationModal = ({
           </Button>
 
           <Button
-            variant={variant === 'danger' ? 'danger' : 'primary'}
+            variant={confirmVariant}
             onClick={onConfirm}
             loading={isLoading}
           >

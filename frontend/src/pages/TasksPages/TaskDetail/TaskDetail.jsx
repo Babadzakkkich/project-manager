@@ -1,119 +1,186 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CalendarDays,
+  CheckCircle2,
+  ClipboardList,
+  Clock3,
+  FolderKanban,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  Tag,
+  Trash2,
+  UserPlus,
+  Users,
+  X,
+} from 'lucide-react';
+
 import { tasksAPI } from '../../../services/api/tasks';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { ItemsModal } from '../../../components/ui/ItemsModal';
 import { ConfirmationModal } from '../../../components/ui/ConfirmationModal';
 import { Notification } from '../../../components/ui/Notification';
+import { StartConferenceButton } from '../../../components/ui/StartConferenceButton';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { useNotification } from '../../../hooks/useNotification';
-import { StartConferenceButton } from '../../../components/ui/StartConferenceButton';
 import { CONFERENCE_ROOM_TYPES } from '../../../utils/constants';
-import { Check, X } from 'lucide-react';
-import { 
-  handleApiError, 
+import {
   formatDate,
-  formatDateForInput
+  formatDateForInput,
+  formatRussianCount,
+  getDefaultTaskTags,
+  getRussianPluralForm,
+  handleApiError,
+  isValidDateRange,
+  RUSSIAN_PLURAL_FORMS,
 } from '../../../utils/helpers';
-import { 
+import {
   getTaskStatusTranslation,
-  getTaskStatusColor,
   getTaskStatusIcon,
   getTaskPriorityTranslation,
-  getTaskPriorityColor,
   getTaskPriorityIcon,
-  getTaskOverdueIcon,
   isTaskOverdue,
   TASK_STATUS_OPTIONS,
-  TASK_PRIORITY_OPTIONS
+  TASK_PRIORITY_OPTIONS,
 } from '../../../utils/taskStatus';
 import styles from './TaskDetail.module.css';
+
+const TITLE_LIMIT = 200;
+const DESCRIPTION_LIMIT = 1000;
+const ASSIGNEE_FORMS = ['исполнитель', 'исполнителя', 'исполнителей'];
+
+const TASK_PROGRESS = {
+  backlog: 0,
+  todo: 25,
+  in_progress: 50,
+  review: 75,
+  done: 100,
+  cancelled: 0,
+  completed: 100,
+};
+
+const getDateDiffDays = (startDate, endDate) => {
+  if (!startDate || !endDate) return null;
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return null;
+  }
+
+  return Math.max(0, Math.ceil((end - start) / 86400000));
+};
+
+const getUserName = (user) => {
+  return user?.name || user?.login || user?.email || 'Пользователь';
+};
+
+const getUserInitial = (user) => {
+  return getUserName(user).charAt(0).toUpperCase();
+};
 
 export const TaskDetail = () => {
   const { taskId } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  const { user } = useAuthContext();
+
+  const {
+    notification,
+    showSuccess,
+    showError,
+    hideNotification,
+  } = useNotification();
+
+  const defaultTags = useMemo(() => getDefaultTaskTags(), []);
+
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ 
-    title: '', 
-    description: '', 
+  const [editForm, setEditForm] = useState({
+    title: '',
+    description: '',
     status: '',
     priority: '',
     start_date: '',
     deadline: '',
-    tags: []
+    tags: [],
   });
+  const [editErrors, setEditErrors] = useState({});
+
   const [addingUsers, setAddingUsers] = useState(false);
   const [newUserIds, setNewUserIds] = useState([]);
   const [availableUsers, setAvailableUsers] = useState([]);
+
   const [userRole, setUserRole] = useState('');
   const [showUsersModal, setShowUsersModal] = useState(false);
   const [customTag, setCustomTag] = useState('');
-  
+
   const [showDeleteTaskModal, setShowDeleteTaskModal] = useState(false);
   const [showRemoveUserModal, setShowRemoveUserModal] = useState(null);
-  
+
+  const [isUpdatingTask, setIsUpdatingTask] = useState(false);
+  const [isAddingUsers, setIsAddingUsers] = useState(false);
   const [isDeletingTask, setIsDeletingTask] = useState(false);
   const [isRemovingUser, setIsRemovingUser] = useState(false);
-
-  const { user } = useAuthContext();
-  const { 
-    notification, 
-    showSuccess, 
-    showError, 
-    hideNotification 
-  } = useNotification();
 
   const loadTask = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
+
       const taskData = await tasksAPI.getById(taskId);
-      
+
       setTask(taskData);
-      
       setEditForm({
-        title: taskData.title,
+        title: taskData.title || '',
         description: taskData.description || '',
-        status: taskData.status,
-        priority: taskData.priority,
-        start_date: taskData.start_date ? formatDateForInput(new Date(taskData.start_date)) : '',
-        deadline: taskData.deadline ? formatDateForInput(new Date(taskData.deadline)) : '',
-        tags: taskData.tags || []
+        status: taskData.status || 'backlog',
+        priority: taskData.priority || 'medium',
+        start_date: taskData.start_date
+          ? formatDateForInput(new Date(taskData.start_date))
+          : '',
+        deadline: taskData.deadline
+          ? formatDateForInput(new Date(taskData.deadline))
+          : '',
+        tags: Array.isArray(taskData.tags) ? taskData.tags : [],
       });
     } catch (err) {
       console.error('Error loading task:', err);
-      const errorMessage = handleApiError(err);
-      setError(errorMessage);
+      setError(handleApiError(err));
+      setTask(null);
     } finally {
       setLoading(false);
     }
   }, [taskId]);
 
-  const loadAvailableUsers = useCallback(async () => {
-    try {
-      if (!task?.group?.id) return;
-      
-      const groupUsers = task.group.users || [];
-      setAvailableUsers(groupUsers);
-    } catch (err) {
-      console.error('Error loading available users:', err);
+  const loadAvailableUsers = useCallback(() => {
+    if (!task?.group?.users) {
+      setAvailableUsers([]);
+      return;
     }
+
+    setAvailableUsers(task.group.users);
   }, [task]);
 
   const determineUserRole = useCallback(() => {
     if (!task || !user) return '';
-    
-    const isAssignee = task.assignees?.some(assignee => assignee.id === user.id);
-    
-    const isGroupAdmin = task.group?.users?.some(groupUser => 
-      groupUser.id === user.id && (groupUser.role === 'admin' || groupUser.role === 'super_admin')
+
+    const isAssignee = task.assignees?.some((assignee) => assignee.id === user.id);
+
+    const isGroupAdmin = task.group?.users?.some((groupUser) =>
+      groupUser.id === user.id &&
+      (groupUser.role === 'admin' || groupUser.role === 'super_admin')
     );
-    
+
     if (isGroupAdmin) return 'admin';
     if (isAssignee) return 'assignee';
     return 'viewer';
@@ -123,56 +190,238 @@ export const TaskDetail = () => {
     if (taskId) {
       loadTask();
     }
-  }, [loadTask, taskId]);
+  }, [taskId, loadTask]);
 
   useEffect(() => {
-    if (task) {
-      loadAvailableUsers();
-      const role = determineUserRole();
-      setUserRole(role);
-    }
+    if (!task) return;
+
+    loadAvailableUsers();
+    setUserRole(determineUserRole());
   }, [task, loadAvailableUsers, determineUserRole]);
 
-  const getDisplayAssignees = useCallback(() => {
-    if (!task?.assignees) return [];
-    
-    return task.assignees.slice(0, 3);
+  const displayAssignees = useMemo(() => {
+    return Array.isArray(task?.assignees) ? task.assignees.slice(0, 3) : [];
   }, [task?.assignees]);
+
+  const usersAvailableToAdd = useMemo(() => {
+    const assignedIds = new Set((task?.assignees || []).map((assignee) => assignee.id));
+
+    return availableUsers.filter((availableUser) => !assignedIds.has(availableUser.id));
+  }, [availableUsers, task?.assignees]);
+
+  const selectedUsersToAdd = useMemo(() => {
+    return availableUsers.filter((availableUser) => newUserIds.includes(availableUser.id));
+  }, [availableUsers, newUserIds]);
+
+  const isOverdue = task ? isTaskOverdue(task.deadline, task.status) : false;
+  const durationDays = task ? getDateDiffDays(task.start_date, task.deadline) : null;
+  const hasMoreAssignees = (task?.assignees?.length || 0) > 3;
+
+  const canEdit = userRole === 'admin' || userRole === 'assignee';
+  const canManageUsers = userRole === 'admin';
+  const canDelete = userRole === 'admin';
+
+  const getStatusClass = (status) => {
+    const statusClasses = {
+      backlog: styles.statusBacklog,
+      todo: styles.statusTodo,
+      in_progress: styles.statusInProgress,
+      review: styles.statusReview,
+      done: styles.statusDone,
+      completed: styles.statusDone,
+      cancelled: styles.statusCancelled,
+    };
+
+    return statusClasses[status] || styles.statusDefault;
+  };
+
+  const getPriorityClass = (priority) => {
+    const priorityClasses = {
+      low: styles.priorityLow,
+      medium: styles.priorityMedium,
+      high: styles.priorityHigh,
+      urgent: styles.priorityUrgent,
+    };
+
+    return priorityClasses[priority] || styles.priorityMedium;
+  };
+
+  const getRoleClass = (role) => {
+    const roleClasses = {
+      admin: styles.roleAdmin,
+      assignee: styles.roleAssignee,
+      viewer: styles.roleViewer,
+    };
+
+    return roleClasses[role] || styles.roleViewer;
+  };
+
+  const handleBack = () => {
+    const projectId = searchParams.get('projectId');
+
+    if (projectId) {
+      navigate(`/projects/${projectId}`);
+      return;
+    }
+
+    navigate('/tasks');
+  };
+
+  const clearEditError = (fieldName) => {
+    if (!editErrors[fieldName] && !editErrors.submit) return;
+
+    setEditErrors((prev) => {
+      const next = { ...prev };
+      delete next[fieldName];
+      delete next.submit;
+      return next;
+    });
+  };
+
+  const handleEditChange = (fieldName, value) => {
+    setEditForm((prev) => ({
+      ...prev,
+      [fieldName]: value,
+    }));
+
+    clearEditError(fieldName);
+  };
+
+  const validateEditForm = () => {
+    const newErrors = {};
+    const title = editForm.title.trim();
+
+    if (!title) {
+      newErrors.title = 'Название задачи обязательно';
+    } else if (title.length < 2) {
+      newErrors.title = 'Название должно содержать минимум 2 символа';
+    } else if (title.length > TITLE_LIMIT) {
+      newErrors.title = `Название не должно превышать ${TITLE_LIMIT} символов`;
+    }
+
+    if (editForm.description.length > DESCRIPTION_LIMIT) {
+      newErrors.description = `Описание не должно превышать ${DESCRIPTION_LIMIT} символов`;
+    }
+
+    if (!editForm.start_date) {
+      newErrors.start_date = 'Дата начала обязательна';
+    }
+
+    if (!editForm.deadline) {
+      newErrors.deadline = 'Дата окончания обязательна';
+    } else {
+      const validation = isValidDateRange(editForm.start_date, editForm.deadline);
+
+      if (!validation.isValid) {
+        newErrors.deadline = validation.error;
+      }
+    }
+
+    setEditErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleUpdateTask = async (e) => {
     e.preventDefault();
+
+    if (!validateEditForm()) return;
+
+    setIsUpdatingTask(true);
+
     try {
       const updateData = {
-        ...editForm,
-        start_date: editForm.start_date ? new Date(editForm.start_date).toISOString() : null,
-        deadline: editForm.deadline ? new Date(editForm.deadline).toISOString() : null
+        title: editForm.title.trim(),
+        description: editForm.description.trim(),
+        status: editForm.status,
+        priority: editForm.priority,
+        start_date: editForm.start_date
+          ? new Date(editForm.start_date).toISOString()
+          : null,
+        deadline: editForm.deadline
+          ? new Date(editForm.deadline).toISOString()
+          : null,
+        tags: editForm.tags,
       };
-      
+
       await tasksAPI.update(taskId, updateData);
       await loadTask();
+
       setEditing(false);
+      setEditErrors({});
       showSuccess('Задача успешно обновлена');
     } catch (err) {
       console.error('Error updating task:', err);
+
       const errorMessage = handleApiError(err);
+      setEditErrors({ submit: errorMessage });
       showError(`Не удалось обновить задачу: ${errorMessage}`);
+    } finally {
+      setIsUpdatingTask(false);
     }
+  };
+
+  const handleCancelEditing = () => {
+    setEditing(false);
+    setEditErrors({});
+    setCustomTag('');
+
+    setEditForm({
+      title: task.title || '',
+      description: task.description || '',
+      status: task.status || 'backlog',
+      priority: task.priority || 'medium',
+      start_date: task.start_date
+        ? formatDateForInput(new Date(task.start_date))
+        : '',
+      deadline: task.deadline
+        ? formatDateForInput(new Date(task.deadline))
+        : '',
+      tags: Array.isArray(task.tags) ? task.tags : [],
+    });
+  };
+
+  const handleNewUserToggle = (userId) => {
+    setNewUserIds((prev) => {
+      if (prev.includes(userId)) {
+        return prev.filter((id) => id !== userId);
+      }
+
+      return [...prev, userId];
+    });
+  };
+
+  const handleSelectAllNewUsers = () => {
+    setNewUserIds((prev) => {
+      if (prev.length === usersAvailableToAdd.length) {
+        return [];
+      }
+
+      return usersAvailableToAdd.map((userItem) => userItem.id);
+    });
   };
 
   const handleAddUsers = async (e) => {
     e.preventDefault();
+
+    if (newUserIds.length === 0) return;
+
+    setIsAddingUsers(true);
+
     try {
       await tasksAPI.addUsers(taskId, {
-        user_ids: newUserIds.map(id => parseInt(id))
+        user_ids: newUserIds.map(Number),
       });
+
+      showSuccess(`Добавлено ${formatRussianCount(newUserIds.length, ASSIGNEE_FORMS)}`);
+
       setNewUserIds([]);
       setAddingUsers(false);
       await loadTask();
-      showSuccess(`Добавлено ${newUserIds.length} исполнителей`);
     } catch (err) {
       console.error('Error adding users:', err);
-      const errorMessage = handleApiError(err);
-      showError(`Не удалось добавить пользователей: ${errorMessage}`);
+      showError(`Не удалось добавить исполнителей: ${handleApiError(err)}`);
+    } finally {
+      setIsAddingUsers(false);
     }
   };
 
@@ -184,45 +433,34 @@ export const TaskDetail = () => {
     if (!showRemoveUserModal) return;
 
     setIsRemovingUser(true);
+
     try {
       await tasksAPI.removeUsers(taskId, {
-        user_ids: [showRemoveUserModal.userId]
+        user_ids: [showRemoveUserModal.userId],
       });
-      
+
       await loadTask();
-      
-      showSuccess(`Пользователь "${showRemoveUserModal.userLogin}" удален из задачи`);
+      showSuccess(`Пользователь "${showRemoveUserModal.userLogin}" удалён из задачи`);
     } catch (err) {
       console.error('Error removing user:', err);
-      const errorMessage = handleApiError(err);
-      showError(`Не удалось удалить пользователя: ${errorMessage}`);
+      showError(`Не удалось удалить исполнителя: ${handleApiError(err)}`);
     } finally {
       setIsRemovingUser(false);
       setShowRemoveUserModal(null);
     }
   };
 
-  const handleDeleteTaskClick = () => {
-    setShowDeleteTaskModal(true);
-  };
-
   const handleConfirmDeleteTask = async () => {
     setIsDeletingTask(true);
+
     try {
       await tasksAPI.delete(taskId);
-      
+
       showSuccess(`Задача "${task.title}" успешно удалена`);
-      
-      const projectId = searchParams.get('projectId');
-      if (projectId) {
-        navigate(`/projects/${projectId}`);
-      } else {
-        navigate('/tasks');
-      }
+      handleBack();
     } catch (err) {
       console.error('Error deleting task:', err);
-      const errorMessage = handleApiError(err);
-      showError(`Не удалось удалить задачу: ${errorMessage}`);
+      showError(`Не удалось удалить задачу: ${handleApiError(err)}`);
     } finally {
       setIsDeletingTask(false);
       setShowDeleteTaskModal(false);
@@ -230,46 +468,44 @@ export const TaskDetail = () => {
   };
 
   const handleTagToggle = (tag) => {
-    setEditForm(prev => {
+    setEditForm((prev) => {
       const currentTags = prev.tags || [];
+
       if (currentTags.includes(tag)) {
         return {
           ...prev,
-          tags: currentTags.filter(t => t !== tag)
-        };
-      } else {
-        return {
-          ...prev,
-          tags: [...currentTags, tag]
+          tags: currentTags.filter((item) => item !== tag),
         };
       }
+
+      return {
+        ...prev,
+        tags: [...currentTags, tag],
+      };
     });
   };
 
   const handleAddCustomTag = () => {
-    if (customTag.trim() && !editForm.tags.includes(customTag.trim())) {
-      setEditForm(prev => ({
-        ...prev,
-        tags: [...prev.tags, customTag.trim()]
-      }));
-      setCustomTag('');
+    const preparedTag = customTag.trim();
+
+    if (!preparedTag || editForm.tags.includes(preparedTag)) {
+      return;
     }
+
+    setEditForm((prev) => ({
+      ...prev,
+      tags: [...prev.tags, preparedTag],
+    }));
+
+    setCustomTag('');
   };
 
   const handleRemoveTag = (tagToRemove) => {
-    setEditForm(prev => ({
+    setEditForm((prev) => ({
       ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove)
+      tags: prev.tags.filter((tag) => tag !== tagToRemove),
     }));
   };
-
-  const canEdit = userRole === 'admin' || userRole === 'assignee';
-  const canManageUsers = userRole === 'admin';
-  const canDelete = userRole === 'admin';
-  const isOverdue = task && isTaskOverdue(task.deadline, task.status);
-
-  const displayAssignees = getDisplayAssignees();
-  const hasMoreAssignees = task?.assignees && task.assignees.length > 3;
 
   if (loading) {
     return (
@@ -283,9 +519,16 @@ export const TaskDetail = () => {
   if (error || !task) {
     return (
       <div className={styles.errorContainer}>
-        <h2>Ошибка</h2>
-        <p>{error || 'Задача не найдена или у вас нет доступа'}</p>
-        <Button onClick={() => navigate('/tasks')}>Вернуться к задачам</Button>
+        <div className={styles.errorIcon}>
+          <AlertTriangle size={42} strokeWidth={1.8} aria-hidden="true" />
+        </div>
+
+        <h2>Не удалось открыть задачу</h2>
+        <p>{error || 'Задача не найдена или у вас нет доступа.'}</p>
+
+        <Button onClick={handleBack} variant="primary">
+          Вернуться к задачам
+        </Button>
       </div>
     );
   }
@@ -300,379 +543,408 @@ export const TaskDetail = () => {
         duration={5000}
       />
 
-      <div className={styles.header}>
-        <Button 
-          variant="secondary" 
-          onClick={() => {
-            const projectId = searchParams.get('projectId');
-            if (projectId) {
-              navigate(`/projects/${projectId}`);
-            } else {
-              navigate('/tasks');
-            }
-          }}
-          className={styles.backButton}
-        >
-          ← Назад
-        </Button>
-        
-        <div className={styles.headerContent}>
-          <div className={styles.headerInfo}>
-            {editing ? (
-              <form onSubmit={handleUpdateTask} className={styles.editForm}>
+      <section className={styles.hero}>
+        <div className={styles.heroContent}>
+          <button
+            type="button"
+            className={styles.backButton}
+            onClick={handleBack}
+          >
+            <ArrowLeft size={17} strokeWidth={2} aria-hidden="true" />
+            Назад
+          </button>
+
+          {editing ? (
+            <form onSubmit={handleUpdateTask} className={styles.editForm}>
+              <Input
+                label="Название задачи"
+                value={editForm.title}
+                onChange={(e) => handleEditChange('title', e.target.value)}
+                error={editErrors.title}
+                placeholder="Название задачи"
+                disabled={isUpdatingTask}
+                maxLength={TITLE_LIMIT}
+                required
+              />
+
+              <div className={styles.textareaGroup}>
+                <label className={styles.label} htmlFor="task-description">
+                  Описание задачи
+                </label>
+
+                <textarea
+                  id="task-description"
+                  value={editForm.description}
+                  onChange={(e) => handleEditChange('description', e.target.value)}
+                  placeholder="Описание задачи"
+                  className={`${styles.textarea} ${editErrors.description ? styles.textareaError : ''}`}
+                  rows={5}
+                  maxLength={DESCRIPTION_LIMIT}
+                  disabled={isUpdatingTask}
+                />
+
+                <div className={styles.textareaFooter}>
+                  {editErrors.description ? (
+                    <span className={styles.errorMessage}>{editErrors.description}</span>
+                  ) : (
+                    <span className={styles.helperText}>Необязательное поле</span>
+                  )}
+
+                  <span className={styles.charCount}>
+                    {editForm.description.length}/{DESCRIPTION_LIMIT}
+                  </span>
+                </div>
+              </div>
+
+              <div className={styles.dateFields}>
                 <Input
-                  label="Название задачи"
-                  value={editForm.title}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="Название задачи"
+                  label="Дата начала"
+                  type="date"
+                  value={editForm.start_date}
+                  onChange={(e) => handleEditChange('start_date', e.target.value)}
+                  error={editErrors.start_date}
+                  disabled={isUpdatingTask}
                   required
                 />
+
                 <Input
-                  label="Описание задачи"
-                  value={editForm.description}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Описание задачи"
-                  multiline
-                  rows={4}
+                  label="Дата окончания"
+                  type="date"
+                  value={editForm.deadline}
+                  onChange={(e) => handleEditChange('deadline', e.target.value)}
+                  error={editErrors.deadline}
+                  min={editForm.start_date}
+                  disabled={isUpdatingTask}
+                  required
                 />
-                <div className={styles.dateFields}>
-                  <Input
-                    label="Дата начала"
-                    type="date"
-                    value={editForm.start_date}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, start_date: e.target.value }))}
-                  />
-                  <Input
-                    label="Срок выполнения"
-                    type="date"
-                    value={editForm.deadline}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, deadline: e.target.value }))}
-                  />
-                </div>
-                <div className={styles.taskProperties}>
-                  <div className={styles.propertyGroup}>
-                    <label>Статус:</label>
-                    <select 
-                      value={editForm.status} 
-                      onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
-                    >
-                      {TASK_STATUS_OPTIONS.map(option => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className={styles.propertyGroup}>
-                    <label>Приоритет:</label>
-                    <select 
-                      value={editForm.priority} 
-                      onChange={(e) => setEditForm(prev => ({ ...prev, priority: e.target.value }))}
-                    >
-                      {TASK_PRIORITY_OPTIONS.map(option => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                
-                <div className={styles.tagsSection}>
-                  <label>Теги:</label>
-                  <div className={styles.tagsContainer}>
-                    <div className={styles.availableTags}>
-                      {['feature', 'bug', 'improvement', 'documentation', 'urgent'].map((tag) => (
-                        <button
-                          key={tag}
-                          type="button"
-                          className={`${styles.tagButton} ${
-                            editForm.tags.includes(tag) ? styles.tagSelected : ''
-                          }`}
-                          onClick={() => handleTagToggle(tag)}
-                        >
-                          #{tag}
-                          {editForm.tags.includes(tag) && (
-                            <span className={styles.tagCheck}>
-                              <Check size={14} strokeWidth={2.4} aria-hidden="true" />
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                    
-                    <div className={styles.customTag}>
-                      <Input
-                        placeholder="Добавить свой тег..."
-                        value={customTag}
-                        onChange={(e) => setCustomTag(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleAddCustomTag();
-                          }
-                        }}
-                        className={styles.customTagInput}
-                      />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="small"
-                        onClick={handleAddCustomTag}
-                        disabled={!customTag.trim()}
-                      >
-                        Добавить
-                      </Button>
-                    </div>
-                    
-                    {editForm.tags.length > 0 && (
-                      <div className={styles.selectedTags}>
-                        <span className={styles.selectedTagsLabel}>Выбранные теги:</span>
-                        <div className={styles.selectedTagsList}>
-                          {editForm.tags.map((tag) => (
-                            <span key={tag} className={styles.selectedTag}>
-                              #{tag}
-                              <button
-                                type="button"
-                                className={styles.removeTag}
-                                onClick={() => handleRemoveTag(tag)}
-                              >
-                                <X size={14} strokeWidth={2.4} aria-hidden="true" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                <div className={styles.editActions}>
-                  <Button type="submit" variant="primary">Сохранить</Button>
-                  <Button 
-                    type="button" 
-                    variant="secondary" 
-                    onClick={() => {
-                      setEditing(false);
-                      setEditForm({
-                        title: task.title,
-                        description: task.description || '',
-                        status: task.status,
-                        priority: task.priority,
-                        start_date: task.start_date ? formatDateForInput(new Date(task.start_date)) : '',
-                        deadline: task.deadline ? formatDateForInput(new Date(task.deadline)) : '',
-                        tags: task.tags || []
-                      });
-                    }}
+              </div>
+
+              <div className={styles.taskProperties}>
+                <div className={styles.propertyGroup}>
+                  <label className={styles.label} htmlFor="task-status">
+                    Статус
+                  </label>
+
+                  <select
+                    id="task-status"
+                    value={editForm.status}
+                    onChange={(e) => handleEditChange('status', e.target.value)}
+                    className={styles.select}
+                    disabled={isUpdatingTask}
                   >
-                    Отмена
+                    {TASK_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={styles.propertyGroup}>
+                  <label className={styles.label} htmlFor="task-priority">
+                    Приоритет
+                  </label>
+
+                  <select
+                    id="task-priority"
+                    value={editForm.priority}
+                    onChange={(e) => handleEditChange('priority', e.target.value)}
+                    className={styles.select}
+                    disabled={isUpdatingTask}
+                  >
+                    {TASK_PRIORITY_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className={styles.tagsEditSection}>
+                <div className={styles.tagsEditHeader}>
+                  <Tag size={17} strokeWidth={2} aria-hidden="true" />
+                  <span>Теги задачи</span>
+                </div>
+
+                <div className={styles.availableTags}>
+                  {defaultTags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      className={`${styles.tagButton} ${
+                        editForm.tags.includes(tag) ? styles.tagSelected : ''
+                      }`}
+                      onClick={() => handleTagToggle(tag)}
+                      disabled={isUpdatingTask}
+                    >
+                      #{tag}
+                      {editForm.tags.includes(tag) && (
+                        <CheckCircle2 size={14} strokeWidth={2.4} aria-hidden="true" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                <div className={styles.customTag}>
+                  <Input
+                    placeholder="Добавить свой тег..."
+                    value={customTag}
+                    onChange={(e) => setCustomTag(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCustomTag();
+                      }
+                    }}
+                    disabled={isUpdatingTask}
+                  />
+
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="small"
+                    onClick={handleAddCustomTag}
+                    disabled={!customTag.trim() || isUpdatingTask}
+                  >
+                    Добавить
                   </Button>
                 </div>
-              </form>
-            ) : (
-              <>
-                <div className={styles.titleSection}>
-                  <h1 className={styles.title}>{task.title}</h1>
-                  <div className={styles.taskBadges}>
-                    <div 
-                      className={styles.statusBadge}
-                      style={{ 
-                        backgroundColor: getTaskStatusColor(task.status),
-                        color: 'white'
-                      }}
-                    >
-                      {getTaskStatusIcon(task.status)} {getTaskStatusTranslation(task.status)}
-                      {isOverdue && (
-                        <span className={styles.overdueIndicator}>
-                          {getTaskOverdueIcon({ size: 14 })} Просрочена
-                        </span>
-                      )}
-                    </div>
-                    <div 
-                      className={styles.priorityBadge}
-                      style={{ 
-                        backgroundColor: getTaskPriorityColor(task.priority),
-                        color: 'white'
-                      }}
-                    >
-                      {getTaskPriorityIcon(task.priority)} {getTaskPriorityTranslation(task.priority)}
-                    </div>
-                  </div>
-                </div>
-                
-                {task.description && (
-                  <div className={styles.descriptionSection}>
-                    <h3 className={styles.descriptionTitle}>Описание</h3>
-                    <p className={styles.description}>{task.description}</p>
-                  </div>
-                )}
-                
-                {task.tags && task.tags.length > 0 && (
-                  <div className={styles.taskTags}>
-                    <h3 className={styles.tagsTitle}>Теги</h3>
-                    <div className={styles.tagsList}>
-                      {task.tags.map((tag, index) => (
-                        <span key={index} className={styles.taskTag}>
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                <div className={styles.taskMeta}>
-                  <div className={styles.metaGrid}>
-                    <div className={styles.metaItem}>
-                      <span className={styles.metaLabel}>Проект:</span>
-                      <span className={styles.metaValue}>
-                        {task.project ? (
-                          <Button 
-                            variant="link" 
-                            onClick={() => navigate(`/projects/${task.project.id}`)}
-                            className={styles.projectLink}
-                          >
-                            {task.project.title}
-                          </Button>
-                        ) : (
-                          'Не указан'
-                        )}
-                      </span>
-                    </div>
-                    <div className={styles.metaItem}>
-                      <span className={styles.metaLabel}>Группа:</span>
-                      <span className={styles.metaValue}>
-                        {task.group ? (
-                          <Button 
-                            variant="link" 
-                            onClick={() => navigate(`/groups/${task.group.id}`)}
-                            className={styles.groupLink}
-                          >
-                            {task.group.name}
-                          </Button>
-                        ) : (
-                          'Не указана'
-                        )}
-                      </span>
-                    </div>
-                    <div className={styles.metaItem}>
-                      <span className={styles.metaLabel}>Дата начала:</span>
-                      <span className={styles.metaValue}>
-                        {task.start_date ? formatDate(task.start_date) : 'Не указана'}
-                      </span>
-                    </div>
-                    <div className={styles.metaItem}>
-                      <span className={styles.metaLabel}>Срок выполнения:</span>
-                      <span className={`${styles.metaValue} ${isOverdue ? styles.overdue : ''}`}>
-                        {task.deadline ? formatDate(task.deadline) : 'Не указан'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
 
-          {canEdit && !editing && (
-            <div className={styles.headerActions}>
-              <StartConferenceButton
-                type={CONFERENCE_ROOM_TYPES.TASK}
-                id={task.id}
-                title={`Обсуждение задачи ${task.title}`}
-                variant="primary"
-                size="medium"
-                className={styles.conferenceButton}
-              />
-              <Button 
-                variant="primary" 
-                onClick={() => setEditing(true)}
-                className={styles.editButton}
-              >
-                Редактировать
-              </Button>
-              {canDelete && (
-                <Button 
-                  variant="danger" 
-                  onClick={handleDeleteTaskClick}
-                  className={styles.deleteButton}
-                  disabled={isDeletingTask}
-                >
-                  {isDeletingTask ? 'Удаление...' : 'Удалить задачу'}
-                </Button>
+                {editForm.tags.length > 0 && (
+                  <div className={styles.selectedTags}>
+                    {editForm.tags.map((tag) => (
+                      <span key={tag} className={styles.selectedTag}>
+                        #{tag}
+
+                        <button
+                          type="button"
+                          className={styles.removeTag}
+                          onClick={() => handleRemoveTag(tag)}
+                          disabled={isUpdatingTask}
+                          aria-label={`Удалить тег ${tag}`}
+                        >
+                          <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {editErrors.submit && (
+                <div className={styles.submitError} role="alert">
+                  {editErrors.submit}
+                </div>
               )}
-            </div>
+
+              <div className={styles.editActions}>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  loading={isUpdatingTask}
+                  disabled={isUpdatingTask}
+                >
+                  Сохранить
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleCancelEditing}
+                  disabled={isUpdatingTask}
+                >
+                  Отмена
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <div className={styles.titleRow}>
+                <h1 className={styles.title}>{task.title}</h1>
+
+                <div className={styles.badges}>
+                  <span className={`${styles.statusBadge} ${getStatusClass(task.status)}`}>
+                    <span className={styles.badgeIcon}>
+                      {getTaskStatusIcon(task.status)}
+                    </span>
+                    {getTaskStatusTranslation(task.status)}
+                  </span>
+
+                  <span className={`${styles.priorityBadge} ${getPriorityClass(task.priority)}`}>
+                    <span className={styles.badgeIcon}>
+                      {getTaskPriorityIcon(task.priority)}
+                    </span>
+                    {getTaskPriorityTranslation(task.priority)}
+                  </span>
+
+                  {isOverdue && (
+                    <span className={styles.overdueBadge}>
+                      <AlertTriangle size={15} strokeWidth={2} aria-hidden="true" />
+                      Просрочена
+                    </span>
+                  )}
+
+                  {userRole && (
+                    <span className={`${styles.roleBadge} ${getRoleClass(userRole)}`}>
+                      {userRole === 'admin' && 'Администратор'}
+                      {userRole === 'assignee' && 'Исполнитель'}
+                      {userRole === 'viewer' && 'Наблюдатель'}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <p className={styles.subtitle}>
+                {task.description || 'Описание задачи не указано.'}
+              </p>
+
+              {task.tags && task.tags.length > 0 && (
+                <div className={styles.tagsList}>
+                  {task.tags.map((tag, index) => (
+                    <span key={`${tag}-${index}`} className={styles.taskTag}>
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
-      </div>
+
+        {canEdit && !editing && (
+          <div className={styles.heroActions}>
+            <StartConferenceButton
+              type={CONFERENCE_ROOM_TYPES.TASK}
+              id={task.id}
+              title={`Обсуждение задачи ${task.title}`}
+              variant="primary"
+              size="medium"
+            />
+
+            <Button
+              variant="secondary"
+              onClick={() => setEditing(true)}
+            >
+              <Pencil size={16} strokeWidth={2} aria-hidden="true" />
+              Редактировать
+            </Button>
+
+            {canDelete && (
+              <Button
+                variant="secondary"
+                onClick={() => setShowDeleteTaskModal(true)}
+                className={styles.deleteButton}
+                disabled={isDeletingTask}
+              >
+                <Trash2 size={16} strokeWidth={2} aria-hidden="true" />
+                {isDeletingTask ? 'Удаление...' : 'Удалить'}
+              </Button>
+            )}
+          </div>
+        )}
+      </section>
+
+      <section className={styles.statsGrid} aria-label="Сводка задачи">
+        <article className={styles.statCard}>
+          <span className={styles.statValue}>{task.assignees?.length || 0}</span>
+          <span className={styles.statLabel}>
+            {getRussianPluralForm(task.assignees?.length || 0, ASSIGNEE_FORMS)}
+          </span>
+        </article>
+
+        <article className={styles.statCard}>
+          <span className={styles.statValue}>
+            {durationDays === null ? '—' : durationDays}
+          </span>
+          <span className={styles.statLabel}>
+            {durationDays === null
+              ? 'дней'
+              : getRussianPluralForm(durationDays, RUSSIAN_PLURAL_FORMS.DAY)}
+          </span>
+        </article>
+
+        <article className={styles.statCard}>
+          <span className={styles.statValue}>{formatDate(task.start_date)}</span>
+          <span className={styles.statLabel}>дата начала</span>
+        </article>
+
+        <article className={`${styles.statCard} ${isOverdue ? styles.warningCard : ''}`}>
+          <span className={styles.statValue}>{formatDate(task.deadline)}</span>
+          <span className={styles.statLabel}>дата окончания</span>
+        </article>
+      </section>
 
       <div className={styles.content}>
-        <div className={styles.section}>
+        <section className={styles.section}>
           <div className={styles.sectionHeader}>
-            <h2>Детали задачи</h2>
+            <div>
+              <h2>Контекст задачи</h2>
+              <p>Проект, группа, статус выполнения и прогресс.</p>
+            </div>
           </div>
 
-          <div className={styles.taskDetails}>
-            <div className={styles.detailItem}>
-              <strong>Статус:</strong>
-              <span 
-                className={styles.statusText}
-                style={{ color: getTaskStatusColor(task.status) }}
-              >
-                {getTaskStatusIcon(task.status)} {getTaskStatusTranslation(task.status)}
+          <div className={styles.contextGrid}>
+            <button
+              type="button"
+              className={styles.contextItem}
+              onClick={() => task.project?.id && navigate(`/projects/${task.project.id}`)}
+              disabled={!task.project?.id}
+            >
+              <span className={styles.contextIcon}>
+                <FolderKanban size={19} strokeWidth={2} aria-hidden="true" />
               </span>
-            </div>
-            
-            <div className={styles.detailItem}>
-              <strong>Приоритет:</strong>
-              <span 
-                className={styles.priorityText}
-                style={{ color: getTaskPriorityColor(task.priority) }}
-              >
-                {getTaskPriorityIcon(task.priority)} {getTaskPriorityTranslation(task.priority)}
-              </span>
-            </div>
-            
-            <div className={styles.detailItem}>
-              <strong>Прогресс:</strong>
-              <div className={styles.progressContainer}>
-                <div className={styles.progressBar}>
-                  <div 
-                    className={styles.progressFill}
-                    style={{ 
-                      width: task.status === 'done' ? '100%' : 
-                             task.status === 'review' ? '75%' :
-                             task.status === 'in_progress' ? '50%' : 
-                             task.status === 'todo' ? '25%' : '0%',
-                      backgroundColor: getTaskStatusColor(task.status)
-                    }}
-                  ></div>
-                </div>
-                <span className={styles.progressText}>
-                  {task.status === 'done' ? '100%' : 
-                   task.status === 'review' ? '75%' :
-                   task.status === 'in_progress' ? '50%' : 
-                   task.status === 'todo' ? '25%' : '0%'}
+
+              <span className={styles.contextText}>
+                <span className={styles.contextLabel}>Проект</span>
+                <span className={styles.contextValue}>
+                  {task.project?.title || 'Не указан'}
                 </span>
-              </div>
-            </div>
-          </div>
-        </div>
+              </span>
+            </button>
 
-        <div className={styles.section}>
+            <button
+              type="button"
+              className={styles.contextItem}
+              onClick={() => task.group?.id && navigate(`/groups/${task.group.id}`)}
+              disabled={!task.group?.id}
+            >
+              <span className={styles.contextIcon}>
+                <Users size={19} strokeWidth={2} aria-hidden="true" />
+              </span>
+
+              <span className={styles.contextText}>
+                <span className={styles.contextLabel}>Группа</span>
+                <span className={styles.contextValue}>
+                  {task.group?.name || 'Не указана'}
+                </span>
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <section className={styles.section}>
           <div className={styles.sectionHeader}>
-            <h2>Исполнители</h2>
-            <div className={styles.assigneesHeaderActions}>
+            <div>
+              <h2>Исполнители</h2>
+              <p>Пользователи, назначенные на выполнение задачи.</p>
+            </div>
+
+            <div className={styles.sectionActions}>
               {canManageUsers && (
-                <Button 
-                  variant="primary" 
+                <Button
+                  variant="primary"
                   size="small"
-                  onClick={() => setAddingUsers(!addingUsers)}
+                  onClick={() => setAddingUsers((value) => !value)}
                 >
-                  {addingUsers ? 'Отмена' : 'Добавить исполнителя'}
+                  <UserPlus size={16} strokeWidth={2} aria-hidden="true" />
+                  {addingUsers ? 'Скрыть форму' : 'Добавить'}
                 </Button>
               )}
+
               {task.assignees?.length > 0 && (
-                <Button 
-                  variant="secondary" 
+                <Button
+                  variant="secondary"
                   size="small"
                   onClick={() => setShowUsersModal(true)}
                 >
@@ -684,95 +956,172 @@ export const TaskDetail = () => {
 
           {addingUsers && (
             <form onSubmit={handleAddUsers} className={styles.addUsersForm}>
-              <div className={styles.addUsersFields}>
-                <div className={styles.selectUsers}>
-                  <label>Выберите исполнителей:</label>
+              {usersAvailableToAdd.length === 0 ? (
+                <div className={styles.emptyInline}>
+                  Все участники выбранной группы уже назначены на задачу.
+                </div>
+              ) : (
+                <>
+                  <div className={styles.addUsersHeader}>
+                    <div>
+                      <span className={styles.addUsersTitle}>Выберите исполнителей</span>
+                      <span className={styles.addUsersSubtitle}>
+                        {formatRussianCount(usersAvailableToAdd.length, RUSSIAN_PLURAL_FORMS.PARTICIPANT)} доступно
+                      </span>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="small"
+                      onClick={handleSelectAllNewUsers}
+                    >
+                      {newUserIds.length === usersAvailableToAdd.length
+                        ? 'Снять всех'
+                        : 'Выбрать всех'}
+                    </Button>
+                  </div>
+
                   <div className={styles.usersGrid}>
-                    {availableUsers
-                      .filter(availableUser => !task.assignees.some(assignee => assignee.id === availableUser.id))
-                      .map((user) => (
-                        <label key={user.id} className={styles.userCheckboxItem}>
+                    {usersAvailableToAdd.map((userItem) => {
+                      const isSelected = newUserIds.includes(userItem.id);
+
+                      return (
+                        <label
+                          key={userItem.id}
+                          className={`${styles.userSelectCard} ${isSelected ? styles.selected : ''}`}
+                        >
                           <input
                             type="checkbox"
-                            value={user.id}
-                            checked={newUserIds.includes(user.id.toString())}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setNewUserIds(prev => [...prev, user.id.toString()]);
-                              } else {
-                                setNewUserIds(prev => prev.filter(id => id !== user.id.toString()));
-                              }
-                            }}
-                            className={styles.userCheckbox}
+                            checked={isSelected}
+                            onChange={() => handleNewUserToggle(userItem.id)}
+                            className={styles.checkboxInput}
+                            disabled={isAddingUsers}
                           />
-                          <div className={styles.userInfo}>
-                            <div className={styles.userAvatar}>
-                              {user.login?.charAt(0).toUpperCase()}
-                            </div>
-                            <div className={styles.userDetails}>
-                              <div className={styles.userLogin}>{user.login}</div>
-                              <div className={styles.userEmail}>{user.email}</div>
-                            </div>
-                          </div>
+
+                          <span className={styles.checkboxCustom}>
+                            {isSelected && (
+                              <CheckCircle2 size={18} strokeWidth={2.4} aria-hidden="true" />
+                            )}
+                          </span>
+
+                          <span className={styles.userAvatar}>
+                            {getUserInitial(userItem)}
+                          </span>
+
+                          <span className={styles.userInfo}>
+                            <span className={styles.userNameLine}>
+                              <span className={styles.userLogin}>{getUserName(userItem)}</span>
+                              {userItem.id === user?.id && (
+                                <span className={styles.currentUserBadge}>Вы</span>
+                              )}
+                            </span>
+
+                            {userItem.email && (
+                              <span className={styles.userEmail}>{userItem.email}</span>
+                            )}
+                          </span>
                         </label>
-                      ))
-                    }
+                      );
+                    })}
                   </div>
-                </div>
-              </div>
-              <Button 
-                type="submit" 
-                variant="primary" 
-                disabled={newUserIds.length === 0}
-              >
-                Добавить выбранных ({newUserIds.length})
-              </Button>
+
+                  {newUserIds.length > 0 && (
+                    <div className={styles.selectedUsers}>
+                      <span>
+                        Выбрано: {formatRussianCount(newUserIds.length, ASSIGNEE_FORMS)}
+                      </span>
+
+                      <span>
+                        {selectedUsersToAdd.map((item) => getUserName(item)).join(', ')}
+                      </span>
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    loading={isAddingUsers}
+                    disabled={newUserIds.length === 0 || isAddingUsers}
+                  >
+                    Добавить выбранных
+                  </Button>
+                </>
+              )}
             </form>
           )}
 
           {task.assignees?.length > 0 ? (
             <div className={styles.assigneesSection}>
-              <div className={styles.assigneesListCompact}>
+              <div className={styles.assigneesList}>
                 {displayAssignees.map((assignee) => (
-                  <div key={assignee.id} className={styles.assigneeCard}>
-                    <div className={styles.assigneeInfo}>
+                  <article key={assignee.id} className={styles.assigneeCard}>
+                    <div className={styles.assigneeMain}>
                       <div className={styles.assigneeAvatar}>
-                        {assignee.login?.charAt(0).toUpperCase()}
+                        {getUserInitial(assignee)}
                       </div>
-                      <div className={styles.assigneeDetails}>
-                        <div className={styles.assigneeLogin}>{assignee.login}</div>
-                        <div className={styles.assigneeEmail}>{assignee.email}</div>
+
+                      <div className={styles.assigneeInfo}>
+                        <div className={styles.assigneeName}>
+                          {getUserName(assignee)}
+                          {assignee.id === user?.id && (
+                            <span className={styles.currentUserBadge}>Вы</span>
+                          )}
+                        </div>
+
+                        {assignee.email && (
+                          <div className={styles.assigneeEmail}>
+                            {assignee.email}
+                          </div>
+                        )}
                       </div>
                     </div>
+
                     {canManageUsers && task.assignees.length > 1 && (
-                      <Button 
-                        variant="secondary" 
+                      <Button
+                        variant="secondary"
                         size="small"
-                        onClick={() => handleRemoveUserClick(assignee.id, assignee.login)}
+                        onClick={() => handleRemoveUserClick(assignee.id, getUserName(assignee))}
                         className={styles.removeButton}
                         disabled={isRemovingUser}
                       >
                         {isRemovingUser ? 'Удаление...' : 'Удалить'}
                       </Button>
                     )}
-                  </div>
+                  </article>
                 ))}
               </div>
+
               {hasMoreAssignees && (
-                <div className={styles.moreItems}>
-                  <p>И еще {task.assignees.length - 3} исполнителей...</p>
-                </div>
+                <button
+                  type="button"
+                  className={styles.moreItems}
+                  onClick={() => setShowUsersModal(true)}
+                >
+                  Ещё {formatRussianCount(
+                    task.assignees.length - 3,
+                    ASSIGNEE_FORMS
+                  )}
+                  <Users size={16} strokeWidth={2} aria-hidden="true" />
+                </button>
               )}
             </div>
           ) : (
             <div className={styles.emptyState}>
-              <p>У этой задачи пока нет исполнителей</p>
-              {canManageUsers && (
-                <p>Добавьте исполнителей, чтобы они могли работать над задачей</p>
-              )}
+              <div className={styles.emptyIcon}>
+                <Users size={44} strokeWidth={1.8} aria-hidden="true" />
+              </div>
+
+              <h3>Исполнителей пока нет</h3>
+
+              <p>
+                {canManageUsers
+                  ? 'Добавьте исполнителей, чтобы участники могли работать над задачей.'
+                  : 'У задачи пока нет назначенных исполнителей.'}
+              </p>
             </div>
           )}
-        </div>
+        </section>
       </div>
 
       <ItemsModal
@@ -782,47 +1131,8 @@ export const TaskDetail = () => {
         onClose={() => setShowUsersModal(false)}
         title={`Исполнители задачи "${task.title}"`}
         currentUserId={user?.id}
-        showDeleteButton={canManageUsers}
+        showDeleteButton={canManageUsers && task.assignees?.length > 1}
         onDelete={(userId, userLogin) => handleRemoveUserClick(userId, userLogin)}
-        customFilterOptions={[]}
-        customSortOptions={[
-          { value: 'login_asc', label: 'По логину (А-Я)' },
-          { value: 'login_desc', label: 'По логину (Я-А)' },
-        ]}
-        customRenderItem={(userItem, props) => (
-          <div key={userItem.id} className={styles.assigneeCard}>
-            <div className={styles.assigneeInfo}>
-              <div className={styles.assigneeAvatar}>
-                {userItem.login?.charAt(0).toUpperCase()}
-              </div>
-              <div className={styles.assigneeDetails}>
-                <div className={styles.assigneeLogin}>{userItem.login}</div>
-                <div className={styles.assigneeEmail}>{userItem.email}</div>
-              </div>
-            </div>
-            {props.showDeleteButton && props.onDelete && (
-              <Button 
-                variant="secondary" 
-                size="small"
-                onClick={() => props.onDelete(userItem.id, userItem.login)}
-                className={styles.removeButton}
-                disabled={isRemovingUser}
-              >
-                {isRemovingUser ? 'Удаление...' : 'Удалить'}
-              </Button>
-            )}
-          </div>
-        )}
-        customEmptyMessages={{
-          filtered: {
-            title: 'Исполнители не найдены',
-            description: 'Попробуйте изменить параметры фильтрации'
-          },
-          default: {
-            title: 'Исполнителей пока нет',
-            description: 'Здесь еще не добавлено ни одного исполнителя'
-          }
-        }}
       />
 
       <ConfirmationModal
@@ -831,7 +1141,7 @@ export const TaskDetail = () => {
         onConfirm={handleConfirmDeleteTask}
         title="Удаление задачи"
         message={`Вы уверены, что хотите удалить задачу "${task.title}"? Это действие нельзя отменить.`}
-        confirmText={isDeletingTask ? "Удаление..." : "Удалить задачу"}
+        confirmText={isDeletingTask ? 'Удаление...' : 'Удалить задачу'}
         cancelText="Отмена"
         variant="danger"
         isLoading={isDeletingTask}
@@ -843,7 +1153,7 @@ export const TaskDetail = () => {
         onConfirm={handleConfirmRemoveUser}
         title="Удаление исполнителя"
         message={`Вы уверены, что хотите удалить пользователя "${showRemoveUserModal?.userLogin}" из задачи?`}
-        confirmText={isRemovingUser ? "Удаление..." : "Удалить"}
+        confirmText={isRemovingUser ? 'Удаление...' : 'Удалить'}
         cancelText="Отмена"
         variant="warning"
         isLoading={isRemovingUser}

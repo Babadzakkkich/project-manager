@@ -1,10 +1,23 @@
 from typing import Optional, List, TYPE_CHECKING, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, or_
 from sqlalchemy.orm import selectinload
 
 from shared.dependencies import ensure_user_is_admin, ensure_user_is_super_admin_global
-from core.database.models import Project, Group, User, GroupMember, Task, project_group_association, task_user_association
+from core.database.models import (
+    Project,
+    Group,
+    User,
+    GroupMember,
+    Task,
+    ConferenceRoom,
+    ConferenceStats,
+    ConferenceParticipant,
+    ConferenceMessage,
+    project_group_association,
+    task_user_association,
+    conference_invited_users,
+)
 from core.logger import logger
 from .schemas import (
     AddGroupsToProject,
@@ -420,6 +433,41 @@ class ProjectService:
             tasks_stmt = select(Task.id).where(Task.project_id == project_id)
             tasks_result = await self.session.execute(tasks_stmt)
             task_ids = [row[0] for row in tasks_result]
+            room_conditions = [ConferenceRoom.project_id == project_id]
+
+            if task_ids:
+                room_conditions.append(ConferenceRoom.task_id.in_(task_ids))
+
+            rooms_stmt = select(ConferenceRoom.id).where(or_(*room_conditions))
+            rooms_result = await self.session.execute(rooms_stmt)
+            room_ids = [row[0] for row in rooms_result]
+
+            if room_ids:
+                await self.session.execute(
+                    delete(ConferenceStats).where(ConferenceStats.room_id.in_(room_ids))
+                )
+
+                await self.session.execute(
+                    delete(conference_invited_users).where(
+                        conference_invited_users.c.room_id.in_(room_ids)
+                    )
+                )
+
+                await self.session.execute(
+                    delete(ConferenceParticipant).where(
+                        ConferenceParticipant.room_id.in_(room_ids)
+                    )
+                )
+
+                await self.session.execute(
+                    delete(ConferenceMessage).where(
+                        ConferenceMessage.room_id.in_(room_ids)
+                    )
+                )
+
+                await self.session.execute(
+                    delete(ConferenceRoom).where(ConferenceRoom.id.in_(room_ids))
+                )
 
             if task_ids:
                 from core.database.models import TaskHistory

@@ -528,7 +528,7 @@ class ConferenceService:
             return
         
         # Отправляем уведомления через существующую систему
-        title = f"🎥 Начался созвон"
+        title = f"Начался созвон"
         content = f"{creator.login} начал(а) созвон «{room.title}»"
         
         data = {

@@ -1,0 +1,233 @@
+:root {
+  /* =========================
+     Brand
+     ========================= */
+
+  --color-brand-950: #04130a;
+  --color-brand-900: #003a1b;
+  --color-brand-800: #004b23;
+  --color-brand-700: #006b35;
+  --color-brand-600: #0f7f3a;
+  --color-brand-500: #168f45;
+  --color-brand-400: #38b000;
+  --color-brand-300: #79d65a;
+  --color-brand-200: #c9efc0;
+  --color-brand-100: #e7f6ec;
+  --color-brand-50: #f3fbf5;
+
+  /* =========================
+     Backgrounds
+     ========================= */
+
+  --color-bg-app: #f4f7f4;
+  --color-bg-app-soft: #f8faf8;
+  --color-bg-sidebar: #07110c;
+  --color-bg-sidebar-hover: #0d1b12;
+  --color-bg-sidebar-active: #12351f;
+
+  --color-surface: #ffffff;
+  --color-surface-muted: #f8faf8;
+  --color-surface-hover: #f2f7f3;
+  --color-surface-elevated: #ffffff;
+
+  /* =========================
+     Text
+     ========================= */
+
+  --color-text-main: #172019;
+  --color-text-soft: #344238;
+  --color-text-muted: #68746b;
+  --color-text-subtle: #8a968d;
+  --color-text-inverse: #ffffff;
+  --color-text-inverse-muted: #b9c7bd;
+
+  /* =========================
+     Borders
+     ========================= */
+
+  --color-border: #e1e8e2;
+  --color-border-strong: #c7d3c9;
+  --color-border-dark: #1b2c21;
+
+  /* =========================
+     Semantic
+     ========================= */
+
+  --color-success: #16803c;
+  --color-success-bg: #e7f6ec;
+  --color-success-border: #bfe7cc;
+
+  --color-danger: #d92d20;
+  --color-danger-bg: #fee4e2;
+  --color-danger-border: #fecdca;
+
+  --color-warning: #f59e0b;
+  --color-warning-bg: #fef3c7;
+  --color-warning-border: #fde68a;
+
+  --color-info: #2563eb;
+  --color-info-bg: #dbeafe;
+  --color-info-border: #bfdbfe;
+
+  /* =========================
+     Task statuses
+     ========================= */
+
+  --status-backlog-accent: #718096;
+  --status-backlog-bg: color-mix(in srgb, var(--status-backlog-accent) 12%, white);
+  --status-backlog-text: var(--status-backlog-accent);
+  --status-backlog-border: color-mix(in srgb, var(--status-backlog-accent) 34%, white);
+  
+  --status-todo-accent: #3182ce;
+  --status-todo-bg: color-mix(in srgb, var(--status-todo-accent) 12%, white);
+  --status-todo-text: var(--status-todo-accent);
+  --status-todo-border: color-mix(in srgb, var(--status-todo-accent) 34%, white);
+  
+  --status-progress-accent: #dd6b20;
+  --status-progress-bg: color-mix(in srgb, var(--status-progress-accent) 12%, white);
+  --status-progress-text: var(--status-progress-accent);
+  --status-progress-border: color-mix(in srgb, var(--status-progress-accent) 34%, white);
+  
+  --status-review-accent: #d69e2e;
+  --status-review-bg: color-mix(in srgb, var(--status-review-accent) 13%, white);
+  --status-review-text: var(--status-review-accent);
+  --status-review-border: color-mix(in srgb, var(--status-review-accent) 36%, white);
+  
+  --status-done-accent: #38a169;
+  --status-done-bg: color-mix(in srgb, var(--status-done-accent) 12%, white);
+  --status-done-text: var(--status-done-accent);
+  --status-done-border: color-mix(in srgb, var(--status-done-accent) 34%, white);
+  
+  --status-cancelled-accent: #e53e3e;
+  --status-cancelled-bg: color-mix(in srgb, var(--status-cancelled-accent) 12%, white);
+  --status-cancelled-text: var(--status-cancelled-accent);
+  --status-cancelled-border: color-mix(in srgb, var(--status-cancelled-accent) 34%, white);
+  
+  --status-planned-accent: #718096;
+  --status-planned-bg: color-mix(in srgb, var(--status-planned-accent) 12%, white);
+  --status-planned-text: var(--status-planned-accent);
+  --status-planned-border: color-mix(in srgb, var(--status-planned-accent) 34%, white);
+  
+  --status-hold-accent: #d69e2e;
+  --status-hold-bg: color-mix(in srgb, var(--status-hold-accent) 13%, white);
+  --status-hold-text: var(--status-hold-accent);
+  --status-hold-border: color-mix(in srgb, var(--status-hold-accent) 36%, white);
+
+  /* =========================
+     Priorities
+     ========================= */
+
+  --priority-low-bg: #f1f5f9;
+  --priority-low-text: #475569;
+  --priority-low-border: #cbd5e1;
+
+  --priority-medium-bg: #dbeafe;
+  --priority-medium-text: #1d4ed8;
+  --priority-medium-border: #bfdbfe;
+
+  --priority-high-bg: #ffedd5;
+  --priority-high-text: #c2410c;
+  --priority-high-border: #fed7aa;
+
+  --priority-urgent-bg: #fee2e2;
+  --priority-urgent-text: #b91c1c;
+  --priority-urgent-border: #fecaca;
+
+  /* =========================
+     Typography
+     ========================= */
+
+  --font-main: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-accent: "Manrope", "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 36px;
+  --text-4xl: 44px;
+  
+  --line-tight: 1.2;
+  --line-normal: 1.5;
+  --line-relaxed: 1.7;
+  
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  --font-extrabold: 800;
+  
+  --letter-tight: -0.04em;
+  --letter-normal: 0;
+  --letter-wide: 0.04em;
+
+  /* =========================
+     Spacing
+     ========================= */
+
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* =========================
+     Radius
+     ========================= */
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-pill: 999px;
+
+  /* =========================
+     Shadows
+     ========================= */
+
+  --shadow-xs: 0 1px 2px rgba(16, 32, 20, 0.06);
+  --shadow-sm: 0 2px 8px rgba(16, 32, 20, 0.06);
+  --shadow-md: 0 8px 24px rgba(16, 32, 20, 0.08);
+  --shadow-lg: 0 18px 48px rgba(16, 32, 20, 0.14);
+  --shadow-xl: 0 28px 70px rgba(16, 32, 20, 0.18);
+
+  /* =========================
+     Layout
+     ========================= */
+
+  --sidebar-width: 260px;
+  --topbar-height: 72px;
+  --header-height: 88px;
+  --content-max-width: 1440px;
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 88px;
+  --topbar-height: 72px;
+  --header-height: 88px;
+  --content-max-width: 1440px;
+
+  /* =========================
+     Motion
+     ========================= */
+
+  --transition-fast: 120ms ease;
+  --transition-base: 180ms ease;
+  --transition-slow: 260ms ease;
+
+  /* =========================
+     Focus
+     ========================= */
+
+  --focus-ring: 0 0 0 3px rgba(0, 107, 53, 0.18);
+  --focus-ring-danger: 0 0 0 3px rgba(217, 45, 32, 0.18);
+}

@@ -1,13 +1,33 @@
-import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { Track } from 'livekit-client';
 import {
-  CONFERENCE_ICONS,
-  renderIconComponent,
-} from '../../../utils/icons';
+  Mic,
+  MicOff,
+  MoreVertical,
+  ScreenShare,
+  UserX,
+  VideoOff,
+  VolumeX,
+} from 'lucide-react';
+
 import styles from './ParticipantTile.module.css';
 
-const InterfaceIcon = ({ icon: Icon, size = 16 }) => {
-  return renderIconComponent(Icon, { size, strokeWidth: 2 });
+const MENU_WIDTH = 240;
+const MENU_HEIGHT = 150;
+
+const getParticipantName = (participant) => {
+  return participant?.name || participant?.identity || 'Участник';
+};
+
+const getParticipantInitial = (participant) => {
+  return getParticipantName(participant).charAt(0).toUpperCase();
 };
 
 export const ParticipantTile = ({
@@ -16,22 +36,26 @@ export const ParticipantTile = ({
   isModerator,
   isActiveSpeaker,
   onMute,
-  onKick
+  onKick,
 }) => {
   const videoRef = useRef(null);
   const audioRef = useRef(null);
+  const menuRef = useRef(null);
+  const menuButtonRef = useRef(null);
 
   const speakingOffTimerRef = useRef(null);
   const audioLevelRafRef = useRef(null);
   const audioLevelContextRef = useRef(null);
 
   const [showMenu, setShowMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 });
+
   const [cameraTrack, setCameraTrack] = useState(null);
   const [screenTrack, setScreenTrack] = useState(null);
   const [audioTrack, setAudioTrack] = useState(null);
   const [speakingNow, setSpeakingNow] = useState(Boolean(participant.isSpeaking));
 
-  const name = participant.name || participant.identity;
+  const name = getParticipantName(participant);
   const isSpeaking = speakingNow || Boolean(isActiveSpeaker);
 
   const activeVideoTrack = useMemo(() => {
@@ -39,8 +63,10 @@ export const ParticipantTile = ({
   }, [screenTrack, cameraTrack]);
 
   const videoEnabled = Boolean(activeVideoTrack);
+  const cameraEnabled = Boolean(cameraTrack);
   const audioEnabled = Boolean(audioTrack);
   const isScreenShare = Boolean(screenTrack) || participant.isScreenShareEnabled;
+  const canModerate = isModerator && !isLocal;
 
   const clearSpeakingOffTimer = useCallback(() => {
     if (speakingOffTimerRef.current) {
@@ -135,18 +161,14 @@ export const ParticipantTile = ({
     }
   }, [getTrackFromPublication, setTrackSafely, setSpeakingState]);
 
-  // Быстрая реакция на говорение через LiveKit.
   useEffect(() => {
     const handleSpeakingChanged = (speaking) => {
       setSpeakingState(speaking);
     };
 
     setSpeakingState(participant.isSpeaking);
-
     participant.on('isSpeakingChanged', handleSpeakingChanged);
 
-    // Оставляем редкую страховочную синхронизацию,
-    // но основную быструю реакцию ниже будет давать анализ audioTrack.
     const speakingSyncInterval = setInterval(() => {
       if (participant.isSpeaking) {
         setSpeakingState(true);
@@ -160,8 +182,6 @@ export const ParticipantTile = ({
     };
   }, [participant, setSpeakingState, clearSpeakingOffTimer]);
 
-  // Главный фикс: быстрый анализ реального аудиотрека.
-  // Он убирает задержку в первые секунды после включения микрофона.
   useEffect(() => {
     if (!audioTrack) {
       setSpeakingState(false);
@@ -191,6 +211,11 @@ export const ParticipantTile = ({
       if (audioLevelRafRef.current) {
         cancelAnimationFrame(audioLevelRafRef.current);
         audioLevelRafRef.current = null;
+      }
+
+      if (source) {
+        source.disconnect();
+        source = null;
       }
 
       if (audioLevelContextRef.current) {
@@ -240,9 +265,6 @@ export const ParticipantTile = ({
 
           const rms = Math.sqrt(sum / data.length);
 
-          // Порог чувствительности.
-          // Если рамка реагирует слишком редко — уменьши до 0.018.
-          // Если реагирует на шум — увеличь до 0.03.
           const isVoiceDetected =
             rms > 0.022 &&
             mediaStreamTrack.readyState === 'live' &&
@@ -333,12 +355,8 @@ export const ParticipantTile = ({
     participant,
     applyPublicationState,
     getTrackFromPublication,
-    syncTracksFromParticipant
+    syncTracksFromParticipant,
   ]);
-
-  useEffect(() => {
-    syncTracksFromParticipant();
-  });
 
   useEffect(() => {
     const videoElement = videoRef.current;
@@ -380,82 +398,225 @@ export const ParticipantTile = ({
     };
   }, [audioTrack, isLocal]);
 
-  const handleMute = () => {
-    if (!isLocal && isModerator) {
-      onMute(participant.identity);
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        !showMenu ||
+        menuRef.current?.contains(event.target) ||
+        menuButtonRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+
       setShowMenu(false);
+    };
+
+    const handleViewportChange = () => {
+      setShowMenu(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('scroll', handleViewportChange, true);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('scroll', handleViewportChange, true);
+    };
+  }, [showMenu]);
+
+  const handleMenuToggle = (event) => {
+    event.stopPropagation();
+
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    const left = Math.min(
+      Math.max(12, rect.right - MENU_WIDTH),
+      window.innerWidth - MENU_WIDTH - 12
+    );
+
+    let top = rect.bottom + 8;
+
+    if (top + MENU_HEIGHT > window.innerHeight - 12) {
+      top = Math.max(12, rect.top - MENU_HEIGHT - 8);
     }
+
+    setMenuPosition({ left, top });
+    setShowMenu((value) => !value);
   };
 
-  const handleKick = () => {
-    if (!isLocal && isModerator) {
-      onKick(participant.identity);
-      setShowMenu(false);
-    }
+  const handleMute = (event) => {
+    event.stopPropagation();
+
+    if (!canModerate) return;
+
+    onMute?.(participant.identity);
+    setShowMenu(false);
   };
+
+  const handleKick = (event) => {
+    event.stopPropagation();
+
+    if (!canModerate) return;
+
+    onKick?.(participant.identity);
+    setShowMenu(false);
+  };
+
+  const menu = showMenu && canModerate
+    ? createPortal(
+      <div
+        className={styles.menu}
+        ref={menuRef}
+        style={{
+          left: `${menuPosition.left}px`,
+          top: `${menuPosition.top}px`,
+        }}
+      >
+        <div className={styles.menuHeader}>
+          <span>{name}</span>
+          <small>Управление участником</small>
+        </div>
+
+        <button
+          className={styles.menuItem}
+          onClick={handleMute}
+          type="button"
+        >
+          <VolumeX size={16} strokeWidth={2} aria-hidden="true" />
+          Отключить микрофон
+        </button>
+
+        <button
+          className={`${styles.menuItem} ${styles.danger}`}
+          onClick={handleKick}
+          type="button"
+        >
+          <UserX size={16} strokeWidth={2} aria-hidden="true" />
+          Удалить из созвона
+        </button>
+      </div>,
+      document.body
+    )
+    : null;
 
   return (
-    <div
-      className={`${styles.tile} ${isSpeaking ? styles.speaking : ''}`}
-      onMouseEnter={() => !isLocal && setShowMenu(true)}
-      onMouseLeave={() => setShowMenu(false)}
-    >
-      {videoEnabled ? (
-        <video
-          ref={videoRef}
-          className={`${styles.video} ${isScreenShare ? styles.screenShareVideo : ''}`}
-          autoPlay
-          playsInline
-          muted={isLocal}
-        />
-      ) : (
-        <div className={styles.noVideo}>
-          <div className={styles.avatar}>
-            {name.charAt(0).toUpperCase()}
+    <>
+      <div
+        className={`${styles.tile} ${isSpeaking ? styles.speaking : ''} ${
+          isScreenShare ? styles.screenShare : ''
+        } ${!videoEnabled ? styles.videoOff : ''}`}
+      >
+        {videoEnabled ? (
+          <video
+            ref={videoRef}
+            className={`${styles.video} ${isScreenShare ? styles.screenShareVideo : ''}`}
+            autoPlay
+            playsInline
+            muted={isLocal}
+          />
+        ) : (
+          <div className={styles.noVideo}>
+            <div className={styles.avatar}>
+              {getParticipantInitial(participant)}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {!isLocal && (
-        <audio
-          ref={audioRef}
-          autoPlay
-          playsInline
-        />
-      )}
+        {!isLocal && (
+          <audio
+            ref={audioRef}
+            autoPlay
+            playsInline
+            className={styles.audio}
+          />
+        )}
 
-      <div className={styles.infoBar}>
-        <span className={styles.name}>
-          {name}
-          {isLocal && ' (Вы)'}
-        </span>
-
-        <div className={styles.statusIcons}>
-          {!audioEnabled && (
-            <span className={styles.mutedIcon} title="Микрофон выключен">
-              <InterfaceIcon icon={CONFERENCE_ICONS.MIC_OFF} size={15} />
+        <div className={styles.topStatus}>
+          {isSpeaking && (
+            <span className={styles.speakingBadge}>
+              <Mic size={13} strokeWidth={2.2} aria-hidden="true" />
+              Говорит
             </span>
           )}
+
           {isScreenShare && (
-            <span className={styles.screenIcon} title="Демонстрация экрана">
-              <InterfaceIcon icon={CONFERENCE_ICONS.SCREEN_SHARE} size={15} />
+            <span className={styles.screenBadge}>
+              <ScreenShare size={13} strokeWidth={2.2} aria-hidden="true" />
+              Экран
             </span>
           )}
+        </div>
+
+        {canModerate && (
+          <div className={styles.actions}>
+            <button
+              ref={menuButtonRef}
+              type="button"
+              className={`${styles.menuButton} ${showMenu ? styles.menuButtonActive : ''}`}
+              onClick={handleMenuToggle}
+              aria-label={`Действия с участником ${name}`}
+              aria-expanded={showMenu}
+            >
+              <MoreVertical size={18} strokeWidth={2.2} aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
+        <div className={styles.bottomOverlay}>
+          <div className={styles.identity}>
+            <span className={styles.name} title={name}>
+              {name}
+            </span>
+
+            {isLocal && (
+              <span className={styles.localBadge}>
+                Вы
+              </span>
+            )}
+          </div>
+
+          <div className={styles.statusIcons}>
+            <span
+              className={`${styles.statusIcon} ${
+                audioEnabled ? styles.statusOn : styles.statusOff
+              }`}
+              title={audioEnabled ? 'Микрофон включён' : 'Микрофон выключен'}
+            >
+              {audioEnabled ? (
+                <Mic size={15} strokeWidth={2.2} aria-hidden="true" />
+              ) : (
+                <MicOff size={15} strokeWidth={2.2} aria-hidden="true" />
+              )}
+            </span>
+
+            <span
+              className={`${styles.statusIcon} ${
+                cameraEnabled ? styles.statusOn : styles.statusOff
+              }`}
+              title={cameraEnabled ? 'Камера включена' : 'Камера выключена'}
+            >
+              {cameraEnabled ? (
+                <span className={styles.cameraDot} />
+              ) : (
+                <VideoOff size={15} strokeWidth={2.2} aria-hidden="true" />
+              )}
+            </span>
+
+            {isScreenShare && (
+              <span
+                className={`${styles.statusIcon} ${styles.statusScreen}`}
+                title="Демонстрация экрана"
+              >
+                <ScreenShare size={15} strokeWidth={2.2} aria-hidden="true" />
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {showMenu && !isLocal && isModerator && (
-        <div className={styles.menu}>
-          <button className={styles.menuItem} onClick={handleMute} type="button">
-            <InterfaceIcon icon={CONFERENCE_ICONS.MUTE} />
-            Отключить микрофон
-          </button>
-          <button className={`${styles.menuItem} ${styles.danger}`} onClick={handleKick} type="button">
-            <InterfaceIcon icon={CONFERENCE_ICONS.KICK} />
-            Удалить
-          </button>
-        </div>
-      )}
-    </div>
+      {menu}
+    </>
   );
 };

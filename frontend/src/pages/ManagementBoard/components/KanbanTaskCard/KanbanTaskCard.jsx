@@ -1,61 +1,124 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  CalendarDays,
+  ChevronDown,
+  Tags,
+  Users,
+} from 'lucide-react';
+
 import { useNotification } from '../../../../hooks/useNotification';
 import { useAutoScroll } from '../../../../hooks/useAutoScroll';
-import { 
-  getTaskStatusColor,
+import {
   getTaskStatusIcon,
-  getTaskPriorityColor,
   getTaskPriorityIcon,
   isTaskOverdue,
-  getNextStatusOptions
+  getNextStatusOptions,
+  getTaskStatusTranslation,
+  getTaskPriorityTranslation,
 } from '../../../../utils/taskStatus';
-import { 
-  TASK_STATUS_TRANSLATIONS,
-  TASK_PRIORITY_TRANSLATIONS
-} from '../../../../utils/constants';
-import { formatRelativeTime, truncateText } from '../../../../utils/helpers';
+import {
+  formatRelativeTime,
+  truncateText,
+} from '../../../../utils/helpers';
 import styles from './KanbanTaskCard.module.css';
-import { Calendar } from 'lucide-react';
+
+const getUserName = (user) => {
+  return user?.name || user?.login || user?.email || 'Пользователь';
+};
+
+const getUserInitial = (user) => {
+  return getUserName(user).charAt(0).toUpperCase();
+};
+
+const getStatusClass = (status) => {
+  const statusClasses = {
+    backlog: styles.statusBacklog,
+    todo: styles.statusTodo,
+    in_progress: styles.statusInProgress,
+    review: styles.statusReview,
+    done: styles.statusDone,
+    completed: styles.statusDone,
+    cancelled: styles.statusCancelled,
+  };
+
+  return statusClasses[status] || styles.statusDefault;
+};
+
+const getPriorityClass = (priority) => {
+  const priorityClasses = {
+    low: styles.priorityLow,
+    medium: styles.priorityMedium,
+    high: styles.priorityHigh,
+    urgent: styles.priorityUrgent,
+  };
+
+  return priorityClasses[priority] || styles.priorityMedium;
+};
 
 export const KanbanTaskCard = ({
   task,
   onStatusChange,
   onDragStart,
+  viewMode,
 }) => {
   const { showError } = useNotification();
+  const { stopAutoScroll } = useAutoScroll();
+
   const [isDragging, setIsDragging] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showTagsMenu, setShowTagsMenu] = useState(false);
   const [hoveredAssignee, setHoveredAssignee] = useState(null);
   const [tagsMenuPosition, setTagsMenuPosition] = useState({ x: 0, y: 0 });
-  const { stopAutoScroll } = useAutoScroll();
 
   const statusMenuRef = useRef(null);
   const tagsMenuRef = useRef(null);
   const statusButtonRef = useRef(null);
   const tagsButtonRef = useRef(null);
 
-  const statusColor = getTaskStatusColor(task.status);
-  const statusIcon = getTaskStatusIcon(task.status);
-  const priorityColor = getTaskPriorityColor(task.priority);
-  const priorityIcon = getTaskPriorityIcon(task.priority);
   const overdue = isTaskOverdue(task.deadline, task.status);
-  const nextStatusOptions = getNextStatusOptions(task.status);
+  const isDone = task.status === 'done' || task.status === 'completed';
+  const isCancelled = task.status === 'cancelled';
+
+  const nextStatusOptions = useMemo(() => {
+    return getNextStatusOptions(task.status);
+  }, [task.status]);
+
+  const assigneesToShow = useMemo(() => {
+    return Array.isArray(task.assignees) ? task.assignees.slice(0, 3) : [];
+  }, [task.assignees]);
+
+  const remainingAssignees = Math.max(
+    0,
+    (task.assignees?.length || 0) - assigneesToShow.length
+  );
+
+  const visibleTags = Array.isArray(task.tags) ? task.tags.slice(0, 2) : [];
+  const hiddenTagsCount = Math.max(0, (task.tags?.length || 0) - visibleTags.length);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (statusMenuRef.current && !statusMenuRef.current.contains(event.target) && 
-          statusButtonRef.current && !statusButtonRef.current.contains(event.target)) {
+      if (
+        statusMenuRef.current &&
+        !statusMenuRef.current.contains(event.target) &&
+        statusButtonRef.current &&
+        !statusButtonRef.current.contains(event.target)
+      ) {
         setShowStatusMenu(false);
       }
-      if (tagsMenuRef.current && !tagsMenuRef.current.contains(event.target) && 
-          tagsButtonRef.current && !tagsButtonRef.current.contains(event.target)) {
+
+      if (
+        tagsMenuRef.current &&
+        !tagsMenuRef.current.contains(event.target) &&
+        tagsButtonRef.current &&
+        !tagsButtonRef.current.contains(event.target)
+      ) {
         setShowTagsMenu(false);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
@@ -65,18 +128,25 @@ export const KanbanTaskCard = ({
     const handleScroll = () => {
       setShowStatusMenu(false);
       setShowTagsMenu(false);
+      setHoveredAssignee(null);
     };
 
     window.addEventListener('scroll', handleScroll, true);
+
     return () => {
       window.removeEventListener('scroll', handleScroll, true);
     };
   }, []);
 
-  const handleDragStart = (e) => {
+  const handleDragStart = (event) => {
     setIsDragging(true);
-    e.dataTransfer.setData('text/plain', task.id.toString());
-    e.dataTransfer.effectAllowed = 'move';
+    setShowStatusMenu(false);
+    setShowTagsMenu(false);
+    setHoveredAssignee(null);
+
+    event.dataTransfer.setData('text/plain', String(task.id));
+    event.dataTransfer.effectAllowed = 'move';
+
     onDragStart(task);
   };
 
@@ -85,10 +155,13 @@ export const KanbanTaskCard = ({
     stopAutoScroll();
   };
 
-  const handleStatusClick = (e) => {
-    e.stopPropagation();
-    setShowStatusMenu(!showStatusMenu);
+  const handleStatusClick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    setShowStatusMenu((value) => !value);
     setShowTagsMenu(false);
+    setHoveredAssignee(null);
   };
 
   const handleStatusChange = async (newStatus) => {
@@ -101,28 +174,29 @@ export const KanbanTaskCard = ({
     }
   };
 
-  const handlePriorityClick = (e) => {
-    e.stopPropagation();
-  };
+  const handleTagsClick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
 
-  const handleTagsClick = (e) => {
-    e.stopPropagation();
-    const rect = e.target.getBoundingClientRect();
+    const rect = event.currentTarget.getBoundingClientRect();
+
     setTagsMenuPosition({
       x: rect.left,
-      y: rect.bottom + 5
+      y: rect.bottom + 8,
     });
-    setShowTagsMenu(!showTagsMenu);
+
+    setShowTagsMenu((value) => !value);
     setShowStatusMenu(false);
+    setHoveredAssignee(null);
   };
 
   const handleAssigneeMouseEnter = (assignee, event) => {
-    setHoveredAssignee({ 
-      ...assignee, 
-      position: { 
-        x: event.clientX, 
-        y: event.clientY 
-      } 
+    setHoveredAssignee({
+      ...assignee,
+      position: {
+        x: event.clientX,
+        y: event.clientY,
+      },
     });
   };
 
@@ -130,142 +204,175 @@ export const KanbanTaskCard = ({
     setHoveredAssignee(null);
   };
 
-  const assigneesToShow = task.assignees?.slice(0, 3) || [];
-  const remainingAssignees = task.assignees?.length - assigneesToShow.length;
-
   return (
     <>
-      <div 
-        className={`${styles.card} ${isDragging ? styles.dragging : ''} ${overdue ? styles.overdue : ''} ${task.status === 'done' ? styles.done : ''}`}
+      <article
+        className={`${styles.card} ${isDragging ? styles.dragging : ''} ${
+          overdue ? styles.overdue : ''
+        } ${isDone ? styles.done : ''} ${isCancelled ? styles.cancelled : ''}`}
         draggable
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        data-view-mode={viewMode}
       >
-        <div className={styles.header}>
-          <div 
-            className={styles.priorityBadge} 
-            style={{ backgroundColor: priorityColor }}
-            onClick={handlePriorityClick}
-            title={TASK_PRIORITY_TRANSLATIONS[task.priority]}
+        <div className={styles.topLine}>
+          <span
+            className={`${styles.priorityBadge} ${getPriorityClass(task.priority)}`}
+            title={`Приоритет: ${getTaskPriorityTranslation(task.priority)}`}
           >
-            {priorityIcon}
-          </div>
-          <h4 className={styles.title} title={task.title}>
-            <Link to={`/tasks/${task.id}`} onClick={(e) => e.stopPropagation()}>
-              {truncateText(task.title, 50)}
-            </Link>
-          </h4>
+            <span className={styles.badgeIcon}>
+              {getTaskPriorityIcon(task.priority, { size: 13 })}
+            </span>
+            {getTaskPriorityTranslation(task.priority)}
+          </span>
+
+          {overdue && (
+            <span className={styles.overdueBadge}>
+              Просрочена
+            </span>
+          )}
         </div>
+
+        <h4 className={styles.title} title={task.title}>
+          <Link
+            to={`/tasks/${task.id}`}
+            onClick={(event) => event.stopPropagation()}
+            draggable={false}
+          >
+            {truncateText(task.title, 64)}
+          </Link>
+        </h4>
 
         {task.description && (
           <p className={styles.description}>
-            {truncateText(task.description, 100)}
+            {truncateText(task.description, 92)}
           </p>
         )}
 
         {task.tags && task.tags.length > 0 && (
           <div className={styles.tags}>
-            {task.tags.slice(0, 2).map((tag, index) => (
-              <span key={index} className={styles.tag}>
+            {visibleTags.map((tag, index) => (
+              <span key={`${tag}-${index}`} className={styles.tag}>
                 #{tag}
               </span>
             ))}
-            {task.tags.length > 2 && (
-              <button 
+
+            {hiddenTagsCount > 0 && (
+              <button
+                type="button"
                 className={styles.moreTags}
                 onClick={handleTagsClick}
                 ref={tagsButtonRef}
                 title="Показать все теги"
               >
-                +{task.tags.length - 2}
+                <Tags size={12} strokeWidth={2} aria-hidden="true" />
+                +{hiddenTagsCount}
               </button>
             )}
           </div>
         )}
 
-        {assigneesToShow.length > 0 && (
+        <div className={styles.metaRow}>
           <div className={styles.assignees}>
-            <div className={styles.assigneesList}>
-              {assigneesToShow.map(assignee => (
-                <div 
-                  key={assignee.id} 
-                  className={styles.assignee}
-                  onMouseEnter={(e) => handleAssigneeMouseEnter(assignee, e)}
-                  onMouseLeave={handleAssigneeMouseLeave}
-                >
-                  <div className={styles.assigneeAvatar}>
-                    {assignee.login?.charAt(0).toUpperCase()}
-                  </div>
+            {assigneesToShow.length > 0 ? (
+              <>
+                <div className={styles.assigneesList}>
+                  {assigneesToShow.map((assignee) => (
+                    <div
+                      key={assignee.id}
+                      className={styles.assignee}
+                      onMouseEnter={(event) => handleAssigneeMouseEnter(assignee, event)}
+                      onMouseLeave={handleAssigneeMouseLeave}
+                      title={getUserName(assignee)}
+                    >
+                      {getUserInitial(assignee)}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            {remainingAssignees > 0 && (
-              <div className={styles.moreAssignees}>
-                +{remainingAssignees}
-              </div>
-            )}
-          </div>
-        )}
 
-        <div className={styles.footer}>
-          <div className={styles.dates}>
-            {task.deadline && (
-              <div className={`${styles.deadline} ${overdue ? styles.overdueText : ''}`}>
-                <Calendar size={14} strokeWidth={2} aria-hidden="true" />
-                {formatRelativeTime(task.deadline)}
-              </div>
-            )}
-          </div>
-          
-          <div className={styles.statusSection}>
-            <div 
-              className={styles.statusBadge}
-              style={{ backgroundColor: statusColor }}
-              onClick={handleStatusClick}
-              ref={statusButtonRef}
-            >
-              <span className={styles.statusIcon}>{statusIcon}</span>
-              <span className={styles.statusText}>
-                {TASK_STATUS_TRANSLATIONS[task.status]}
+                {remainingAssignees > 0 && (
+                  <span className={styles.moreAssignees}>
+                    +{remainingAssignees}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className={styles.noAssignees}>
+                <Users size={13} strokeWidth={2} aria-hidden="true" />
+                Нет исполнителей
               </span>
-            </div>
+            )}
+          </div>
 
-            {showStatusMenu && (
-              <div className={styles.statusMenu} ref={statusMenuRef}>
-                {nextStatusOptions.map(option => (
+          {task.deadline && (
+            <span className={`${styles.deadline} ${overdue ? styles.deadlineOverdue : ''}`}>
+              <CalendarDays size={13} strokeWidth={2} aria-hidden="true" />
+              {formatRelativeTime(task.deadline)}
+            </span>
+          )}
+        </div>
+
+        <div className={styles.statusRow}>
+          <button
+            type="button"
+            className={`${styles.statusButton} ${getStatusClass(task.status)}`}
+            onClick={handleStatusClick}
+            ref={statusButtonRef}
+          >
+            <span className={styles.badgeIcon}>
+              {getTaskStatusIcon(task.status, { size: 13 })}
+            </span>
+
+            <span className={styles.statusText}>
+              {getTaskStatusTranslation(task.status)}
+            </span>
+
+            <ChevronDown size={13} strokeWidth={2.2} aria-hidden="true" />
+          </button>
+
+          {showStatusMenu && (
+            <div className={styles.statusMenu} ref={statusMenuRef}>
+              {nextStatusOptions.length > 0 ? (
+                nextStatusOptions.map((option) => (
                   <button
                     key={`status-${option.value}`}
-                    className={styles.statusOption}
-                    style={{ borderLeftColor: option.color }}
+                    type="button"
+                    className={`${styles.statusOption} ${getStatusClass(option.value)}`}
                     onClick={() => handleStatusChange(option.value)}
                   >
-                    <span className={styles.optionIcon}>
-                      {getTaskStatusIcon(option.value)}
+                    <span className={styles.badgeIcon}>
+                      {getTaskStatusIcon(option.value, { size: 14 })}
                     </span>
-                    <span className={styles.optionText}>{option.label}</span>
+
+                    <span>{option.label}</span>
                   </button>
-                ))}
-              </div>
-            )}
-          </div>
+                ))
+              ) : (
+                <div className={styles.emptyStatusMenu}>
+                  Нет доступных переходов
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      </div>
+      </article>
 
       {showTagsMenu && (
-        <div 
-          className={styles.tagsMenu} 
+        <div
+          className={styles.tagsMenu}
           ref={tagsMenuRef}
           style={{
             left: `${tagsMenuPosition.x}px`,
-            top: `${tagsMenuPosition.y}px`
+            top: `${tagsMenuPosition.y}px`,
           }}
         >
           <div className={styles.tagsMenuHeader}>
-            <h4>Все теги задачи</h4>
+            Все теги
           </div>
-          <div className={styles.tagsList}>
+
+          <div className={styles.tagsMenuList}>
             {task.tags.map((tag, index) => (
-              <span key={index} className={styles.tagFull}>
+              <span key={`${tag}-full-${index}`} className={styles.tagFull}>
                 #{tag}
               </span>
             ))}
@@ -274,16 +381,17 @@ export const KanbanTaskCard = ({
       )}
 
       {hoveredAssignee && (
-        <div 
+        <div
           className={styles.assigneeTooltip}
           style={{
             left: `${hoveredAssignee.position.x}px`,
-            top: `${hoveredAssignee.position.y}px`
+            top: `${hoveredAssignee.position.y}px`,
           }}
         >
-          {hoveredAssignee.login}
+          <span>{getUserName(hoveredAssignee)}</span>
+
           {hoveredAssignee.email && (
-            <div className={styles.assigneeEmail}>{hoveredAssignee.email}</div>
+            <small>{hoveredAssignee.email}</small>
           )}
         </div>
       )}

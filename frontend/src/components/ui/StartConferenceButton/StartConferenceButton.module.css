@@ -1,9 +1,34 @@
 .button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
-.button::before {
-  font-size: 1.1em;
+.button svg {
+  flex-shrink: 0;
+}
+
+.iconStack {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mainIcon {
+  display: block;
+}
+
+.contextIcon {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  padding: 1px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  color: var(--color-surface);
+  box-sizing: content-box;
 }
