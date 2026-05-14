@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.schemas import BaseGroupInfo, BaseTaskInfo
 from core.utils.password_hasher import hash_password
-from shared.dependencies import ensure_user_is_super_admin_global
-from core.database.models import RefreshToken, Task, TaskHistory, User, GroupMember
+from shared.dependencies import ensure_global_admin_by_id
+from core.database.models import RefreshToken, Task, TaskHistory, User, GroupMember, SystemRole
 from core.logger import logger
 from .schemas import UserCreate, UserUpdate, UserWithRelations
 from modules.groups.service import GroupService
@@ -108,6 +108,9 @@ class UserService:
             login=user.login,
             email=user.email,
             name=user.name,
+            system_role=user.system_role,
+            is_blocked=user.is_blocked,
+            blocked_reason=user.blocked_reason,
             created_at=user.created_at,
             groups=groups,
             assigned_tasks=assigned_tasks
@@ -189,7 +192,7 @@ class UserService:
                 raise UserNotFoundError(user_id=user_id)
 
             if current_user_id and user_id != current_user_id:
-                await ensure_user_is_super_admin_global(self.session, current_user_id)
+                await ensure_global_admin_by_id(self.session, current_user_id)
 
             if user_update.login or user_update.email:
                 login_to_check = user_update.login if user_update.login else user.login
@@ -231,6 +234,56 @@ class UserService:
             self.logger.error(f"Error updating user {user_id}: {e}", exc_info=True)
             raise UserUpdateError(f"Не удалось обновить пользователя: {str(e)}")
     
+    async def block_user(self, user_id: int, reason: Optional[str] = None, current_user_id: Optional[int] = None) -> User:
+        """Блокировка пользователя глобальным администратором."""
+        if current_user_id:
+            await ensure_global_admin_by_id(self.session, current_user_id)
+
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            raise UserNotFoundError(user_id=user_id)
+
+        if user.system_role == SystemRole.GLOBAL_ADMIN:
+            raise UserUpdateError("Нельзя заблокировать глобального администратора")
+
+        user.is_blocked = True
+        user.blocked_reason = reason
+
+        await self.session.commit()
+        await self.session.refresh(user)
+        return user
+
+    async def unblock_user(self, user_id: int, current_user_id: Optional[int] = None) -> User:
+        """Разблокировка пользователя глобальным администратором."""
+        if current_user_id:
+            await ensure_global_admin_by_id(self.session, current_user_id)
+
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            raise UserNotFoundError(user_id=user_id)
+
+        user.is_blocked = False
+        user.blocked_reason = None
+
+        await self.session.commit()
+        await self.session.refresh(user)
+        return user
+
+    async def update_system_role(self, user_id: int, system_role: SystemRole, current_user_id: Optional[int] = None) -> User:
+        """Изменение системной роли пользователя глобальным администратором."""
+        if current_user_id:
+            await ensure_global_admin_by_id(self.session, current_user_id)
+
+        user = await self.get_user_by_id(user_id)
+        if not user:
+            raise UserNotFoundError(user_id=user_id)
+
+        user.system_role = system_role
+
+        await self.session.commit()
+        await self.session.refresh(user)
+        return user
+
     async def delete_user(self, user_id: int, current_user_id: Optional[int] = None) -> bool:
         """Удаление пользователя"""
         self.logger.info(f"Deleting user with ID: {user_id}")
@@ -242,7 +295,7 @@ class UserService:
                 raise UserNotFoundError(user_id=user_id)
 
             if current_user_id and user_id != current_user_id:
-                await ensure_user_is_super_admin_global(self.session, current_user_id)
+                await ensure_global_admin_by_id(self.session, current_user_id)
 
             user_groups_stmt = select(GroupMember).where(GroupMember.user_id == user_id)
             user_groups_result = await self.session.execute(user_groups_stmt)

@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, Response, Request
-from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import jwt
@@ -12,7 +11,7 @@ from .jwt import verify_refresh_token, create_access_token, create_refresh_token
 from .refresh_token import revoke_all_user_tokens
 from ..users.service import UserService
 from .schemas import TokenPayload
-from .exceptions import RefreshTokenError
+from .exceptions import RefreshTokenError, UserBlockedError
 from ..users.exceptions import UserNotFoundError
 from .utils.cookie_management import set_auth_cookies, clear_auth_cookies
 
@@ -72,6 +71,10 @@ async def refresh_access_token(
             logger.warning(f"User {token_payload.sub} not found for token refresh")
             raise UserNotFoundError(user_id=token_payload.sub)
         
+        if user.is_blocked:
+            logger.warning(f"Blocked user {user.id} tried to refresh tokens")
+            raise UserBlockedError()
+        
         # Создаем новую пару токенов
         new_access_token = create_access_token(token_payload)
         new_refresh_token = await create_refresh_token(session, user.id, user.login)
@@ -122,20 +125,21 @@ async def logout(
     return {"detail": "Успешный выход из системы"}
 
 
-@router.get("/check")
+@router.get("/check", response_model=dict)
 async def check_auth(
     request: Request,
     session: AsyncSession = Depends(db_session.session_getter)
 ):
-    """Проверка статуса аутентификации с автоматическим обновлением access token"""
-    
+    """
+    Проверка статуса аутентификации.
+    Возвращает информацию о текущем пользователе, если он аутентифицирован.
+    """
     token = request.cookies.get("access_token")
     
     if not token:
-        return JSONResponse({"authenticated": False})
+        return {"authenticated": False}
     
     try:
-        # Пробуем проверить access token
         payload = jwt.decode(
             token, 
             settings.security.secret_key, 
@@ -143,56 +147,44 @@ async def check_auth(
         )
         
         if payload.get("type") != "access":
-            return JSONResponse({"authenticated": False})
+            return {"authenticated": False}
         
         user_id = int(payload.get("sub"))
+        
         user_service = UserService(session)
         user = await user_service.get_user_by_id(user_id)
         
-        if user:
-            return JSONResponse({
+        if user and not user.is_blocked:
+            return {
                 "authenticated": True,
                 "user": {
                     "id": user.id,
                     "login": user.login,
                     "email": user.email,
-                    "name": user.name
+                    "name": user.name,
+                    "system_role": user.system_role.value,
+                    "is_blocked": user.is_blocked
                 }
-            })
-            
+            }
     except jwt.ExpiredSignatureError:
-        # Access token истек - пробуем обновить через refresh token
+        # Токен истек, но пользователь может быть все еще аутентифицирован
+        # Проверяем наличие refresh token
         refresh_token = request.cookies.get("refresh_token")
-        
         if refresh_token:
             try:
-                # Проверяем refresh token (возвращает TokenPayload)
                 token_payload = await verify_refresh_token(session, refresh_token)
-                
-                # Загружаем пользователя
                 user_service = UserService(session)
                 user = await user_service.get_user_by_id(token_payload.sub)
-                
-                if user:
+                if user and not user.is_blocked:
                     # Создаем новый access token
-                    new_token_payload = TokenPayload(
+                    token_payload = TokenPayload(
                         sub=user.id,
                         login=user.login,
                         type="access"
                     )
-                    new_access_token = create_access_token(new_token_payload)
-                    
-                    # Формируем ответ с обновленным cookie
-                    response = JSONResponse({
-                        "authenticated": True,
-                        "user": {
-                            "id": user.id,
-                            "login": user.login,
-                            "email": user.email,
-                            "name": user.name
-                        }
-                    })
-                    
+                    new_access_token = create_access_token(token_payload)
+                    # Обновляем cookie с access token
+                    response = Response()
                     response.set_cookie(
                         key="access_token",
                         value=new_access_token,
@@ -203,18 +195,22 @@ async def check_auth(
                         path="/",
                     )
                     
-                    logger.info(f"Access token refreshed for user {user.id} via /auth/check")
-                    return response
-                    
+                    return {
+                        "authenticated": True,
+                        "user": {
+                            "id": user.id,
+                            "login": user.login,
+                            "email": user.email,
+                            "name": user.name,
+                            "system_role": user.system_role.value,
+                            "is_blocked": user.is_blocked
+                        }
+                    }
             except Exception as e:
-                logger.error(f"Refresh token validation failed in /auth/check: {e}")
-        else:
-            logger.debug("No refresh token found for expired access token")
-            
-    except jwt.JWTError as e:
-        logger.error(f"JWT decode error in /auth/check: {e}")
+                logger.error(f"Refresh token check failed: {e}")
+                pass
+        
     except Exception as e:
-        logger.error(f"Unexpected error in /auth/check: {e}", exc_info=True)
+        logger.error(f"Auth check error: {e}")
     
-    # Если ничего не сработало - пользователь не аутентифицирован
-    return JSONResponse({"authenticated": False})
+    return {"authenticated": False}

@@ -4,7 +4,12 @@ from sqlalchemy import select, delete, and_
 from sqlalchemy.orm import selectinload
 
 from core.database.models import Group, User, GroupMember, UserRole, Task, project_group_association, task_user_association
-from shared.dependencies import ensure_user_is_admin, get_user_group_role, ensure_user_is_super_admin_global
+from shared.dependencies import (
+    ensure_user_is_admin,
+    get_user_group_role,
+    ensure_global_admin_by_id,
+    is_global_admin_user,
+)
 from core.logger import logger
 from .schemas import GetUserRoleResponse, RemoveUsersFromGroup, GroupCreate, GroupReadWithRelations, GroupUpdate
 from .exceptions import (
@@ -50,9 +55,9 @@ class GroupService:
         return self._notification_trigger
     
     async def get_all_groups(self, current_user_id: int) -> List[Group]:
-        """Получение всех групп (только для супер-админа)"""
-        self.logger.info(f"Fetching all groups by super-admin {current_user_id}")
-        await ensure_user_is_super_admin_global(self.session, current_user_id)
+        """Получение всех групп (только для глобального администратора)"""
+        self.logger.info(f"Fetching all groups by global admin {current_user_id}")
+        await ensure_global_admin_by_id(self.session, current_user_id)
         stmt = select(Group).order_by(Group.id)
         result = await self.session.scalars(stmt)
         groups = result.all()
@@ -108,14 +113,27 @@ class GroupService:
         return groups
     
     async def get_role_for_user_in_group(self, user_id: int, group_id: int) -> GetUserRoleResponse:
-        """Получение роли пользователя в группе"""
+        """
+        Получение роли пользователя в группе.
+
+        Обычный пользователь получает свою групповую роль: admin/member.
+        Глобальный администратор получает виртуальную роль global_admin,
+        чтобы иметь возможность открыть страницу группы без членства.
+        """
         self.logger.debug(f"Getting role for user {user_id} in group {group_id}")
+
+        user = await self.session.get(User, user_id)
+
+        if is_global_admin_user(user):
+            return GetUserRoleResponse(role="global_admin")
+
         role = await get_user_group_role(self.session, user_id, group_id)
+
         if role is None:
             self.logger.warning(f"User {user_id} not in group {group_id}")
             raise UserNotInGroupError(user_id=user_id, group_id=group_id)
-        
-        return GetUserRoleResponse(role=role)
+
+        return GetUserRoleResponse(role=role.value)
     
     async def create_group(self, group_create: GroupCreate, current_user: User) -> GroupReadWithRelations:
         """Создание новой группы"""

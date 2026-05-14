@@ -35,7 +35,6 @@ export const Groups = () => {
       key: 'role',
       label: 'Роль в группе',
       options: [
-        { value: 'super_admin', label: 'Супер-администратор' },
         { value: 'admin', label: 'Администратор' },
         { value: 'member', label: 'Участник' },
       ],
@@ -60,7 +59,7 @@ export const Groups = () => {
 
   const isUserAdminInGroup = useCallback((group) => {
     const role = getUserRoleInGroup(group);
-    return role === 'admin' || role === 'super_admin';
+    return role === 'admin';
   }, [getUserRoleInGroup]);
 
   const loadGroups = useCallback(async () => {

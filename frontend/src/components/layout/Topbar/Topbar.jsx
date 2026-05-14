@@ -7,6 +7,51 @@ import styles from './Topbar.module.css';
 
 const PAGE_META = [
   {
+    test: (path) => path === '/admin',
+    title: 'Администрирование',
+    subtitle: 'Сводка системы и административный контроль',
+  },
+  {
+    test: (path) => path === '/admin/users',
+    title: 'Пользователи системы',
+    subtitle: 'Просмотр, блокировка и назначение глобальных администраторов',
+  },
+  {
+    test: (path) => path === '/admin/groups',
+    title: 'Группы системы',
+    subtitle: 'Просмотр всех групп и аварийное удаление',
+  },
+  {
+    test: (path) => path.startsWith('/admin/groups/'),
+    title: 'Просмотр группы',
+    subtitle: 'Read-only административный просмотр группы',
+  },
+  {
+    test: (path) => path === '/admin/projects',
+    title: 'Проекты системы',
+    subtitle: 'Просмотр всех проектов и аварийное удаление',
+  },
+  {
+    test: (path) => path.startsWith('/admin/projects/'),
+    title: 'Просмотр проекта',
+    subtitle: 'Read-only административный просмотр проекта',
+  },
+  {
+    test: (path) => path === '/admin/tasks',
+    title: 'Задачи системы',
+    subtitle: 'Просмотр всех задач и контроль проблемных работ',
+  },
+  {
+    test: (path) => path.startsWith('/admin/tasks/'),
+    title: 'Просмотр задачи',
+    subtitle: 'Read-only административный просмотр задачи',
+  },
+  {
+    test: (path) => path === '/admin/audit',
+    title: 'Журнал аудита',
+    subtitle: 'История действий глобальных администраторов',
+  },
+  {
     test: (path) => path === '/workspace',
     title: 'Рабочая область',
     subtitle: 'Сводка по проектам, задачам и активности',

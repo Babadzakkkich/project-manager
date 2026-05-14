@@ -26,3 +26,11 @@ class RefreshTokenError(AuthException):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=detail
         )
+
+
+class UserBlockedError(AuthException):
+    def __init__(self, detail: str = "Пользователь заблокирован"):
+        super().__init__(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=detail
+        )

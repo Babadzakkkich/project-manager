@@ -20,6 +20,7 @@ class ApiPrefix(BaseModel):
     tasks: str = "/tasks"
     notifications: str = "/notifications"
     conferences: str = "/conferences"
+    admin: str = "/admin"
 
 
 class DatabaseConfig(BaseModel):

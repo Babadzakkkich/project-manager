@@ -75,7 +75,7 @@ export const CreateProject = () => {
       const adminGroups = safeGroups.filter((group) =>
         group.users?.some((groupUser) =>
           groupUser.id === user?.id &&
-          (groupUser.role === 'admin' || groupUser.role === 'super_admin')
+          groupUser.role === 'admin'
         )
       );
 

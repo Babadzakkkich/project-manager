@@ -7,13 +7,15 @@ import {
   CheckSquare,
   KanbanSquare,
   Video,
+  ShieldCheck,
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react';
 import logo from '../../../assets/logo.png';
+import { useAuthContext } from '../../../contexts/AuthContext';
 import styles from './Sidebar.module.css';
 
-const NAV_ITEMS = [
+const BASE_NAV_ITEMS = [
   {
     to: '/workspace',
     label: 'Рабочая область',
@@ -52,7 +54,17 @@ const NAV_ITEMS = [
   },
 ];
 
+const ADMIN_NAV_ITEM = {
+  to: '/admin',
+  label: 'Администрирование',
+  description: 'Система',
+  icon: ShieldCheck,
+};
+
 export const Sidebar = ({ isCollapsed = false, onToggle }) => {
+  const { isGlobalAdmin } = useAuthContext();
+  const navItems = isGlobalAdmin ? [...BASE_NAV_ITEMS, ADMIN_NAV_ITEM] : BASE_NAV_ITEMS;
+
   return (
     <aside className={`${styles.sidebar} ${isCollapsed ? styles.collapsed : ''}`}>
       <div className={styles.header}>
@@ -76,7 +88,7 @@ export const Sidebar = ({ isCollapsed = false, onToggle }) => {
       </div>
 
       <nav className={styles.nav} aria-label="Основная навигация">
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const Icon = item.icon;
 
           return (

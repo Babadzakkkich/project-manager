@@ -4,7 +4,12 @@ from sqlalchemy import delete, select, and_
 from sqlalchemy.orm import selectinload
 
 from modules.groups.exceptions import InsufficientPermissionsError
-from shared.dependencies import ensure_user_is_admin, check_user_in_group, ensure_user_is_super_admin_global
+from shared.dependencies import (
+    ensure_user_is_admin,
+    check_user_in_group,
+    ensure_global_admin_by_id,
+    is_global_admin_user,
+)
 from core.database.models import Task, Project, User, Group, GroupMember, TaskHistory, TaskStatus, TaskPriority
 from core.logger import logger
 from .schemas import AddRemoveUsersToTask, TaskCreate, TaskReadWithRelations, TaskUpdate, TaskRead, TaskBulkUpdate
@@ -54,9 +59,9 @@ class TaskService:
         return self._notification_trigger
     
     async def get_all_tasks(self, current_user_id: int) -> List[TaskRead]:
-        """Получение всех задач (только для супер-админа)"""
-        self.logger.info(f"Fetching all tasks by super-admin {current_user_id}")
-        await ensure_user_is_super_admin_global(self.session, current_user_id)
+        """Получение всех задач (только для глобального администратора)"""
+        self.logger.info(f"Fetching all tasks by global admin {current_user_id}")
+        await ensure_global_admin_by_id(self.session, current_user_id)
         stmt = select(Task).order_by(Task.id)
         result = await self.session.scalars(stmt)
         tasks = result.all()
@@ -106,7 +111,7 @@ class TaskService:
         admin_groups = []
         for group in user_groups:
             for user in group.users:
-                if user.id == user_id and user.role in ['admin', 'super_admin']:
+                if user.id == user_id and user.role == 'admin':
                     admin_groups.append(group)
                     break
 
@@ -777,10 +782,13 @@ class TaskService:
                 self.logger.warning(f"Group {group_id} not in project {project_id}")
                 raise GroupNotInProjectError(group_id, project_id)
 
-            # Проверяем, что пользователь состоит в группе
-            if not await check_user_in_group(self.session, current_user.id, group_id):
-                self.logger.warning(f"User {current_user.id} not in group {group_id}")
-                raise TaskAccessDeniedError("Вы не состоите в указанной группе")
+            # Проверяем доступ к просмотру доски.
+            # Обычный пользователь должен состоять в группе.
+            # Глобальный администратор может смотреть доску без членства.
+            if not is_global_admin_user(current_user):
+                if not await check_user_in_group(self.session, current_user.id, group_id):
+                    self.logger.warning(f"User {current_user.id} not in group {group_id}")
+                    raise TaskAccessDeniedError("Вы не состоите в указанной группе")
 
             # Формируем запрос для задач
             stmt = (

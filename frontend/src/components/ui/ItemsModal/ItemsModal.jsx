@@ -92,8 +92,7 @@ const ITEM_CONFIGS = {
         key: 'role',
         label: 'Роль в группе',
         options: [
-          { value: 'super_admin', label: 'Супер-администратор' },
-          { value: 'admin', label: 'Администратор' },
+            { value: 'admin', label: 'Администратор' },
           { value: 'member', label: 'Участник' },
         ],
       },

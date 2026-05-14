@@ -2,7 +2,11 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.dependencies import check_user_in_group, get_service_factory
+from shared.dependencies import (
+    check_user_in_group,
+    get_service_factory,
+    is_global_admin_user,
+)
 from core.database.models import User, TaskStatus, TaskPriority
 from modules.auth.dependencies import get_current_user
 from core.database.session import db_session
@@ -82,16 +86,25 @@ async def get_task(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(db_session.session_getter)
 ):
+    """
+    Получить информацию о задаче.
+
+    Обычный пользователь должен состоять в группе задачи.
+    Глобальный администратор может просматривать любую задачу без членства.
+    """
     logger.info(f"GET /tasks/{task_id} requested by user {current_user.id}")
-    
+
     try:
         task_service = service_factory.get('task')
         task = await task_service.get_task_by_id(task_id)
-        
-        if not await check_user_in_group(session, current_user.id, task.group_id):
-            logger.warning(f"User {current_user.id} tried to access task {task_id} without permission")
-            raise TaskAccessDeniedError("Нет доступа к задаче")
-            
+
+        if not is_global_admin_user(current_user):
+            if not await check_user_in_group(session, current_user.id, task.group_id):
+                logger.warning(
+                    f"User {current_user.id} tried to access task {task_id} without permission"
+                )
+                raise TaskAccessDeniedError("Нет доступа к задаче")
+
         return task
     except (TaskNotFoundError, TaskAccessDeniedError) as e:
         logger.error(f"Error getting task {task_id}: {e.detail}")
@@ -358,16 +371,25 @@ async def get_task_history(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(db_session.session_getter)
 ):
+    """
+    Получить историю изменений задачи.
+
+    Обычный пользователь должен состоять в группе задачи.
+    Глобальный администратор может просматривать историю любой задачи.
+    """
     logger.info(f"GET /tasks/{task_id}/history by user {current_user.id}")
     task_service = service_factory.get('task')
-    
+
     try:
         task = await task_service.get_task_by_id(task_id)
-        
-        if not await check_user_in_group(session, current_user.id, task.group_id):
-            logger.warning(f"User {current_user.id} tried to access history of task {task_id} without permission")
-            raise TaskAccessDeniedError("Нет доступа к истории задачи")
-            
+
+        if not is_global_admin_user(current_user):
+            if not await check_user_in_group(session, current_user.id, task.group_id):
+                logger.warning(
+                    f"User {current_user.id} tried to access history of task {task_id} without permission"
+                )
+                raise TaskAccessDeniedError("Нет доступа к истории задачи")
+
         return await task_service.get_task_history(task_id)
     except (TaskNotFoundError, TaskAccessDeniedError) as e:
         logger.error(f"Error getting task history: {e.detail}")

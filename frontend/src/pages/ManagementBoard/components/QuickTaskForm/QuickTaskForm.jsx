@@ -87,9 +87,7 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
       setAvailableUsers(groupUsers);
 
       const currentUserInGroup = groupUsers.find((groupUser) => groupUser.id === user?.id);
-      const isAdmin =
-        currentUserInGroup?.role === 'admin' ||
-        currentUserInGroup?.role === 'super_admin';
+      const isAdmin = currentUserInGroup?.role === 'admin';
 
       setIsAdminMode(isAdmin);
 

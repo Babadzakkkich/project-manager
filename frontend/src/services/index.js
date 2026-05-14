@@ -1,6 +1,6 @@
-export { authAPI } from './auth';
-export { usersAPI } from './users';
-export { groupsAPI } from './groups';
-export { projectsAPI } from './projects';
-export { tasksAPI } from './tasks';
-export { tokenService } from './tokenService';
+export { authAPI } from './api/auth';
+export { usersAPI } from './api/users';
+export { groupsAPI } from './api/groups';
+export { projectsAPI } from './api/projects';
+export { tasksAPI } from './api/tasks';
+export { adminAPI } from './api/admin';

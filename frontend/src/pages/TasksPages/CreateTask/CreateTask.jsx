@@ -60,7 +60,7 @@ const getUserInitial = (user) => {
 };
 
 const getUserRoleLabel = (role) => {
-  if (role === 'admin' || role === 'super_admin') {
+  if (role === 'admin') {
     return 'Администратор';
   }
 
@@ -217,9 +217,7 @@ export const CreateTask = () => {
       setAvailableUsers(groupUsers);
 
       const currentUserInGroup = groupUsers.find((groupUser) => groupUser.id === user?.id);
-      const isAdmin =
-        currentUserInGroup?.role === 'admin' ||
-        currentUserInGroup?.role === 'super_admin';
+      const isAdmin = currentUserInGroup?.role === 'admin';
 
       setIsAdminMode(isAdmin);
 

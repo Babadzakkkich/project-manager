@@ -41,6 +41,9 @@ async def get_current_user(
         if not user:
             raise TokenValidationError("Пользователь не найден")
         
+        if user.is_blocked:
+            raise TokenValidationError("Пользователь заблокирован")
+        
         logger.debug(f"User {user_id} authenticated successfully via cookie")
         return user
             
@@ -90,6 +93,8 @@ async def get_current_user_ws(
         
         user_service = UserService(session)
         user = await user_service.get_user_by_id(user_id)
+        if user and user.is_blocked:
+            return None
         return user
         
     except Exception as e:
@@ -123,6 +128,8 @@ async def get_optional_current_user(
         
         user_service = UserService(session)
         user = await user_service.get_user_by_id(user_id)
+        if user and user.is_blocked:
+            return None
         return user
             
     except Exception:

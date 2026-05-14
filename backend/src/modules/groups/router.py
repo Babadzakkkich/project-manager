@@ -4,7 +4,12 @@ from fastapi import APIRouter, Depends, status, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from shared.dependencies import check_user_in_group, get_service_factory, ensure_user_is_admin, ensure_user_is_super_admin_global
+from shared.dependencies import (
+    check_user_in_group,
+    get_service_factory,
+    ensure_user_is_admin,
+    is_global_admin_user,
+)
 from core.database.models import User
 from core.services import ServiceFactory
 from modules.auth.dependencies import get_current_user, get_optional_current_user
@@ -41,7 +46,7 @@ async def get_all_groups(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Получить все группы (только для супер-админа)"""
+    """Получить все группы (только для глобального администратора)"""
     logger.info(f"GET /groups requested by user {current_user.id}")
     group_service = service_factory.get('group')
     return await group_service.get_all_groups(current_user.id)
@@ -65,16 +70,24 @@ async def get_group(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(db_session.session_getter)
 ):
-    """Получить информацию о группе (только для участников группы)"""
+    """
+    Получить информацию о группе.
+
+    Обычный пользователь должен состоять в группе.
+    Глобальный администратор может просматривать любую группу без членства.
+    """
     logger.info(f"GET /groups/{group_id} requested by user {current_user.id}")
-    
-    if not await check_user_in_group(session, current_user.id, group_id):
-        logger.warning(f"User {current_user.id} tried to access group {group_id} without membership")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Пользователь с ID {current_user.id} не состоит в группе {group_id}"
-        )
-    
+
+    if not is_global_admin_user(current_user):
+        if not await check_user_in_group(session, current_user.id, group_id):
+            logger.warning(
+                f"User {current_user.id} tried to access group {group_id} without membership"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Пользователь с ID {current_user.id} не состоит в группе {group_id}"
+            )
+
     try:
         group_service = service_factory.get('group')
         group = await group_service.get_group_by_id(group_id)
@@ -93,13 +106,27 @@ async def get_my_role_in_group(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Получить свою роль в группе"""
+    """
+    Получить свою роль в группе.
+
+    Для глобального администратора возвращается виртуальная роль global_admin.
+    Она нужна только для read-only просмотра на фронте.
+    """
     logger.info(f"GET /groups/{group_id}/my_role requested by user {current_user.id}")
+
+    if is_global_admin_user(current_user):
+        return {"role": "global_admin"}
+
     group_service = service_factory.get('group')
-    
+
     try:
         role = await group_service.get_role_for_user_in_group(current_user.id, group_id)
-        return {"role": role.role.value if hasattr(role, 'role') else role}
+
+        role_value = role.role
+        if hasattr(role_value, "value"):
+            role_value = role_value.value
+
+        return {"role": role_value}
     except UserNotInGroupError as e:
         logger.warning(f"User {current_user.id} not in group {group_id}")
         raise HTTPException(
@@ -384,7 +411,7 @@ async def change_user_role_in_group(
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Недопустимая роль: {new_role}. Допустимые роли: admin, member, super_admin"
+            detail=f"Недопустимая роль: {new_role}. Допустимые роли: admin, member"
         )
     
     group_service = service_factory.get('group')

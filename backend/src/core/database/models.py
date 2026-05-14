@@ -10,8 +10,12 @@ class Base(DeclarativeBase):
     __abstract__ = True
 
 
+class SystemRole(enum.Enum):
+    USER = "user"
+    GLOBAL_ADMIN = "global_admin"
+
+
 class UserRole(enum.Enum):
-    SUPER_ADMIN = "super_admin"
     ADMIN = "admin"
     MEMBER = "member"
 
@@ -165,10 +169,22 @@ class User(Base):
     email: Mapped[str] = mapped_column(String, unique=True)
     password_hash: Mapped[str] = mapped_column(Text)
     name: Mapped[str] = mapped_column(String)
+    system_role: Mapped[SystemRole] = mapped_column(
+        SQLEnum(SystemRole),
+        default=SystemRole.USER,
+        nullable=False,
+    )
+    is_blocked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    blocked_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), 
         server_default=func.now(),
         default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now()
     )
 
     group_memberships: Mapped[List["GroupMember"]] = relationship(
@@ -347,6 +363,30 @@ class TaskHistory(Base):
     
     task: Mapped["Task"] = relationship("Task")
     user: Mapped["User"] = relationship("User")
+
+
+class AdminAuditLog(Base):
+    """Журнал действий глобальных администраторов системы."""
+    __tablename__ = "admin_audit_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    actor_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    action: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    target_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    target_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    details: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+
+    actor: Mapped[Optional["User"]] = relationship("User")
 
 
 class RefreshToken(Base):

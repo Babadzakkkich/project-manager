@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
-  Crown,
   FolderKanban,
   MailPlus,
   Pencil,
@@ -263,7 +262,7 @@ export const GroupDetail = () => {
     });
   };
 
-  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+  const isAdmin = userRole === 'admin';
   const isCurrentUser = (item) => item.id === user?.id;
   const hasAccessToGroup = group && group.users?.some((item) => item.id === user?.id);
   const hasMoreProjects = group?.projects && group.projects.length > 3;
@@ -532,9 +531,6 @@ export const GroupDetail = () => {
                     </div>
                   ) : (
                     <span className={`${styles.userRole} ${styles[userItem.role] || ''}`}>
-                      {userItem.role === 'super_admin' && (
-                        <Crown size={13} strokeWidth={2} aria-hidden="true" />
-                      )}
                       {getUserRoleTranslation(userItem.role)}
                     </span>
                   )}

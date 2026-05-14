@@ -1,5 +1,6 @@
 import { 
-  USER_ROLE_TRANSLATIONS, 
+  USER_ROLE_TRANSLATIONS,
+  SYSTEM_ROLE_TRANSLATIONS, 
   PROJECT_STATUS_TRANSLATIONS, 
   TASK_STATUS_TRANSLATIONS,
   VALIDATION_PATTERNS,
@@ -120,6 +121,10 @@ export const getUserRoleTranslation = (role) => {
   return USER_ROLE_TRANSLATIONS[role] || role;
 };
 
+export const getSystemRoleTranslation = (role) => {
+  return SYSTEM_ROLE_TRANSLATIONS[role] || role;
+};
+
 export const getProjectStatusTranslation = (status) => {
   return PROJECT_STATUS_TRANSLATIONS[status] || status;
 };
@@ -190,11 +195,11 @@ export const formatNumber = (number) => {
 };
 
 export const isAdmin = (role) => {
-  return role === 'admin' || role === 'super_admin';
+  return role === 'admin';
 };
 
-export const isSuperAdmin = (role) => {
-  return role === 'super_admin';
+export const isGlobalAdmin = (user) => {
+  return user?.system_role === 'global_admin';
 };
 
 export const handleApiError = (error) => {
@@ -272,7 +277,7 @@ export const canEditTask = (task, user, userRoleInGroup) => {
     return true;
   }
   
-  if (userRoleInGroup === 'admin' || userRoleInGroup === 'super_admin') {
+  if (userRoleInGroup === 'admin') {
     return true;
   }
   

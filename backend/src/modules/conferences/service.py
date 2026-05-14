@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Set, TYPE_CHECKING
-from sqlalchemy import select, delete, update, func
+from sqlalchemy import select, delete, update, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -210,53 +210,58 @@ class ConferenceService:
     
     async def get_available_rooms_for_user(self, user_id: int) -> List[ConferenceRoom]:
         """Получение списка доступных созвонов для пользователя"""
-        # Получаем ID групп пользователя
         groups_stmt = select(GroupMember.group_id).where(GroupMember.user_id == user_id)
         groups_result = await self.session.execute(groups_stmt)
         user_group_ids = [row[0] for row in groups_result]
-        
-        # Получаем ID проектов, в которых участвует пользователь
-        projects_stmt = select(Project.id).join(
-            Project.groups
-        ).join(
-            Group.group_members
-        ).where(GroupMember.user_id == user_id)
+
+        projects_stmt = (
+            select(Project.id)
+            .join(Project.groups)
+            .join(Group.group_members)
+            .where(GroupMember.user_id == user_id)
+        )
         projects_result = await self.session.execute(projects_stmt)
         user_project_ids = [row[0] for row in projects_result]
-        
-        # Формируем запрос с предзагрузкой participants для подсчета
-        stmt = select(ConferenceRoom).options(
-            selectinload(ConferenceRoom.creator),
-            selectinload(ConferenceRoom.group),
-            selectinload(ConferenceRoom.project),
-            selectinload(ConferenceRoom.task),
-            selectinload(ConferenceRoom.participants)  # <-- ДОБАВИТЬ ЭТУ СТРОКУ
-        ).where(
-            (ConferenceRoom.is_active == True) &
-            (
-                # Групповые созвоны
-                (ConferenceRoom.group_id.in_(user_group_ids) if user_group_ids else False) |
-                # Проектные созвоны
-                (ConferenceRoom.project_id.in_(user_project_ids) if user_project_ids else False) |
-                # Мгновенные созвоны, куда приглашен пользователь
-                ConferenceRoom.invited_users.any(User.id == user_id) |
-                # Созвоны, созданные пользователем
-                (ConferenceRoom.created_by == user_id)
+
+        conditions = [
+            ConferenceRoom.invited_users.any(User.id == user_id),
+            ConferenceRoom.created_by == user_id,
+        ]
+
+        if user_group_ids:
+            conditions.append(ConferenceRoom.group_id.in_(user_group_ids))
+
+        if user_project_ids:
+            conditions.append(ConferenceRoom.project_id.in_(user_project_ids))
+
+        stmt = (
+            select(ConferenceRoom)
+            .options(
+                selectinload(ConferenceRoom.creator),
+                selectinload(ConferenceRoom.group),
+                selectinload(ConferenceRoom.project),
+                selectinload(ConferenceRoom.task),
+                selectinload(ConferenceRoom.participants),
             )
-        ).order_by(ConferenceRoom.started_at.desc())
-        
+            .where(
+                ConferenceRoom.is_active == True,
+                or_(*conditions),
+            )
+            .order_by(ConferenceRoom.started_at.desc())
+        )
+
         result = await self.session.execute(stmt)
         rooms = result.scalars().unique().all()
-        
-        # Дополнительно фильтруем задачи (логика сложнее)
+
         filtered_rooms = []
+
         for room in rooms:
             if room.room_type == ConferenceRoomType.TASK:
                 if await self._can_access_task(user_id, room.task_id):
                     filtered_rooms.append(room)
             else:
                 filtered_rooms.append(room)
-                
+
         return filtered_rooms
     
     async def join_room(self, room_id: int, user_id: int) -> tuple[Optional[ConferenceRoom], Optional[str]]:
@@ -266,25 +271,20 @@ class ConferenceService:
             self.logger.warning(f"Room {room_id} not found")
             return None, None
         
-        # Проверяем доступ
         if not await self.can_join_conference(user_id, room):
             self.logger.warning(f"User {user_id} not allowed to join room {room_id}")
             return None, None
         
-        # Проверяем, активна ли комната
         if not room.is_active:
             self.logger.warning(f"Room {room_id} is not active")
             return None, None
         
-        # Получаем пользователя
         user_stmt = select(User).where(User.id == user_id)
         user_result = await self.session.execute(user_stmt)
         user = user_result.scalar_one()
         
-        # Проверяем, является ли пользователь модератором
         is_moderator = await self._is_room_moderator(user_id, room)
         
-        # Генерируем токен
         token = livekit_token.generate_token(
             room_name=room.room_name,
             user_id=user_id,
@@ -292,7 +292,6 @@ class ConferenceService:
             is_admin=is_moderator
         )
         
-        # Проверяем, есть ли уже активная запись об участии
         participant_stmt = select(ConferenceParticipant).where(
             ConferenceParticipant.room_id == room_id,
             ConferenceParticipant.user_id == user_id
@@ -301,11 +300,9 @@ class ConferenceService:
         participant = participant_result.scalar_one_or_none()
         
         if participant:
-            # Уже участвует, просто обновляем время и сбрасываем left_at
             participant.joined_at = datetime.now(timezone.utc)
             participant.left_at = None
         else:
-            # Создаем новую запись
             participant = ConferenceParticipant(
                 room_id=room_id,
                 user_id=user_id,
@@ -319,11 +316,9 @@ class ConferenceService:
     
     async def _is_room_moderator(self, user_id: int, room: ConferenceRoom) -> bool:
         """Проверка, является ли пользователь модератором комнаты"""
-        # Создатель всегда модератор
         if room.created_by == user_id:
             return True
             
-        # Для групповых и проектных созвонов - админы групп
         if room.room_type == ConferenceRoomType.GROUP and room.group_id:
             try:
                 await ensure_user_is_admin(self.session, user_id, room.group_id)

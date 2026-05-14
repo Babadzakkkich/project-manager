@@ -59,7 +59,6 @@ export const ProjectCard = ({
     const roleTranslations = {
       admin: 'Администратор',
       member: 'Участник',
-      super_admin: 'Супер-администратор',
     };
 
     return roleTranslations[role] || role;

@@ -39,6 +39,7 @@ export const API_ENDPOINTS = {
   TASKS: '/tasks',
   NOTIFICATIONS: '/notifications',
   CONFERENCES: '/conferences',
+  ADMIN: '/admin',
 };
 
 export const CONFERENCE_ROOM_TYPES = {
@@ -106,14 +107,22 @@ export const NOTIFICATION_PRIORITY_COLORS = {
   urgent: '#e53e3e'
 };
 
+export const SYSTEM_ROLES = {
+  USER: 'user',
+  GLOBAL_ADMIN: 'global_admin',
+};
+
+export const SYSTEM_ROLE_TRANSLATIONS = {
+  user: 'Пользователь',
+  global_admin: 'Глобальный администратор',
+};
+
 export const USER_ROLES = {
-  SUPER_ADMIN: 'super_admin',
   ADMIN: 'admin',
   MEMBER: 'member',
 };
 
 export const USER_ROLE_TRANSLATIONS = {
-  super_admin: 'Супер-администратор',
   admin: 'Администратор',
   member: 'Участник',
 };
@@ -209,6 +218,23 @@ export const BOARD_VIEW_OPTIONS = [
   { value: 'team', label: 'Командная доска' },
   { value: 'personal', label: 'Личная доска' },
 ];
+
+
+export const ADMIN_AUDIT_ACTION_TRANSLATIONS = {
+  USER_BLOCKED: 'Пользователь заблокирован',
+  USER_UNBLOCKED: 'Пользователь разблокирован',
+  USER_MADE_GLOBAL_ADMIN: 'Назначен глобальный администратор',
+  GROUP_EMERGENCY_DELETED: 'Аварийное удаление группы',
+  PROJECT_EMERGENCY_DELETED: 'Аварийное удаление проекта',
+  TASK_EMERGENCY_DELETED: 'Аварийное удаление задачи',
+};
+
+export const ADMIN_TARGET_TYPE_TRANSLATIONS = {
+  user: 'Пользователь',
+  group: 'Группа',
+  project: 'Проект',
+  task: 'Задача',
+};
 
 export const PAGINATION = {
   DEFAULT_PAGE_SIZE: 10,

@@ -27,7 +27,7 @@ class GroupReadWithRelations(GroupRead):
     projects: List[BaseProjectInfo] = []
 
 class GetUserRoleResponse(BaseModel):
-    role: UserRole
+    role: str
     
 class UserWithRoleSchema(BaseModel):
     user_email: str

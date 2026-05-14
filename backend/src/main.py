@@ -22,6 +22,7 @@ from modules.projects.router import router as projects_router
 from modules.notifications.router import router as notifications_ws_router
 from modules.notifications.http_router import router as notifications_http_router
 from modules.conferences.router import router as conferences_router
+from modules.admin.router import router as admin_router
 
 # Глобальные объекты
 rabbitmq_client = RabbitMQClient(settings.rabbitmq_url)
@@ -96,6 +97,7 @@ app.include_router(tasks_router, prefix=settings.api.tasks, tags=["Tasks"])
 app.include_router(notifications_ws_router, prefix=settings.api.notifications, tags=["Notifications WebSocket"])
 app.include_router(notifications_http_router, prefix=settings.api.notifications, tags=["Notifications HTTP"])
 app.include_router(conferences_router, prefix=settings.api.conferences, tags=["Conferences"])
+app.include_router(admin_router, prefix=settings.api.admin, tags=["Admin"])
 
 
 if __name__ == "__main__":

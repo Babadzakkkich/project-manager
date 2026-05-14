@@ -97,7 +97,6 @@ export const TaskCard = ({
   const getRoleClass = (role) => {
     const roleClasses = {
       admin: styles.roleAdmin,
-      super_admin: styles.roleAdmin,
       member: styles.roleMember,
       assignee: styles.roleAssignee,
       viewer: styles.roleViewer,

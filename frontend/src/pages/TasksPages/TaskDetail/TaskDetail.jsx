@@ -178,7 +178,7 @@ export const TaskDetail = () => {
 
     const isGroupAdmin = task.group?.users?.some((groupUser) =>
       groupUser.id === user.id &&
-      (groupUser.role === 'admin' || groupUser.role === 'super_admin')
+      groupUser.role === 'admin'
     );
 
     if (isGroupAdmin) return 'admin';

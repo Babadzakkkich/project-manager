@@ -19,6 +19,15 @@ import { Notifications } from '../pages/Notifications/Notifications';
 import { Invitations } from '../pages/Invitations/Invitations';
 import { Conferences } from '../pages/Conferences/Conferences';
 import { ConferenceRoom } from '../components/ui/VideoConference/ConferenceRoom';
+import { AdminDashboard } from '../pages/AdminPages/AdminDashboard';
+import { AdminUsers } from '../pages/AdminPages/AdminUsers';
+import { AdminGroups } from '../pages/AdminPages/AdminGroups';
+import { AdminGroupDetail } from '../pages/AdminPages/AdminDetail';
+import { AdminProjects } from '../pages/AdminPages/AdminProjects';
+import { AdminProjectDetail } from '../pages/AdminPages/AdminDetail';
+import { AdminTasks } from '../pages/AdminPages/AdminTasks';
+import { AdminTaskDetail } from '../pages/AdminPages/AdminDetail';
+import { AdminAudit } from '../pages/AdminPages/AdminAudit';
 
 const LoadingSpinner = () => (
   <div style={{ 
@@ -44,33 +53,57 @@ const LoadingSpinner = () => (
 );
 
 const PrivateRoute = ({ children }) => {
-  const { isAuthenticated, loading, authChecked } = useAuthContext();
-  
+  const { isAuthenticated, isBlocked, loading, authChecked } = useAuthContext();
+
   if (loading && !authChecked) {
     return <LoadingSpinner />;
   }
-  
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+
+  if (!isAuthenticated || isBlocked) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+};
+
+export const AdminRoute = ({ children }) => {
+  const {
+    isAuthenticated,
+    isGlobalAdmin,
+    isBlocked,
+    loading,
+    authChecked,
+  } = useAuthContext();
+
+  if (loading && !authChecked) {
+    return <LoadingSpinner />;
+  }
+
+  if (!isAuthenticated || isBlocked) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return isGlobalAdmin ? children : <Navigate to="/workspace" replace />;
 };
 
 const PublicRoute = ({ children }) => {
-  const { isAuthenticated, loading, authChecked } = useAuthContext();
-  
+  const { isAuthenticated, isBlocked, loading, authChecked } = useAuthContext();
+
   if (loading && !authChecked) {
     return <LoadingSpinner />;
   }
-  
-  return !isAuthenticated ? children : <Navigate to="/workspace" replace />;
+
+  return !isAuthenticated || isBlocked ? children : <Navigate to="/workspace" replace />;
 };
 
 const HomeRoute = () => {
-  const { isAuthenticated, loading, authChecked } = useAuthContext();
-  
+  const { isAuthenticated, isBlocked, loading, authChecked } = useAuthContext();
+
   if (loading && !authChecked) {
     return <LoadingSpinner />;
   }
-  
-  return isAuthenticated ? <Navigate to="/workspace" replace /> : <Home />;
+
+  return isAuthenticated && !isBlocked ? <Navigate to="/workspace" replace /> : <Home />;
 };
 
 const DashboardPage = () => (
@@ -214,6 +247,78 @@ export const AppRoutes = () => {
         } 
       />
       
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <AdminRoute>
+            <AdminUsers />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/groups"
+        element={
+          <AdminRoute>
+            <AdminGroups />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/groups/:groupId"
+        element={
+          <AdminRoute>
+            <AdminGroupDetail />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/projects"
+        element={
+          <AdminRoute>
+            <AdminProjects />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/projects/:projectId"
+        element={
+          <AdminRoute>
+            <AdminProjectDetail />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/tasks"
+        element={
+          <AdminRoute>
+            <AdminTasks />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/tasks/:taskId"
+        element={
+          <AdminRoute>
+            <AdminTaskDetail />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/audit"
+        element={
+          <AdminRoute>
+            <AdminAudit />
+          </AdminRoute>
+        }
+      />
       <Route 
         path="/groups/create" 
         element={

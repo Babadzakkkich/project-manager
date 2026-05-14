@@ -4,7 +4,11 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database.models import Project, User
-from shared.dependencies import check_user_in_project, get_service_factory
+from shared.dependencies import (
+    check_user_in_project,
+    get_service_factory,
+    is_global_admin_user,
+)
 from modules.auth.dependencies import get_current_user
 from core.database.session import db_session
 from core.services import ServiceFactory
@@ -50,15 +54,24 @@ async def get_project(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(db_session.session_getter)
 ):
+    """
+    Получить информацию о проекте.
+
+    Обычный пользователь должен состоять хотя бы в одной группе проекта.
+    Глобальный администратор может просматривать любой проект без членства.
+    """
     logger.info(f"GET /projects/{project_id} requested by user {current_user.id}")
-    
-    if not await check_user_in_project(session, current_user.id, project_id):
-        logger.warning(f"User {current_user.id} tried to access project {project_id} without permission")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Нет доступа к проекту"
-        )
-    
+
+    if not is_global_admin_user(current_user):
+        if not await check_user_in_project(session, current_user.id, project_id):
+            logger.warning(
+                f"User {current_user.id} tried to access project {project_id} without permission"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Нет доступа к проекту"
+            )
+
     try:
         project_service = service_factory.get('project')
         project = await project_service.get_project_by_id(project_id)

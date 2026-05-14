@@ -162,7 +162,7 @@ export const ProjectDetail = () => {
       const adminGroups = safeGroups.filter((group) =>
         group.users?.some((groupUser) =>
           groupUser.id === user?.id &&
-          (groupUser.role === 'admin' || groupUser.role === 'super_admin')
+          groupUser.role === 'admin'
         )
       );
 
@@ -179,7 +179,7 @@ export const ProjectDetail = () => {
     const isAdminInAnyGroup = project.groups?.some((group) =>
       group.users?.some((groupUser) =>
         groupUser.id === user.id &&
-        (groupUser.role === 'admin' || groupUser.role === 'super_admin')
+        groupUser.role === 'admin'
       )
     );
 

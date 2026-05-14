@@ -3,11 +3,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 from core.database.session import db_session
-from core.database.models import User
+from core.database.models import User, SystemRole
 from core.services import ServiceFactory
 from modules.auth.dependencies import get_current_user
 from modules.auth.exceptions import TokenValidationError
-from shared.dependencies import get_service_factory
+from shared.dependencies import get_service_factory, ensure_global_admin_by_id
 from core.logger import logger
 from .schemas import UserCreate, UserRead, UserUpdate, UserWithRelations
 from .exceptions import (
@@ -21,7 +21,7 @@ from .exceptions import (
 
 router = APIRouter()
 
-# Получить всех пользователей (только для супер-админа)
+# Получить всех пользователей (только для глобального администратора)
 @router.get("/", response_model=List[UserRead])
 async def get_users(
     service_factory: ServiceFactory = Depends(get_service_factory),
@@ -29,6 +29,7 @@ async def get_users(
 ):
     """Получение списка всех пользователей"""
     logger.info(f"GET /users requested by user {current_user.id}")
+    await ensure_global_admin_by_id(service_factory.session, current_user.id)
     user_service = service_factory.get('user')
     return await user_service.get_all_users()
 
@@ -49,7 +50,7 @@ async def get_current_user_info(
         )
     return user_with_relations
 
-# Получить пользователя по ID (только для супер-админа)
+# Получить пользователя по ID
 @router.get("/{user_id}", response_model=UserWithRelations)
 async def get_user(
     user_id: int,
@@ -60,14 +61,9 @@ async def get_user(
     logger.info(f"GET /users/{user_id} requested by user {current_user.id}")
     user_service = service_factory.get('user')
     
-    # Только супер-админ может просматривать других пользователей
+    # Текущий пользователь может смотреть себя, глобальный администратор — любого пользователя.
     if user_id != current_user.id:
-        # Здесь нужно добавить проверку на супер-админа
-        # await ensure_user_is_super_admin_global(session, current_user.id)
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Недостаточно прав для просмотра другого пользователя"
-        )
+        await ensure_global_admin_by_id(service_factory.session, current_user.id)
     
     user = await user_service.get_user_with_relations(user_id)
     if not user:

@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, or_
 from sqlalchemy.orm import selectinload
 
-from shared.dependencies import ensure_user_is_admin, ensure_user_is_super_admin_global
+from shared.dependencies import ensure_user_is_admin, ensure_global_admin_by_id
 from core.database.models import (
     Project,
     Group,
@@ -69,9 +69,9 @@ class ProjectService:
         return self._notification_trigger
     
     async def get_all_projects(self, current_user_id: int) -> List[ProjectRead]:
-        """Получение всех проектов (только для супер-админа)"""
-        self.logger.info(f"Fetching all projects by super-admin {current_user_id}")
-        await ensure_user_is_super_admin_global(self.session, current_user_id)
+        """Получение всех проектов (только для глобального администратора)"""
+        self.logger.info(f"Fetching all projects by global admin {current_user_id}")
+        await ensure_global_admin_by_id(self.session, current_user_id)
         stmt = select(Project).order_by(Project.id)
         result = await self.session.scalars(stmt)
         projects = result.all()
@@ -544,3 +544,4 @@ class ProjectService:
             await self.session.rollback()
             self.logger.error(f"Error deleting project {project_id}: {e}", exc_info=True)
             raise ProjectDeleteError(f"Не удалось удалить проект: {str(e)}")
+

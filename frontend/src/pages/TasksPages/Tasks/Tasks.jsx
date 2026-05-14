@@ -79,7 +79,7 @@ export const Tasks = () => {
       const userAdminGroups = safeGroups.filter((group) =>
         group.users?.some((groupUser) =>
           groupUser.id === user.id &&
-          (groupUser.role === 'admin' || groupUser.role === 'super_admin')
+          groupUser.role === 'admin'
         )
       );
 
@@ -215,7 +215,7 @@ export const Tasks = () => {
 
     if (
       userInGroup &&
-      (userInGroup.role === 'admin' || userInGroup.role === 'super_admin')
+      userInGroup.role === 'admin'
     ) {
       return 'admin';
     }

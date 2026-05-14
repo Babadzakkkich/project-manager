@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from core.database.session import db_session
-from core.database.models import GroupMember, Project, UserRole
+from core.database.models import GroupMember, Project, User, UserRole, SystemRole
 from core.services import ServiceFactory
 from modules.groups.exceptions import InsufficientPermissionsError, UserNotInGroupError
 
@@ -32,7 +32,8 @@ async def get_service_factory(
     from modules.tasks.service import TaskService
     from modules.users.service import UserService
     from modules.notifications.service import NotificationService, NotificationTriggerService
-    from modules.conferences.service import ConferenceService  # <-- НОВОЕ
+    from modules.conferences.service import ConferenceService
+    from modules.admin.service import AdminService
     
     factory.register('group', lambda s, f: GroupService(s, f))
     factory.register('project', lambda s, f: ProjectService(s, f))
@@ -40,7 +41,8 @@ async def get_service_factory(
     factory.register('user', lambda s, f: UserService(s, f))
     factory.register('notification', lambda s, f: NotificationService(s, notification_publisher, f))
     factory.register('notification_trigger', lambda s, f: NotificationTriggerService(s, notification_publisher, f))
-    factory.register('conference', lambda s, f: ConferenceService(s, f))  # <-- НОВОЕ
+    factory.register('conference', lambda s, f: ConferenceService(s, f))
+    factory.register('admin', lambda s, f: AdminService(s, f))
     
     try:
         yield factory
@@ -111,30 +113,27 @@ async def ensure_user_is_admin(session: AsyncSession, user_id: int, group_id: in
     if not group_member:
         raise UserNotInGroupError(user_id=user_id, group_id=group_id)
     
-    if group_member.role not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
-        raise InsufficientPermissionsError("Требуются права администратора")
+    if group_member.role != UserRole.ADMIN:
+        raise InsufficientPermissionsError("Требуются права администратора группы")
 
 
-async def ensure_user_is_super_admin(session: AsyncSession, user_id: int, group_id: int):
-    group_member = await get_group_member(session, user_id, group_id)
+def is_global_admin_user(user: User | None) -> bool:
+    return bool(user and user.system_role == SystemRole.GLOBAL_ADMIN and not user.is_blocked)
+
+
+async def ensure_global_admin_by_id(session: AsyncSession, user_id: int) -> User:
+    user = await session.get(User, user_id)
     
-    if not group_member:
-        raise UserNotInGroupError(user_id=user_id, group_id=group_id)
+    if not user:
+        raise InsufficientPermissionsError("Пользователь не найден")
     
-    if group_member.role != UserRole.SUPER_ADMIN:
-        raise InsufficientPermissionsError("Требуются права супер-администратора")
-
-
-async def ensure_user_is_super_admin_global(session: AsyncSession, user_id: int):
-    stmt = select(GroupMember).where(
-        GroupMember.user_id == user_id,
-        GroupMember.role == UserRole.SUPER_ADMIN
-    )
-    result = await session.execute(stmt)
-    super_admin_membership = result.scalar_one_or_none()
+    if user.is_blocked:
+        raise InsufficientPermissionsError("Пользователь заблокирован")
     
-    if not super_admin_membership:
-        raise InsufficientPermissionsError("Требуются права супер-администратора")
+    if user.system_role != SystemRole.GLOBAL_ADMIN:
+        raise InsufficientPermissionsError("Требуются права глобального администратора")
+    
+    return user
 
 
 async def check_users_in_same_group(session: AsyncSession, user1_id: int, user2_id: int) -> bool:

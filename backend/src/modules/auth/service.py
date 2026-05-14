@@ -7,11 +7,10 @@ from core.logger import logger
 from ..users.service import UserService
 from .jwt import create_access_token, create_refresh_token
 from .schemas import TokenPayload
-from .exceptions import InvalidCredentialsError
+from .exceptions import InvalidCredentialsError, UserBlockedError
 
 if TYPE_CHECKING:
     from core.services import ServiceFactory
-
 
 class AuthService:
     """Сервис для аутентификации"""
@@ -30,6 +29,10 @@ class AuthService:
         if not user:
             self.logger.warning(f"User with login {login} not found")
             return False
+            
+        if user.is_blocked:
+            self.logger.warning(f"Blocked user {login} tried to login")
+            raise UserBlockedError()
             
         if not verify_password(password, user.password_hash):
             self.logger.warning(f"Invalid password for user {login}")

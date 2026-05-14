@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   CalendarDays,
-  Crown,
   ExternalLink,
   FolderKanban,
   Trash2,
@@ -37,7 +36,7 @@ export const GroupCard = ({
   };
 
   const userRole = getUserRoleInGroup();
-  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+  const isAdmin = userRole === 'admin';
 
   const usersCount = group.users?.length || 0;
   const projectsCount = group.projects?.length || 0;
@@ -81,9 +80,6 @@ export const GroupCard = ({
             <div className={styles.badges}>
               {userRole && (
                 <span className={`${styles.role} ${styles[userRole] || ''}`}>
-                  {userRole === 'super_admin' && (
-                    <Crown size={13} strokeWidth={2} aria-hidden="true" />
-                  )}
                   {getUserRoleTranslation(userRole)}
                 </span>
               )}

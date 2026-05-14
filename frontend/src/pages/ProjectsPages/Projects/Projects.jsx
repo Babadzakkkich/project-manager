@@ -132,7 +132,7 @@ export const Projects = () => {
 
   const isUserAdminInProject = useCallback((project) => {
     const role = getUserRoleInProject(project);
-    return role === 'admin' || role === 'super_admin';
+    return role === 'admin';
   }, [getUserRoleInProject]);
 
   const filteredAndSortedProjects = useMemo(() => {

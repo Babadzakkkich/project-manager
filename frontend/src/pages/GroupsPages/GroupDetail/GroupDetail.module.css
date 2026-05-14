@@ -381,8 +381,7 @@
   white-space: nowrap;
 }
 
-.admin,
-.super_admin {
+.admin {
   background: var(--color-brand-100);
   color: var(--color-brand-800);
   border-color: var(--color-brand-200);
