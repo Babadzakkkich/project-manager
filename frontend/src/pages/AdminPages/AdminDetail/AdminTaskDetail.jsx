@@ -91,6 +91,15 @@ const renderHistoryValue = (entry, value) => {
   return <span>{formatHistoryValue(entry.action, value)}</span>;
 };
 
+
+const showAdminToast = (message, type = 'success') => {
+  window.dispatchEvent(
+    new CustomEvent('toast:show', {
+      detail: { message, type, duration: 5000 },
+    })
+  );
+};
+
 export const AdminTaskDetail = () => {
   const { taskId } = useParams();
   const navigate = useNavigate();
@@ -132,9 +141,12 @@ export const AdminTaskDetail = () => {
 
     try {
       await adminAPI.deleteTask(task.id);
+      showAdminToast('Задача удалена');
       navigate('/admin/tasks', { replace: true });
     } catch (requestError) {
-      setError(handleApiError(requestError));
+      const message = handleApiError(requestError);
+      setError(message);
+      showAdminToast(`Не удалось удалить задачу: ${message}`, 'error');
     } finally {
       setActionLoading(false);
       setShowDeleteModal(false);
@@ -192,6 +204,7 @@ export const AdminTaskDetail = () => {
               </div>
 
               <div className={styles.grid} style={{ marginTop: 'var(--space-5)' }}>
+                <div className={styles.metaCard}><span>ID</span><strong>{task.id}</strong></div>
                 <div className={styles.metaCard}><span>Создана</span><strong>{formatDate(task.created_at)}</strong></div>
                 <div className={styles.metaCard}><span>Начало</span><strong>{formatDate(task.start_date)}</strong></div>
                 <div className={styles.metaCard}><span>Срок</span><strong>{formatDate(task.deadline)}</strong></div>
@@ -221,6 +234,11 @@ export const AdminTaskDetail = () => {
                             {getProjectStatusTranslation(task.project.status)}
                           </span>
                         )}
+                      </div>
+                      <div className={styles.relationMetaGrid}>
+                        <span>ID {task.project.id}</span>
+                        <span>{task.project.start_date ? formatDate(task.project.start_date) : 'Без даты начала'}</span>
+                        <span>{task.project.end_date ? formatDate(task.project.end_date) : 'Без даты завершения'}</span>
                       </div>
                       {task.project.description && (
                         <p className={styles.relationCardText}>{task.project.description}</p>

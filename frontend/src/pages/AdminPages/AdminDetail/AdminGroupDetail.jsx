@@ -29,6 +29,15 @@ const getPriorityClass = (priority) => {
   return styles[`priority_${normalized}`] || styles.priority_medium;
 };
 
+
+const showAdminToast = (message, type = 'success') => {
+  window.dispatchEvent(
+    new CustomEvent('toast:show', {
+      detail: { message, type, duration: 5000 },
+    })
+  );
+};
+
 export const AdminGroupDetail = () => {
   const { groupId } = useParams();
   const navigate = useNavigate();
@@ -65,9 +74,12 @@ export const AdminGroupDetail = () => {
 
     try {
       await adminAPI.deleteGroup(group.id);
+      showAdminToast('Группа удалена');
       navigate('/admin/groups', { replace: true });
     } catch (requestError) {
-      setError(handleApiError(requestError));
+      const message = handleApiError(requestError);
+      setError(message);
+      showAdminToast(`Не удалось удалить группу: ${message}`, 'error');
     } finally {
       setActionLoading(false);
       setShowDeleteModal(false);
@@ -109,6 +121,7 @@ export const AdminGroupDetail = () => {
             <div className={styles.panelBody}>
               <p className={styles.description}>{group.description || 'Описание группы не указано.'}</p>
               <div className={styles.grid} style={{ marginTop: 'var(--space-5)' }}>
+                <div className={styles.metaCard}><span>ID</span><strong>{group.id}</strong></div>
                 <div className={styles.metaCard}><span>Участники</span><strong>{formatNumber(group.users_count)}</strong></div>
                 <div className={styles.metaCard}><span>Проекты</span><strong>{formatNumber(group.projects_count)}</strong></div>
                 <div className={styles.metaCard}><span>Задачи</span><strong>{formatNumber(group.tasks_count)}</strong></div>

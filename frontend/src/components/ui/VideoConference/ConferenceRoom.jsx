@@ -125,11 +125,13 @@ export const ConferenceRoom = () => {
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
+  const [showLeaveLastModal, setShowLeaveLastModal] = useState(false);
   const [floatingReactions, setFloatingReactions] = useState([]);
   const [userInteracted, setUserInteracted] = useState(false);
   const [joiningRoom, setJoiningRoom] = useState(false);
   const [roomData, setRoomData] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [leavingRoom, setLeavingRoom] = useState(false);
 
   const hasConnected = useRef(false);
   const leaveBeaconSentRef = useRef(false);
@@ -321,15 +323,74 @@ export const ConferenceRoom = () => {
     setUserInteracted(true);
   };
 
-  const handleLeave = () => {
-    disconnect();
-    navigate(-1);
+  const performLeave = async ({ autoEndIfLast = false } = {}) => {
+    if (leavingRoom) return;
+
+    setLeavingRoom(true);
+
+    try {
+      leaveBeaconSentRef.current = true;
+
+      await conferencesAPI.leaveRoom(numericRoomId, {
+        auto_end_if_last: autoEndIfLast,
+      });
+
+      disconnect();
+      navigate('/conferences');
+    } catch (err) {
+      console.error('Failed to leave room:', err);
+
+      const status = err?.response?.status;
+
+      if (status === 400) {
+        setShowLeaveLastModal(true);
+        return;
+      }
+
+      // Важно: не делаем disconnect/navigate при ошибке leave,
+      // иначе участник может остаться активным в БД как 1/30.
+    } finally {
+      setLeavingRoom(false);
+    }
+  };
+
+  const handleLeave = async () => {
+    if (leavingRoom) return;
+
+    try {
+      const impact = await conferencesAPI.getLeaveImpact(numericRoomId);
+
+      const shouldEndRoom = Boolean(
+        impact?.would_end_room ||
+        impact?.will_end_room ||
+        impact?.is_last_participant
+      );
+
+      if (shouldEndRoom) {
+        setShowLeaveLastModal(true);
+        return;
+      }
+
+      await performLeave();
+    } catch (err) {
+      console.error('Failed to check leave impact:', err);
+
+      // Если проверка не сработала, безопаснее спросить подтверждение,
+      // чем молча выйти и оставить активную запись участника в БД.
+      setShowLeaveLastModal(true);
+    }
+  };
+
+  const handleConfirmLeaveLast = async () => {
+    setShowLeaveLastModal(false);
+    await performLeave({ autoEndIfLast: true });
   };
 
   const handleEndConference = async () => {
+    leaveBeaconSentRef.current = true;
     await endConference();
     setShowEndModal(false);
-    navigate(-1);
+    navigate('/conferences');
   };
 
   const handleCopyLink = async () => {
@@ -505,6 +566,7 @@ export const ConferenceRoom = () => {
             type="button"
             className={styles.iconBackButton}
             onClick={handleLeave}
+            disabled={leavingRoom}
             aria-label="Выйти из созвона"
           >
             <ArrowLeft size={19} strokeWidth={2.2} aria-hidden="true" />
@@ -648,6 +710,21 @@ export const ConferenceRoom = () => {
         message="Вы уверены, что хотите завершить созвон для всех участников?"
         confirmText="Завершить"
         cancelText="Отмена"
+        variant="danger"
+      />
+
+      <ConfirmationModal
+        isOpen={showLeaveLastModal}
+        onClose={() => {
+          if (!leavingRoom) {
+            setShowLeaveLastModal(false);
+          }
+        }}
+        onConfirm={handleConfirmLeaveLast}
+        title="Завершить созвон"
+        message="Вы последний активный участник. Если выйти сейчас, комната будет автоматически завершена."
+        confirmText="Выйти и завершить"
+        cancelText="Остаться"
         variant="danger"
       />
     </div>

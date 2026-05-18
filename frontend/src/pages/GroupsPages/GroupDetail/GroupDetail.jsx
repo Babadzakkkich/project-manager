@@ -31,6 +31,7 @@ import {
   RUSSIAN_PLURAL_FORMS,
 } from '../../../utils/helpers';
 import { CONFERENCE_ROOM_TYPES } from '../../../utils/constants';
+import { showGlobalSuccess } from '../../../utils/globalToast';
 import styles from './GroupDetail.module.css';
 
 const getUserName = (user) => {
@@ -238,10 +239,13 @@ export const GroupDetail = () => {
   const handleConfirmDeleteGroup = async () => {
     setIsDeletingGroup(true);
 
+    const groupName = group?.name || 'Группа';
+
     try {
       await groupsAPI.delete(groupId);
-      showSuccess(`Группа "${group.name}" успешно удалена`);
-      navigate('/groups');
+
+      showGlobalSuccess(`Группа "${groupName}" успешно удалена`);
+      navigate('/groups', { replace: true });
     } catch (err) {
       console.error('Error deleting group:', err);
       showError(`Не удалось удалить группу: ${handleApiError(err)}`);

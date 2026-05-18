@@ -91,6 +91,21 @@ export const adminAPI = {
     return response.data;
   },
 
+  getConferences: async (params = {}) => {
+    const response = await apiClient.get(`${API_ENDPOINTS.ADMIN}/conferences${buildQueryParams(params)}`);
+    return response.data;
+  },
+
+  getConferenceById: async (roomId) => {
+    const response = await apiClient.get(`${API_ENDPOINTS.ADMIN}/conferences/${roomId}`);
+    return response.data;
+  },
+
+  forceEndConference: async (roomId) => {
+    const response = await apiClient.patch(`${API_ENDPOINTS.ADMIN}/conferences/${roomId}/force-end`);
+    return response.data;
+  },
+
   getAudit: async (params = {}) => {
     const response = await apiClient.get(`${API_ENDPOINTS.ADMIN}/audit${buildQueryParams(params)}`);
     return response.data;

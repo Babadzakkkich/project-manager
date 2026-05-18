@@ -47,6 +47,16 @@ const PAGE_META = [
     subtitle: 'Read-only административный просмотр задачи',
   },
   {
+    test: (path) => path === '/admin/conferences',
+    title: 'Созвоны системы',
+    subtitle: 'Просмотр и аварийное завершение созвонов',
+  },
+  {
+    test: (path) => path.startsWith('/admin/conferences/'),
+    title: 'Просмотр созвона',
+    subtitle: 'Административный просмотр комнаты и участников',
+  },
+  {
     test: (path) => path === '/admin/audit',
     title: 'Журнал аудита',
     subtitle: 'История действий глобальных администраторов',

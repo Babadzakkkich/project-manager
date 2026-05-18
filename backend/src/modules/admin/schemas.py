@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.database.models import SystemRole, TaskPriority, TaskStatus
+from core.database.models import ConferenceRoomType, SystemRole, TaskPriority, TaskStatus
 
 
 class AdminStatsRead(BaseModel):
@@ -43,6 +43,12 @@ class UserBlockRequest(BaseModel):
     reason: Optional[str] = Field(None, max_length=500)
 
 
+class AdminShortGroupRead(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+
+
 class AdminGroupRead(BaseModel):
     id: int
     name: str
@@ -54,10 +60,10 @@ class AdminGroupRead(BaseModel):
     admins: list[AdminShortUserRead] = Field(default_factory=list)
 
 
-class AdminShortGroupRead(BaseModel):
+class AdminShortProjectRead(BaseModel):
     id: int
-    name: str
-    description: Optional[str] = None
+    title: str
+    status: str
 
 
 class AdminProjectRead(BaseModel):
@@ -69,12 +75,6 @@ class AdminProjectRead(BaseModel):
     end_date: Optional[datetime] = None
     groups: list[AdminShortGroupRead] = Field(default_factory=list)
     tasks_count: int
-
-
-class AdminShortProjectRead(BaseModel):
-    id: int
-    title: str
-    status: str
 
 
 class AdminTaskRead(BaseModel):
@@ -92,8 +92,6 @@ class AdminTaskRead(BaseModel):
     assignees: list[AdminShortUserRead] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     is_overdue: bool = False
-
-
 
 
 class AdminGroupMemberRead(BaseModel):
@@ -156,6 +154,77 @@ class AdminTaskHistoryRead(BaseModel):
     new_value: Optional[str] = None
     details: Optional[str] = None
     created_at: datetime
+
+
+class AdminConferenceRelationRead(BaseModel):
+    id: int
+    title: str
+
+
+class AdminConferenceGroupRelationRead(BaseModel):
+    id: int
+    name: str
+
+
+class AdminConferenceStatsRead(BaseModel):
+    id: int
+    room_id: int
+    participant_count: Optional[int] = None
+    peak_participants: Optional[int] = None
+    duration_seconds: Optional[int] = None
+    messages_count: Optional[int] = None
+    created_at: datetime
+
+
+class AdminConferenceParticipantRead(BaseModel):
+    id: int
+    user: Optional[AdminShortUserRead] = None
+    user_id: int
+    joined_at: datetime
+    left_at: Optional[datetime] = None
+    is_speaking: bool = False
+    is_video_on: bool = True
+    is_audio_on: bool = True
+    participant_sid: Optional[str] = None
+    is_active: bool = False
+
+
+class AdminConferenceMessageRead(BaseModel):
+    id: int
+    user: Optional[AdminShortUserRead] = None
+    user_id: int
+    message: str
+    created_at: datetime
+
+
+class AdminConferenceRead(BaseModel):
+    id: int
+    room_name: str
+    title: str
+    room_type: ConferenceRoomType
+    is_active: bool
+    max_participants: int
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    creator: Optional[AdminShortUserRead] = None
+    created_by: int
+    project: Optional[AdminConferenceRelationRead] = None
+    group: Optional[AdminConferenceGroupRelationRead] = None
+    task: Optional[AdminConferenceRelationRead] = None
+    participants_count: int = 0
+    active_participants_count: int = 0
+    invited_users_count: int = 0
+    messages_count: int = 0
+    latest_stats: Optional[AdminConferenceStatsRead] = None
+
+
+class AdminConferenceDetailRead(AdminConferenceRead):
+    participants: list[AdminConferenceParticipantRead] = Field(default_factory=list)
+    invited_users: list[AdminShortUserRead] = Field(default_factory=list)
+    messages: list[AdminConferenceMessageRead] = Field(default_factory=list)
+    stats: list[AdminConferenceStatsRead] = Field(default_factory=list)
+
 
 class AdminAuditLogRead(BaseModel):
     id: int

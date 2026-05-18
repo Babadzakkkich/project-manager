@@ -22,12 +22,11 @@ import { ConferenceRoom } from '../components/ui/VideoConference/ConferenceRoom'
 import { AdminDashboard } from '../pages/AdminPages/AdminDashboard';
 import { AdminUsers } from '../pages/AdminPages/AdminUsers';
 import { AdminGroups } from '../pages/AdminPages/AdminGroups';
-import { AdminGroupDetail } from '../pages/AdminPages/AdminDetail';
 import { AdminProjects } from '../pages/AdminPages/AdminProjects';
-import { AdminProjectDetail } from '../pages/AdminPages/AdminDetail';
 import { AdminTasks } from '../pages/AdminPages/AdminTasks';
-import { AdminTaskDetail } from '../pages/AdminPages/AdminDetail';
+import { AdminConferences } from '../pages/AdminPages/AdminConferences';
 import { AdminAudit } from '../pages/AdminPages/AdminAudit';
+import { AdminGroupDetail, AdminProjectDetail, AdminTaskDetail, AdminConferenceDetail } from '../pages/AdminPages/AdminDetail';
 
 const LoadingSpinner = () => (
   <div style={{ 
@@ -308,6 +307,22 @@ export const AppRoutes = () => {
         element={
           <AdminRoute>
             <AdminTaskDetail />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/conferences"
+        element={
+          <AdminRoute>
+            <AdminConferences />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/conferences/:roomId"
+        element={
+          <AdminRoute>
+            <AdminConferenceDetail />
           </AdminRoute>
         }
       />

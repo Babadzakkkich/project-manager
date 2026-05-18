@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
+  BarChart3,
   CheckCircle2,
   ClipboardList,
   Clock3,
@@ -11,6 +12,7 @@ import {
   Radio,
   RefreshCw,
   Search,
+  UserPlus,
   Users,
   Video,
   X,
@@ -118,6 +120,27 @@ const getRoomTime = (room) => {
   return '—';
 };
 
+const formatDuration = (seconds) => {
+  const totalSeconds = Number(seconds) || 0;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const secondsLeft = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours} ч ${minutes} мин`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes} мин ${secondsLeft} с`;
+  }
+
+  return `${secondsLeft} с`;
+};
+
+const formatUserLabel = (user) => {
+  return user?.name || user?.login || user?.email || 'Пользователь';
+};
+
 export const Conferences = () => {
   const navigate = useNavigate();
 
@@ -136,7 +159,18 @@ export const Conferences = () => {
   const [createForm, setCreateForm] = useState({
     title: '',
     room_type: CONFERENCE_ROOM_TYPES.INSTANT,
+    max_participants: 30,
   });
+
+  const [invitableUsers, setInvitableUsers] = useState([]);
+  const [inviteQuery, setInviteQuery] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [selectedInvitedUsers, setSelectedInvitedUsers] = useState([]);
+
+  const [statsRoom, setStatsRoom] = useState(null);
+  const [statsData, setStatsData] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState('');
 
   const loadRooms = useCallback(async ({ initial = false, manual = false } = {}) => {
     if (loadingRoomsRef.current) return;
@@ -152,7 +186,7 @@ export const Conferences = () => {
         setRefreshing(true);
       }
 
-      const availableRooms = await conferencesAPI.getAvailableRooms();
+      const availableRooms = await conferencesAPI.getAvailableRooms('all');
       setRooms(Array.isArray(availableRooms) ? availableRooms : []);
     } catch (err) {
       console.error('Error loading conferences:', err);
@@ -172,6 +206,27 @@ export const Conferences = () => {
       }
     }
   }, [showError]);
+
+  const loadInvitableUsers = useCallback(async () => {
+    if (!showCreateModal) return;
+
+    setInviteLoading(true);
+
+    try {
+      const users = await conferencesAPI.getInvitableUsers({
+        query: inviteQuery.trim() || undefined,
+        limit: 50,
+      });
+
+      setInvitableUsers(Array.isArray(users) ? users : []);
+    } catch (err) {
+      console.error('Error loading invitable users:', err);
+      setInvitableUsers([]);
+      showError(`Не удалось загрузить пользователей: ${handleApiError(err)}`);
+    } finally {
+      setInviteLoading(false);
+    }
+  }, [inviteQuery, showCreateModal, showError]);
 
   useEffect(() => {
     loadRooms({ initial: true });
@@ -196,6 +251,18 @@ export const Conferences = () => {
       window.removeEventListener('focus', handleFocus);
     };
   }, [loadRooms]);
+
+  useEffect(() => {
+    if (!showCreateModal) return undefined;
+
+    const timeoutId = setTimeout(() => {
+      loadInvitableUsers();
+    }, 250);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [loadInvitableUsers, showCreateModal]);
 
   const counters = useMemo(() => {
     const activeRooms = rooms.filter((room) => room.is_active).length;
@@ -251,14 +318,19 @@ export const Conferences = () => {
       const room = await conferencesAPI.createRoom({
         title,
         room_type: CONFERENCE_ROOM_TYPES.INSTANT,
-        max_participants: 30,
+        max_participants: Number(createForm.max_participants) || 30,
+        invited_user_ids: selectedInvitedUsers.map((user) => user.id),
       });
 
       setShowCreateModal(false);
       setCreateForm({
         title: '',
         room_type: CONFERENCE_ROOM_TYPES.INSTANT,
+        max_participants: 30,
       });
+      setInviteQuery('');
+      setInvitableUsers([]);
+      setSelectedInvitedUsers([]);
 
       showSuccess('Созвон создан');
       navigate(`/conferences/${room.id}`);
@@ -281,12 +353,55 @@ export const Conferences = () => {
     setCreateForm({
       title: '',
       room_type: CONFERENCE_ROOM_TYPES.INSTANT,
+      max_participants: 30,
     });
+    setInviteQuery('');
+    setInvitableUsers([]);
+    setSelectedInvitedUsers([]);
   };
 
   const handleOverlayClick = (event) => {
     if (event.target === event.currentTarget) {
       handleCloseCreateModal();
+    }
+  };
+
+  const handleStatsOverlayClick = (event) => {
+    if (event.target === event.currentTarget) {
+      setStatsRoom(null);
+      setStatsData(null);
+      setStatsError('');
+    }
+  };
+
+  const toggleInvitedUser = (user) => {
+    setSelectedInvitedUsers((prev) => {
+      if (prev.some((item) => item.id === user.id)) {
+        return prev.filter((item) => item.id !== user.id);
+      }
+
+      return [...prev, user];
+    });
+  };
+
+  const isUserSelected = (userId) => {
+    return selectedInvitedUsers.some((user) => user.id === userId);
+  };
+
+  const handleOpenStats = async (room) => {
+    setStatsRoom(room);
+    setStatsData(null);
+    setStatsError('');
+    setStatsLoading(true);
+
+    try {
+      const data = await conferencesAPI.getRoomStats(room.id);
+      setStatsData(data);
+    } catch (err) {
+      console.error('Error loading conference stats:', err);
+      setStatsError(handleApiError(err));
+    } finally {
+      setStatsLoading(false);
     }
   };
 
@@ -493,11 +608,11 @@ export const Conferences = () => {
                     <Button
                       variant="secondary"
                       size="medium"
-                      disabled
+                      onClick={() => handleOpenStats(room)}
                       className={styles.joinButton}
                     >
-                      <CheckCircle2 size={16} strokeWidth={2} aria-hidden="true" />
-                      Завершён
+                      <BarChart3 size={16} strokeWidth={2} aria-hidden="true" />
+                      Статистика
                     </Button>
                   )}
                 </div>
@@ -562,6 +677,112 @@ export const Conferences = () => {
                 />
               </div>
 
+              <div className={styles.formGroup}>
+                <label htmlFor="conference-max-participants">
+                  Максимум участников
+                </label>
+
+                <input
+                  id="conference-max-participants"
+                  type="number"
+                  min="2"
+                  max="30"
+                  value={createForm.max_participants}
+                  onChange={(event) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      max_participants: event.target.value,
+                    }))
+                  }
+                  className={styles.input}
+                  disabled={createLoading}
+                />
+              </div>
+
+              <div className={styles.inviteSection}>
+                <div className={styles.inviteTopline}>
+                  <label htmlFor="conference-invite-search">
+                    Пригласить участников
+                  </label>
+
+                  {selectedInvitedUsers.length > 0 && (
+                    <span>
+                      {formatRussianCount(selectedInvitedUsers.length, PARTICIPANT_FORMS)}
+                    </span>
+                  )}
+                </div>
+
+                {selectedInvitedUsers.length > 0 && (
+                  <div className={styles.selectedUsers}>
+                    {selectedInvitedUsers.map((user) => (
+                      <button
+                        key={user.id}
+                        type="button"
+                        className={styles.selectedUser}
+                        onClick={() => toggleInvitedUser(user)}
+                        disabled={createLoading}
+                      >
+                        {formatUserLabel(user)}
+                        <X size={13} strokeWidth={2.2} aria-hidden="true" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className={styles.inviteSearch}>
+                  <Search size={15} strokeWidth={2} aria-hidden="true" />
+                  <input
+                    id="conference-invite-search"
+                    type="text"
+                    value={inviteQuery}
+                    onChange={(event) => setInviteQuery(event.target.value)}
+                    placeholder="Поиск по имени, логину или email"
+                    disabled={createLoading}
+                  />
+                </div>
+
+                <div className={styles.usersList}>
+                  {inviteLoading ? (
+                    <div className={styles.usersState}>
+                      Загрузка пользователей...
+                    </div>
+                  ) : invitableUsers.length === 0 ? (
+                    <div className={styles.usersState}>
+                      Нет доступных пользователей
+                    </div>
+                  ) : (
+                    invitableUsers.map((user) => {
+                      const selected = isUserSelected(user.id);
+
+                      return (
+                        <button
+                          key={user.id}
+                          type="button"
+                          className={`${styles.userOption} ${
+                            selected ? styles.userOptionSelected : ''
+                          }`}
+                          onClick={() => toggleInvitedUser(user)}
+                          disabled={createLoading}
+                        >
+                          <span className={styles.userAvatar}>
+                            <UserPlus size={15} strokeWidth={2} aria-hidden="true" />
+                          </span>
+
+                          <span className={styles.userInfo}>
+                            <strong>{formatUserLabel(user)}</strong>
+                            <small>{user.email}</small>
+                          </span>
+
+                          {selected && (
+                            <CheckCircle2 size={18} strokeWidth={2.2} aria-hidden="true" />
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
               <div className={styles.modalHint}>
                 <AlertTriangle size={15} strokeWidth={2} aria-hidden="true" />
                 Мгновенный созвон не привязывается к проекту, группе или задаче.
@@ -588,6 +809,81 @@ export const Conferences = () => {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {statsRoom && (
+        <div
+          className={styles.modalOverlay}
+          onClick={handleStatsOverlayClick}
+        >
+          <div
+            className={`${styles.modal} ${styles.statsModal}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="conference-stats-title"
+          >
+            <div className={styles.modalHeader}>
+              <div>
+                <h2 id="conference-stats-title">
+                  Статистика созвона
+                </h2>
+              </div>
+
+              <button
+                className={styles.closeButton}
+                onClick={() => {
+                  setStatsRoom(null);
+                  setStatsData(null);
+                  setStatsError('');
+                }}
+                type="button"
+                aria-label="Закрыть статистику созвона"
+              >
+                <X size={20} strokeWidth={2.2} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className={styles.modalContent}>
+              <h3 className={styles.statsTitle}>{statsRoom.title}</h3>
+
+              {statsLoading ? (
+                <div className={styles.usersState}>
+                  Загрузка статистики...
+                </div>
+              ) : statsError ? (
+                <div className={styles.statsError}>
+                  {statsError}
+                </div>
+              ) : statsData ? (
+                <div className={styles.statsGrid}>
+                  <div className={styles.statCard}>
+                    <span>Участников</span>
+                    <strong>{statsData.participant_count ?? 0}</strong>
+                  </div>
+
+                  <div className={styles.statCard}>
+                    <span>Пик участников</span>
+                    <strong>{statsData.peak_participants ?? 0}</strong>
+                  </div>
+
+                  <div className={styles.statCard}>
+                    <span>Длительность</span>
+                    <strong>{formatDuration(statsData.duration_seconds)}</strong>
+                  </div>
+
+                  <div className={styles.statCard}>
+                    <span>Сообщений</span>
+                    <strong>{statsData.messages_count ?? 0}</strong>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.usersState}>
+                  Статистика недоступна
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

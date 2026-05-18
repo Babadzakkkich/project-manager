@@ -7,6 +7,7 @@ import {
   ListChecks,
   ShieldCheck,
   Users,
+  Video,
 } from 'lucide-react';
 import styles from './AdminLayout.module.css';
 
@@ -16,6 +17,7 @@ const ADMIN_NAV_ITEMS = [
   { to: '/admin/groups', label: 'Группы', icon: ShieldCheck },
   { to: '/admin/projects', label: 'Проекты', icon: FolderKanban },
   { to: '/admin/tasks', label: 'Задачи', icon: CheckSquare },
+  { to: '/admin/conferences', label: 'Созвоны', icon: Video },
   { to: '/admin/audit', label: 'Аудит', icon: ListChecks },
 ];
 

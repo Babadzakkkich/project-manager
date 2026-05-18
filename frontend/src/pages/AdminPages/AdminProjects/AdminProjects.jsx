@@ -24,6 +24,15 @@ const getStatusClass = (status) => {
   return styles[`status_${normalized}`] || styles.status_planned;
 };
 
+
+const showAdminToast = (message, type = 'success') => {
+  window.dispatchEvent(
+    new CustomEvent('toast:show', {
+      detail: { message, type, duration: 5000 },
+    })
+  );
+};
+
 export const AdminProjects = () => {
   const [projects, setProjects] = useState([]);
   const [search, setSearch] = useState('');
@@ -66,9 +75,12 @@ export const AdminProjects = () => {
     try {
       await adminAPI.deleteProject(projectToDelete.id);
       await loadProjects();
+      showAdminToast('Проект удалён');
       setProjectToDelete(null);
     } catch (requestError) {
-      setError(handleApiError(requestError));
+      const message = handleApiError(requestError);
+      setError(message);
+      showAdminToast(`Не удалось удалить проект: ${message}`, 'error');
     } finally {
       setActionLoading(false);
     }

@@ -109,24 +109,28 @@ async def get_my_role_in_group(
     """
     Получить свою роль в группе.
 
-    Для глобального администратора возвращается виртуальная роль global_admin.
-    Она нужна только для read-only просмотра на фронте.
+    Важно:
+    - если пользователь реально состоит в группе, возвращается его групповая роль;
+    - global_admin возвращается только если пользователь не состоит в группе,
+      но имеет системный read-only доступ.
     """
     logger.info(f"GET /groups/{group_id}/my_role requested by user {current_user.id}")
-
-    if is_global_admin_user(current_user):
-        return {"role": "global_admin"}
 
     group_service = service_factory.get('group')
 
     try:
-        role = await group_service.get_role_for_user_in_group(current_user.id, group_id)
+        role_response = await group_service.get_role_for_user_in_group(
+            current_user.id,
+            group_id
+        )
 
-        role_value = role.role
+        role_value = role_response.role
+
         if hasattr(role_value, "value"):
             role_value = role_value.value
 
         return {"role": role_value}
+
     except UserNotInGroupError as e:
         logger.warning(f"User {current_user.id} not in group {group_id}")
         raise HTTPException(

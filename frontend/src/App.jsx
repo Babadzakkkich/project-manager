@@ -11,19 +11,26 @@ import './App.css';
 
 function AppContent() {
   const location = useLocation();
-  const { notification, hideNotification } = useNotification();
+
+  const {
+    notification,
+    hideNotification,
+    showNotification,
+  } = useNotification();
 
   const isConferenceRoomRoute = /^\/conferences\/[^/]+$/.test(location.pathname);
 
   useEffect(() => {
     const handleToastShow = (event) => {
-      const { message, type, duration, onClick } = event.detail;
+      const {
+        message,
+        type = 'info',
+        duration = 5000,
+      } = event.detail || {};
 
-      const showEvent = new CustomEvent('notification:show', {
-        detail: { message, type, duration, onClick },
-      });
+      if (!message) return;
 
-      window.dispatchEvent(showEvent);
+      showNotification(message, type, duration);
     };
 
     window.addEventListener('toast:show', handleToastShow);
@@ -31,7 +38,7 @@ function AppContent() {
     return () => {
       window.removeEventListener('toast:show', handleToastShow);
     };
-  }, []);
+  }, [showNotification]);
 
   return (
     <>

@@ -435,3 +435,56 @@
     padding: var(--space-4);
   }
 }
+
+.conferenceActive {
+  border-color: var(--status-done-border);
+  background: var(--status-done-bg);
+  color: var(--status-done-text);
+}
+
+.conferenceInactive {
+  border-color: var(--status-backlog-border);
+  background: var(--status-backlog-bg);
+  color: var(--status-backlog-text);
+}
+
+.messageList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.messageItem {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-muted);
+}
+
+.messageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.messageHeader strong {
+  color: var(--color-text-main);
+  font-size: var(--text-sm);
+  font-weight: var(--font-extrabold);
+}
+
+.messageHeader span {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+}
+
+.messageItem p {
+  margin: 0;
+  color: var(--color-text-soft);
+  font-size: var(--text-sm);
+  line-height: var(--line-relaxed);
+  white-space: pre-wrap;
+}

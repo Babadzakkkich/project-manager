@@ -37,6 +37,15 @@ const formatTag = (tag) => {
   return value.startsWith('#') ? value : `#${value}`;
 };
 
+
+const showAdminToast = (message, type = 'success') => {
+  window.dispatchEvent(
+    new CustomEvent('toast:show', {
+      detail: { message, type, duration: 5000 },
+    })
+  );
+};
+
 export const AdminTasks = () => {
   const [tasks, setTasks] = useState([]);
   const [search, setSearch] = useState('');
@@ -88,9 +97,12 @@ export const AdminTasks = () => {
     try {
       await adminAPI.deleteTask(taskToDelete.id);
       await loadTasks();
+      showAdminToast('Задача удалена');
       setTaskToDelete(null);
     } catch (requestError) {
-      setError(handleApiError(requestError));
+      const message = handleApiError(requestError);
+      setError(message);
+      showAdminToast(`Не удалось удалить задачу: ${message}`, 'error');
     } finally {
       setActionLoading(false);
     }

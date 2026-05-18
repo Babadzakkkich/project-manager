@@ -21,6 +21,15 @@ const FILTERS = [
   { value: 'global_admin', label: 'Глобальные администраторы' },
 ];
 
+
+const showAdminToast = (message, type = 'success') => {
+  window.dispatchEvent(
+    new CustomEvent('toast:show', {
+      detail: { message, type, duration: 5000 },
+    })
+  );
+};
+
 export const AdminUsers = () => {
   const { user: currentUser, checkAuth } = useAuthContext();
   const [users, setUsers] = useState([]);
@@ -74,9 +83,12 @@ export const AdminUsers = () => {
     try {
       await adminAPI.blockUser(modal.user.id, 'Блокировка глобальным администратором');
       await loadUsers();
+      showAdminToast('Пользователь заблокирован');
       closeModal();
     } catch (requestError) {
-      setError(handleApiError(requestError));
+      const message = handleApiError(requestError);
+      setError(message);
+      showAdminToast(`Не удалось заблокировать пользователя: ${message}`, 'error');
     } finally {
       setActionLoading(false);
     }
@@ -89,9 +101,12 @@ export const AdminUsers = () => {
     try {
       await adminAPI.unblockUser(modal.user.id);
       await loadUsers();
+      showAdminToast('Пользователь разблокирован');
       closeModal();
     } catch (requestError) {
-      setError(handleApiError(requestError));
+      const message = handleApiError(requestError);
+      setError(message);
+      showAdminToast(`Не удалось разблокировать пользователя: ${message}`, 'error');
     } finally {
       setActionLoading(false);
     }
@@ -104,9 +119,12 @@ export const AdminUsers = () => {
     try {
       await adminAPI.makeGlobalAdmin(modal.user.id);
       await Promise.all([loadUsers(), checkAuth()]);
+      showAdminToast('Пользователь назначен глобальным администратором');
       closeModal();
     } catch (requestError) {
-      setError(handleApiError(requestError));
+      const message = handleApiError(requestError);
+      setError(message);
+      showAdminToast(`Не удалось назначить глобального администратора: ${message}`, 'error');
     } finally {
       setActionLoading(false);
     }

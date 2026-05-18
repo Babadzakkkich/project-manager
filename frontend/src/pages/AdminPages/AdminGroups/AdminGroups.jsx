@@ -8,6 +8,15 @@ import { AdminLayout } from '../AdminLayout';
 import { formatDate, formatNumber, handleApiError } from '../../../utils/helpers';
 import styles from './AdminGroups.module.css';
 
+
+const showAdminToast = (message, type = 'success') => {
+  window.dispatchEvent(
+    new CustomEvent('toast:show', {
+      detail: { message, type, duration: 5000 },
+    })
+  );
+};
+
 export const AdminGroups = () => {
   const [groups, setGroups] = useState([]);
   const [search, setSearch] = useState('');
@@ -44,9 +53,12 @@ export const AdminGroups = () => {
     try {
       await adminAPI.deleteGroup(groupToDelete.id);
       await loadGroups();
+      showAdminToast('Группа удалена');
       setGroupToDelete(null);
     } catch (requestError) {
-      setError(handleApiError(requestError));
+      const message = handleApiError(requestError);
+      setError(message);
+      showAdminToast(`Не удалось удалить группу: ${message}`, 'error');
     } finally {
       setActionLoading(false);
     }

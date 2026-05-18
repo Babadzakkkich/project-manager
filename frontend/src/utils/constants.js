@@ -1,7 +1,7 @@
 export const API_BASE_URL = '/api'
 
 export const LIVEKIT_CONFIG = {
-  WS_URL: 'wss://26.89.212.255/livekit',
+  WS_URL: 'wss://localhost/livekit',
 };
 
 export const COLORS = {
@@ -125,6 +125,7 @@ export const USER_ROLES = {
 export const USER_ROLE_TRANSLATIONS = {
   admin: 'Администратор',
   member: 'Участник',
+  global_admin: 'Глобальный администратор'
 };
 
 export const PROJECT_STATUSES = {
@@ -227,6 +228,7 @@ export const ADMIN_AUDIT_ACTION_TRANSLATIONS = {
   GROUP_EMERGENCY_DELETED: 'Аварийное удаление группы',
   PROJECT_EMERGENCY_DELETED: 'Аварийное удаление проекта',
   TASK_EMERGENCY_DELETED: 'Аварийное удаление задачи',
+  CONFERENCE_FORCE_ENDED: 'Принудительное завершение созвона',
 };
 
 export const ADMIN_TARGET_TYPE_TRANSLATIONS = {
@@ -234,6 +236,7 @@ export const ADMIN_TARGET_TYPE_TRANSLATIONS = {
   group: 'Группа',
   project: 'Проект',
   task: 'Задача',
+  conference: 'Созвон',
 };
 
 export const PAGINATION = {

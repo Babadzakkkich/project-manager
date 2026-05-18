@@ -10,6 +10,8 @@ from .exceptions import AdminActionError, AdminObjectNotFoundError, AdminPermiss
 from .schemas import (
     AdminActionResult,
     AdminAuditLogRead,
+    AdminConferenceDetailRead,
+    AdminConferenceRead,
     AdminGroupDetailRead,
     AdminGroupRead,
     AdminProjectDetailRead,
@@ -284,6 +286,55 @@ async def emergency_delete_task(
         admin_service = _get_admin_service(service_factory)
         await admin_service.emergency_delete_task(current_user, task_id)
         return AdminActionResult(detail="Задача аварийно удалена")
+    except Exception as error:
+        raise _map_admin_error(error) from error
+
+
+@router.get("/conferences", response_model=list[AdminConferenceRead])
+async def get_admin_conferences(
+    q: str | None = Query(None, description="Поиск по названию или техническому имени комнаты"),
+    room_type: str | None = Query(None, description="Тип созвона: project, group, task или instant"),
+    active: bool | None = Query(None, description="Фильтр по активности созвона"),
+    current_user: User = Depends(get_current_user),
+    service_factory: ServiceFactory = Depends(get_service_factory),
+):
+    """Просмотр всех созвонов системы."""
+    try:
+        admin_service = _get_admin_service(service_factory)
+        return await admin_service.get_conferences(
+            actor=current_user,
+            q=q,
+            room_type=room_type,
+            active=active,
+        )
+    except Exception as error:
+        raise _map_admin_error(error) from error
+
+
+@router.get("/conferences/{room_id}", response_model=AdminConferenceDetailRead)
+async def get_admin_conference_detail(
+    room_id: int,
+    current_user: User = Depends(get_current_user),
+    service_factory: ServiceFactory = Depends(get_service_factory),
+):
+    """Read-only просмотр созвона через административный контур."""
+    try:
+        admin_service = _get_admin_service(service_factory)
+        return await admin_service.get_conference_detail(current_user, room_id)
+    except Exception as error:
+        raise _map_admin_error(error) from error
+
+
+@router.patch("/conferences/{room_id}/force-end", response_model=AdminConferenceDetailRead)
+async def force_end_admin_conference(
+    room_id: int,
+    current_user: User = Depends(get_current_user),
+    service_factory: ServiceFactory = Depends(get_service_factory),
+):
+    """Принудительное завершение активного созвона глобальным администратором."""
+    try:
+        admin_service = _get_admin_service(service_factory)
+        return await admin_service.force_end_conference(current_user, room_id)
     except Exception as error:
         raise _map_admin_error(error) from error
 

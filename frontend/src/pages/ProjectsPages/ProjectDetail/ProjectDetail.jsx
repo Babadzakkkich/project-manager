@@ -33,6 +33,7 @@ import {
   RUSSIAN_PLURAL_FORMS,
 } from '../../../utils/helpers';
 import { getProjectStatusTranslation } from '../../../utils/projectStatus';
+import { showGlobalSuccess } from '../../../utils/globalToast';
 import styles from './ProjectDetail.module.css';
 
 const DESCRIPTION_LIMIT = 700;
@@ -383,10 +384,13 @@ export const ProjectDetail = () => {
   const handleConfirmDeleteProject = async () => {
     setIsDeletingProject(true);
 
+    const projectTitle = project?.title || 'Проект';
+
     try {
       await projectsAPI.delete(projectId);
-      showSuccess(`Проект "${project.title}" успешно удалён`);
-      navigate('/projects');
+
+      showGlobalSuccess(`Проект "${projectTitle}" успешно удалён`);
+      navigate('/projects', { replace: true });
     } catch (err) {
       console.error('Error deleting project:', err);
       showError(`Не удалось удалить проект: ${handleApiError(err)}`);

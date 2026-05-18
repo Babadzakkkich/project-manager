@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Any, Optional, TYPE_CHECKING
 
@@ -12,6 +13,7 @@ from core.database.models import (
     ConferenceMessage,
     ConferenceParticipant,
     ConferenceRoom,
+    ConferenceRoomType,
     ConferenceStats,
     Group,
     GroupMember,
@@ -27,9 +29,18 @@ from core.database.models import (
     task_user_association,
 )
 from core.logger import logger
+from core.utils.livekit import livekit_token
 from .exceptions import AdminActionError, AdminObjectNotFoundError, AdminPermissionError
 from .schemas import (
+    AdminActionResult,
     AdminAuditLogRead,
+    AdminConferenceDetailRead,
+    AdminConferenceGroupRelationRead,
+    AdminConferenceMessageRead,
+    AdminConferenceParticipantRead,
+    AdminConferenceRead,
+    AdminConferenceRelationRead,
+    AdminConferenceStatsRead,
     AdminGroupRead,
     AdminGroupDetailRead,
     AdminGroupMemberRead,
@@ -465,6 +476,106 @@ class AdminService:
             self.logger.error(f"Emergency task delete failed: {exc}", exc_info=True)
             raise AdminActionError(f"Не удалось аварийно удалить задачу: {exc}") from exc
 
+
+    async def get_conferences(
+        self,
+        actor: User,
+        q: Optional[str] = None,
+        room_type: Optional[str] = None,
+        active: Optional[bool] = None,
+    ) -> list[AdminConferenceRead]:
+        """Просмотр всех созвонов через административный контур."""
+        await self.ensure_global_admin(actor)
+
+        stmt = select(ConferenceRoom).options(
+            selectinload(ConferenceRoom.creator),
+            selectinload(ConferenceRoom.project),
+            selectinload(ConferenceRoom.group),
+            selectinload(ConferenceRoom.task),
+            selectinload(ConferenceRoom.participants).selectinload(ConferenceParticipant.user),
+            selectinload(ConferenceRoom.invited_users),
+            selectinload(ConferenceRoom.messages),
+            selectinload(ConferenceRoom.stats),
+        ).order_by(ConferenceRoom.created_at.desc(), ConferenceRoom.id.desc())
+
+        if q:
+            pattern = f"%{q.strip()}%"
+            stmt = stmt.where(or_(ConferenceRoom.title.ilike(pattern), ConferenceRoom.room_name.ilike(pattern)))
+
+        if room_type:
+            parsed_room_type = self._parse_room_type(room_type)
+            stmt = stmt.where(ConferenceRoom.room_type == parsed_room_type)
+
+        if active is not None:
+            stmt = stmt.where(ConferenceRoom.is_active.is_(active))
+
+        result = await self.session.execute(stmt)
+        rooms = result.scalars().unique().all()
+        return [self._build_admin_conference(room) for room in rooms]
+
+    async def get_conference_detail(self, actor: User, room_id: int) -> AdminConferenceDetailRead:
+        """Read-only просмотр созвона через административный контур."""
+        await self.ensure_global_admin(actor)
+        room = await self._get_conference_for_admin(room_id)
+        return self._build_admin_conference_detail(room)
+
+    async def force_end_conference(self, actor: User, room_id: int) -> AdminConferenceDetailRead:
+        """Принудительное завершение активного созвона глобальным администратором."""
+        await self.ensure_global_admin(actor)
+        room = await self._get_conference_for_admin(room_id)
+
+        if not room.is_active:
+            return self._build_admin_conference_detail(room)
+
+        ended_at = datetime.now(timezone.utc)
+        room.is_active = False
+        room.ended_at = ended_at
+
+        for participant in room.participants:
+            if participant.left_at is None:
+                participant.left_at = ended_at
+
+        duration_seconds = None
+        if room.started_at:
+            duration_seconds = int((ended_at - room.started_at).total_seconds())
+
+        stats = ConferenceStats(
+            room_id=room.id,
+            participant_count=len(room.participants or []),
+            peak_participants=len(room.participants or []),
+            duration_seconds=duration_seconds,
+            messages_count=len(room.messages or []),
+        )
+        self.session.add(stats)
+
+        await self.log_action(
+            actor=actor,
+            action="CONFERENCE_FORCE_ENDED",
+            target_type="conference",
+            target_id=room.id,
+            details={
+                "title": room.title,
+                "room_name": room.room_name,
+                "room_type": room.room_type.value if hasattr(room.room_type, "value") else str(room.room_type),
+            },
+        )
+
+        await self.session.commit()
+
+        try:
+            asyncio.create_task(self._delete_livekit_room_async(room.room_name))
+        except Exception as exc:
+            self.logger.warning(f"LiveKit room delete scheduling failed for {room.room_name}: {exc}")
+
+        return await self.get_conference_detail(actor, room_id)
+
+    async def _delete_livekit_room_async(self, room_name: str) -> None:
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, livekit_token.delete_room, room_name)
+        except Exception as exc:
+            self.logger.warning(f"LiveKit room delete failed for {room_name}: {exc}")
+
     async def get_audit_logs(
         self,
         actor: User,
@@ -493,6 +604,36 @@ class AdminService:
         logs = result.scalars().all()
         return [self._build_audit_log(log) for log in logs]
 
+
+    async def _get_conference_for_admin(self, room_id: int) -> ConferenceRoom:
+        stmt = select(ConferenceRoom).options(
+            selectinload(ConferenceRoom.creator),
+            selectinload(ConferenceRoom.project),
+            selectinload(ConferenceRoom.group),
+            selectinload(ConferenceRoom.task),
+            selectinload(ConferenceRoom.participants).selectinload(ConferenceParticipant.user),
+            selectinload(ConferenceRoom.invited_users),
+            selectinload(ConferenceRoom.messages).selectinload(ConferenceMessage.user),
+            selectinload(ConferenceRoom.stats),
+        ).where(ConferenceRoom.id == room_id)
+
+        result = await self.session.execute(stmt)
+        room = result.scalar_one_or_none()
+
+        if not room:
+            raise AdminObjectNotFoundError("Созвон не найден")
+
+        return room
+
+    def _parse_room_type(self, value: str) -> ConferenceRoomType:
+        normalized = str(value).strip().lower()
+
+        for room_type in ConferenceRoomType:
+            if room_type.value == normalized or room_type.name.lower() == normalized:
+                return room_type
+
+        raise AdminActionError(f"Недопустимый тип созвона: {value}")
+
     async def _get_user_for_admin(self, user_id: int) -> User:
         stmt = select(User).options(
             selectinload(User.group_memberships),
@@ -518,25 +659,15 @@ class AdminService:
 
     async def _get_project_for_admin(self, project_id: int) -> Project:
         stmt = select(Project).options(
-            selectinload(Project.groups)
-            .selectinload(Group.group_members)
-            .selectinload(GroupMember.user),
-
-            selectinload(Project.groups)
-            .selectinload(Group.projects),
-
-            selectinload(Project.groups)
-            .selectinload(Group.tasks),
-
+            selectinload(Project.groups).selectinload(Group.group_members).selectinload(GroupMember.user),
+            selectinload(Project.groups).selectinload(Group.projects),
+            selectinload(Project.groups).selectinload(Group.tasks),
             selectinload(Project.tasks),
         ).where(Project.id == project_id)
-
         result = await self.session.execute(stmt)
         project = result.scalar_one_or_none()
-
         if not project:
             raise AdminObjectNotFoundError("Проект не найден")
-
         return project
 
     async def _get_task_for_admin(self, task_id: int) -> Task:
@@ -716,6 +847,93 @@ class AdminService:
             new_value=history.new_value,
             details=history.details,
             created_at=history.created_at,
+        )
+
+
+    def _build_conference_relation(self, entity: Any, label_field: str = "title") -> Optional[AdminConferenceRelationRead]:
+        if not entity:
+            return None
+        return AdminConferenceRelationRead(id=entity.id, title=getattr(entity, label_field))
+
+    def _build_conference_group_relation(self, group: Optional[Group]) -> Optional[AdminConferenceGroupRelationRead]:
+        if not group:
+            return None
+        return AdminConferenceGroupRelationRead(id=group.id, name=group.name)
+
+    def _build_conference_stats(self, stats: ConferenceStats) -> AdminConferenceStatsRead:
+        return AdminConferenceStatsRead(
+            id=stats.id,
+            room_id=stats.room_id,
+            participant_count=stats.participant_count,
+            peak_participants=stats.peak_participants,
+            duration_seconds=stats.duration_seconds,
+            messages_count=stats.messages_count,
+            created_at=stats.created_at,
+        )
+
+    def _build_conference_participant(self, participant: ConferenceParticipant) -> AdminConferenceParticipantRead:
+        return AdminConferenceParticipantRead(
+            id=participant.id,
+            user=self._build_short_user(participant.user) if participant.user else None,
+            user_id=participant.user_id,
+            joined_at=participant.joined_at,
+            left_at=participant.left_at,
+            is_speaking=participant.is_speaking,
+            is_video_on=participant.is_video_on,
+            is_audio_on=participant.is_audio_on,
+            participant_sid=participant.participant_sid,
+            is_active=participant.left_at is None,
+        )
+
+    def _build_conference_message(self, message: ConferenceMessage) -> AdminConferenceMessageRead:
+        return AdminConferenceMessageRead(
+            id=message.id,
+            user=self._build_short_user(message.user) if message.user else None,
+            user_id=message.user_id,
+            message=message.message,
+            created_at=message.created_at,
+        )
+
+    def _build_admin_conference(self, room: ConferenceRoom) -> AdminConferenceRead:
+        participants = list(room.participants or [])
+        messages = list(room.messages or [])
+        stats = sorted(list(room.stats or []), key=lambda item: item.created_at, reverse=True)
+        active_participants_count = sum(1 for participant in participants if participant.left_at is None)
+
+        return AdminConferenceRead(
+            id=room.id,
+            room_name=room.room_name,
+            title=room.title,
+            room_type=room.room_type,
+            is_active=room.is_active,
+            max_participants=room.max_participants,
+            created_at=room.created_at,
+            started_at=room.started_at,
+            ended_at=room.ended_at,
+            creator=self._build_short_user(room.creator) if room.creator else None,
+            created_by=room.created_by,
+            project=self._build_conference_relation(room.project, "title"),
+            group=self._build_conference_group_relation(room.group),
+            task=self._build_conference_relation(room.task, "title"),
+            participants_count=len(participants),
+            active_participants_count=active_participants_count,
+            invited_users_count=len(room.invited_users or []),
+            messages_count=len(messages),
+            latest_stats=self._build_conference_stats(stats[0]) if stats else None,
+        )
+
+    def _build_admin_conference_detail(self, room: ConferenceRoom) -> AdminConferenceDetailRead:
+        base = self._build_admin_conference(room).model_dump()
+        participants = sorted(list(room.participants or []), key=lambda item: item.joined_at, reverse=True)
+        messages = sorted(list(room.messages or []), key=lambda item: item.created_at, reverse=True)
+        stats = sorted(list(room.stats or []), key=lambda item: item.created_at, reverse=True)
+
+        return AdminConferenceDetailRead(
+            **base,
+            participants=[self._build_conference_participant(participant) for participant in participants],
+            invited_users=[self._build_short_user(user) for user in room.invited_users or []],
+            messages=[self._build_conference_message(message) for message in messages],
+            stats=[self._build_conference_stats(item) for item in stats],
         )
 
     def _build_audit_log(self, audit_log: AdminAuditLog) -> AdminAuditLogRead:

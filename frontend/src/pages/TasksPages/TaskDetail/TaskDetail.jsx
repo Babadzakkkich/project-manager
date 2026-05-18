@@ -47,6 +47,7 @@ import {
   TASK_STATUS_OPTIONS,
   TASK_PRIORITY_OPTIONS,
 } from '../../../utils/taskStatus';
+import { showGlobalSuccess } from '../../../utils/globalToast';
 import styles from './TaskDetail.module.css';
 
 const TITLE_LIMIT = 200;
@@ -453,14 +454,22 @@ export const TaskDetail = () => {
   const handleConfirmDeleteTask = async () => {
     setIsDeletingTask(true);
 
+    const taskTitle = task?.title || 'Задача';
+    const backUrl = searchParams.get('from') || '/tasks';
+
     try {
       await tasksAPI.delete(taskId);
 
-      showSuccess(`Задача "${task.title}" успешно удалена`);
-      handleBack();
+      showGlobalSuccess(`Задача "${taskTitle}" успешно удалена`);
+      navigate(backUrl, { replace: true });
     } catch (err) {
       console.error('Error deleting task:', err);
-      showError(`Не удалось удалить задачу: ${handleApiError(err)}`);
+
+      if (err.response?.status === 403) {
+        showError('У вас нет прав для удаления этой задачи');
+      } else {
+        showError(`Не удалось удалить задачу: ${handleApiError(err)}`);
+      }
     } finally {
       setIsDeletingTask(false);
       setShowDeleteTaskModal(false);

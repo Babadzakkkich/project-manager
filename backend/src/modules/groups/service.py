@@ -116,24 +116,27 @@ class GroupService:
         """
         Получение роли пользователя в группе.
 
-        Обычный пользователь получает свою групповую роль: admin/member.
-        Глобальный администратор получает виртуальную роль global_admin,
-        чтобы иметь возможность открыть страницу группы без членства.
+        Приоритет:
+        1. Если пользователь реально состоит в группе, возвращается его групповая роль:
+        admin/member.
+        2. Если пользователь не состоит в группе, но является глобальным администратором,
+        возвращается виртуальная роль global_admin только для read-only просмотра.
+        3. Если доступа нет, выбрасывается UserNotInGroupError.
         """
         self.logger.debug(f"Getting role for user {user_id} in group {group_id}")
+
+        role = await get_user_group_role(self.session, user_id, group_id)
+
+        if role is not None:
+            return GetUserRoleResponse(role=role.value)
 
         user = await self.session.get(User, user_id)
 
         if is_global_admin_user(user):
             return GetUserRoleResponse(role="global_admin")
 
-        role = await get_user_group_role(self.session, user_id, group_id)
-
-        if role is None:
-            self.logger.warning(f"User {user_id} not in group {group_id}")
-            raise UserNotInGroupError(user_id=user_id, group_id=group_id)
-
-        return GetUserRoleResponse(role=role.value)
+        self.logger.warning(f"User {user_id} not in group {group_id}")
+        raise UserNotInGroupError(user_id=user_id, group_id=group_id)
     
     async def create_group(self, group_create: GroupCreate, current_user: User) -> GroupReadWithRelations:
         """Создание новой группы"""

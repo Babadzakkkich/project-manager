@@ -29,6 +29,15 @@ const getPriorityClass = (priority) => {
   return styles[`priority_${normalized}`] || styles.priority_medium;
 };
 
+
+const showAdminToast = (message, type = 'success') => {
+  window.dispatchEvent(
+    new CustomEvent('toast:show', {
+      detail: { message, type, duration: 5000 },
+    })
+  );
+};
+
 export const AdminProjectDetail = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
@@ -65,9 +74,12 @@ export const AdminProjectDetail = () => {
 
     try {
       await adminAPI.deleteProject(project.id);
+      showAdminToast('Проект удалён');
       navigate('/admin/projects', { replace: true });
     } catch (requestError) {
-      setError(handleApiError(requestError));
+      const message = handleApiError(requestError);
+      setError(message);
+      showAdminToast(`Не удалось удалить проект: ${message}`, 'error');
     } finally {
       setActionLoading(false);
       setShowDeleteModal(false);
@@ -109,6 +121,7 @@ export const AdminProjectDetail = () => {
             <div className={styles.panelBody}>
               <p className={styles.description}>{project.description || 'Описание проекта не указано.'}</p>
               <div className={styles.grid} style={{ marginTop: 'var(--space-5)' }}>
+                <div className={styles.metaCard}><span>ID</span><strong>{project.id}</strong></div>
                 <div className={styles.metaCard}><span>Статус</span><strong>{getProjectStatusTranslation(project.status)}</strong></div>
                 <div className={styles.metaCard}><span>Группы</span><strong>{formatNumber(project.groups?.length || 0)}</strong></div>
                 <div className={styles.metaCard}><span>Задачи</span><strong>{formatNumber(project.tasks?.length || 0)}</strong></div>
