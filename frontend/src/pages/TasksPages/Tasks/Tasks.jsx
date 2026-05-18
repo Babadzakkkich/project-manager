@@ -4,18 +4,15 @@ import {
   ClipboardList,
   Plus,
   RotateCcw,
-  Users,
 } from 'lucide-react';
 
 import { tasksAPI } from '../../../services/api/tasks';
 import { groupsAPI } from '../../../services/api/groups';
 import { Button } from '../../../components/ui/Button';
-import { FilterSort } from '../../../components/ui/FilterSort';
 import { TaskCard } from '../../../components/ui/TaskCard';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import {
   formatRussianCount,
-  getRussianPluralForm,
   handleApiError,
   RUSSIAN_CASE_FORMS,
   RUSSIAN_PLURAL_FORMS,
@@ -25,14 +22,19 @@ import {
   TASK_STATUS_OPTIONS,
   getTaskPriorityTranslation,
   getTaskStatusTranslation,
-  isTaskOverdue,
 } from '../../../utils/taskStatus';
-import { TASK_STATUSES } from '../../../utils/constants';
 import styles from './Tasks.module.css';
 
-const TASK_DONE_STATUSES = [TASK_STATUSES.DONE, 'completed'];
-const TASK_CANCELLED_STATUSES = [TASK_STATUSES.CANCELLED];
 const GROUP_PREPOSITIONAL_FORMS = RUSSIAN_CASE_FORMS.GROUP.PREPOSITIONAL;
+
+const GROUP_BY_OPTIONS = [
+  { value: 'none', label: 'Без группировки' },
+  { value: 'project', label: 'По проектам' },
+  { value: 'group', label: 'По группам' },
+  { value: 'assignee', label: 'По исполнителям' },
+];
+
+const DEFAULT_TEAM_GROUP_BY = 'project';
 
 const getDateMs = (value) => {
   if (!value) return 0;
@@ -46,7 +48,25 @@ const compareText = (a = '', b = '') => {
 };
 
 const getProjectFilterValue = (task) => {
-  return String(task.project?.id || task.project?.title || '');
+  return String(task.project?.id || task.project_id || task.project?.title || '');
+};
+
+const getGroupFilterValue = (task) => {
+  return String(task.group?.id || task.group_id || task.group?.name || '');
+};
+
+const getUserLabel = (user) => {
+  if (!user) return 'Пользователь';
+  return user.name || user.login || user.email || 'Пользователь';
+};
+
+const getUserOptionLabel = (user) => {
+  const label = getUserLabel(user);
+  return user?.email ? `${label} (${user.email})` : label;
+};
+
+const getInitial = (value) => {
+  return String(value || '?').trim().charAt(0).toUpperCase() || '?';
 };
 
 export const Tasks = () => {
@@ -58,10 +78,10 @@ export const Tasks = () => {
   const [filters, setFilters] = useState({});
   const [sort, setSort] = useState('');
   const [viewMode, setViewMode] = useState('my');
+  const [groupBy, setGroupBy] = useState(DEFAULT_TEAM_GROUP_BY);
 
   const [teamGroups, setTeamGroups] = useState([]);
   const [groupUsers, setGroupUsers] = useState([]);
-  const [projectOptions, setProjectOptions] = useState([]);
 
   const { user } = useAuthContext();
 
@@ -139,7 +159,7 @@ export const Tasks = () => {
     loadTasks();
   }, [loadTasks]);
 
-  useEffect(() => {
+  const projectOptions = useMemo(() => {
     const projectsMap = new Map();
 
     tasks.forEach((task) => {
@@ -153,51 +173,60 @@ export const Tasks = () => {
       });
     });
 
-    setProjectOptions(
-      Array.from(projectsMap.values()).sort((a, b) => compareText(a.label, b.label))
-    );
+    return Array.from(projectsMap.values()).sort((a, b) => compareText(a.label, b.label));
   }, [tasks]);
 
-  const filterOptions = useMemo(() => {
-    const baseOptions = [
-      {
-        key: 'status',
-        label: 'Статус задачи',
-        options: TASK_STATUS_OPTIONS,
-      },
-      {
-        key: 'priority',
-        label: 'Приоритет',
-        options: TASK_PRIORITY_OPTIONS,
-      },
-      {
-        key: 'project',
-        label: 'Проект',
-        options: projectOptions,
-      },
-    ];
+  const groupOptions = useMemo(() => {
+    const groupsMap = new Map();
 
-    if (hasTeamGroups && viewMode === 'all') {
-      return [
-        ...baseOptions,
-        {
-          key: 'assignee',
-          label: 'Исполнитель',
-          options: [
-            { value: 'all', label: 'Все исполнители' },
-            ...groupUsers.map((groupUser) => ({
-              value: String(groupUser.id),
-              label: groupUser.email
-                ? `${groupUser.login || groupUser.name || 'Пользователь'} (${groupUser.email})`
-                : groupUser.login || groupUser.name || 'Пользователь',
-            })),
-          ],
-        },
-      ];
-    }
+    teamGroups.forEach((group) => {
+      if (!group?.id && !group?.name) return;
 
-    return baseOptions;
-  }, [hasTeamGroups, viewMode, groupUsers, projectOptions]);
+      groupsMap.set(String(group.id || group.name), {
+        value: String(group.id || group.name),
+        label: group.name || 'Группа без названия',
+      });
+    });
+
+    tasks.forEach((task) => {
+      const groupValue = getGroupFilterValue(task);
+
+      if (!groupValue) return;
+
+      groupsMap.set(groupValue, {
+        value: groupValue,
+        label: task.group?.name || 'Группа без названия',
+      });
+    });
+
+    return Array.from(groupsMap.values()).sort((a, b) => compareText(a.label, b.label));
+  }, [tasks, teamGroups]);
+
+  const assigneeOptions = useMemo(() => {
+    const usersMap = new Map();
+
+    groupUsers.forEach((groupUser) => {
+      if (!groupUser?.id) return;
+
+      usersMap.set(String(groupUser.id), {
+        value: String(groupUser.id),
+        label: getUserOptionLabel(groupUser),
+      });
+    });
+
+    tasks.forEach((task) => {
+      task.assignees?.forEach((assignee) => {
+        if (!assignee?.id) return;
+
+        usersMap.set(String(assignee.id), {
+          value: String(assignee.id),
+          label: getUserOptionLabel(assignee),
+        });
+      });
+    });
+
+    return Array.from(usersMap.values()).sort((a, b) => compareText(a.label, b.label));
+  }, [groupUsers, tasks]);
 
   const sortOptions = [
     { value: 'title_asc', label: 'По названию (А-Я)' },
@@ -217,10 +246,7 @@ export const Tasks = () => {
 
     const userInGroup = task.group.users?.find((groupUser) => groupUser.id === user.id);
 
-    if (
-      userInGroup &&
-      userInGroup.role === 'admin'
-    ) {
+    if (userInGroup && userInGroup.role === 'admin') {
       return 'admin';
     }
 
@@ -258,12 +284,11 @@ export const Tasks = () => {
       result = result.filter((task) => getProjectFilterValue(task) === filters.project);
     }
 
-    if (
-      filters.assignee &&
-      filters.assignee !== 'all' &&
-      hasTeamGroups &&
-      viewMode === 'all'
-    ) {
+    if (filters.group && hasTeamGroups && viewMode === 'all') {
+      result = result.filter((task) => getGroupFilterValue(task) === filters.group);
+    }
+
+    if (filters.assignee && hasTeamGroups && viewMode === 'all') {
       const assigneeId = Number(filters.assignee);
 
       result = result.filter((task) =>
@@ -321,77 +346,94 @@ export const Tasks = () => {
   }, [tasks, filters, sort, hasTeamGroups, viewMode]);
 
   const groupedTasks = useMemo(() => {
-    if (viewMode !== 'all' || !hasTeamGroups) {
-      return null;
+    if (viewMode !== 'all' || groupBy === 'none') {
+      return [];
     }
 
-    const grouped = {};
+    const grouped = new Map();
+
+    const pushTaskToGroup = (key, title, subtitle, task) => {
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          key,
+          title,
+          subtitle,
+          tasks: [],
+        });
+      }
+
+      grouped.get(key).tasks.push(task);
+    };
 
     filteredAndSortedTasks.forEach((task) => {
-      if (task.assignees && task.assignees.length > 0) {
-        task.assignees.forEach((assignee) => {
-          if (!grouped[assignee.id]) {
-            grouped[assignee.id] = {
-              user: assignee,
-              tasks: [],
-            };
-          }
-
-          grouped[assignee.id].tasks.push(task);
-        });
-
+      if (groupBy === 'project') {
+        const projectKey = getProjectFilterValue(task) || 'without-project';
+        pushTaskToGroup(
+          `project:${projectKey}`,
+          task.project?.title || 'Без проекта',
+          '',
+          task
+        );
         return;
       }
 
-      if (!grouped.unassigned) {
-        grouped.unassigned = {
-          user: {
-            id: 'unassigned',
-            login: 'Без исполнителя',
-            email: '',
-          },
-          tasks: [],
-        };
+      if (groupBy === 'group') {
+        const groupKey = getGroupFilterValue(task) || 'without-group';
+        pushTaskToGroup(
+          `group:${groupKey}`,
+          task.group?.name || 'Без группы',
+          '',
+          task
+        );
+        return;
       }
 
-      grouped.unassigned.tasks.push(task);
+      if (groupBy === 'assignee') {
+        if (task.assignees && task.assignees.length > 0) {
+          task.assignees.forEach((assignee) => {
+            pushTaskToGroup(
+              `assignee:${assignee.id}`,
+              getUserLabel(assignee),
+              assignee.email || '',
+              task
+            );
+          });
+
+          return;
+        }
+
+        pushTaskToGroup('assignee:unassigned', 'Без исполнителя', '', task);
+      }
     });
 
-    return Object.values(grouped);
-  }, [filteredAndSortedTasks, viewMode, hasTeamGroups]);
-
-  const taskStats = useMemo(() => {
-    const total = filteredAndSortedTasks.length;
-
-    const completed = filteredAndSortedTasks.filter((task) =>
-      TASK_DONE_STATUSES.includes(task.status)
-    ).length;
-
-    const active = filteredAndSortedTasks.filter((task) =>
-      !TASK_DONE_STATUSES.includes(task.status) &&
-      !TASK_CANCELLED_STATUSES.includes(task.status)
-    ).length;
-
-    const overdue = filteredAndSortedTasks.filter((task) =>
-      isTaskOverdue(task.deadline, task.status)
-    ).length;
-
-    return {
-      total,
-      active,
-      completed,
-      overdue,
-    };
-  }, [filteredAndSortedTasks]);
+    return Array.from(grouped.values()).sort((a, b) => {
+      if (a.key.includes('unassigned')) return 1;
+      if (b.key.includes('unassigned')) return -1;
+      return compareText(a.title, b.title);
+    });
+  }, [filteredAndSortedTasks, groupBy, viewMode]);
 
   const hasActiveFilters = Object.keys(filters).some((key) => {
-    return filters[key] && filters[key] !== '' && filters[key] !== 'all';
+    return filters[key] && filters[key] !== '';
   });
+
+  const hasActiveControls = hasActiveFilters || Boolean(sort) || (
+    viewMode === 'all' && groupBy !== DEFAULT_TEAM_GROUP_BY
+  );
+
+  const showSidebar = tasks.length > 0 || hasActiveControls;
+  const shouldGroupTasks = viewMode === 'all' && groupBy !== 'none';
 
   const handleViewModeChange = (newMode) => {
     setViewMode(newMode);
     setFilters({});
     setSort('');
+  };
+
+  const resetControls = () => {
+    setFilters({});
+    setSort('');
+    setGroupBy(DEFAULT_TEAM_GROUP_BY);
   };
 
   const getPageTitle = () => {
@@ -400,10 +442,47 @@ export const Tasks = () => {
 
   const getPageSubtitle = () => {
     if (viewMode === 'my') {
-      return 'Задачи, назначенные на вас.';
+      return 'Назначенные на вас задачи и быстрый доступ к их статусам.';
     }
 
     return `Все задачи в ${formatRussianCount(teamGroups.length, GROUP_PREPOSITIONAL_FORMS)}, в которых вы состоите.`;
+  };
+
+  const renderSelect = ({ label, value, onChange, options, placeholder = 'Все' }) => (
+    <label className={styles.controlGroup}>
+      <span className={styles.controlLabel}>{label}</span>
+
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={styles.controlSelect}
+      >
+        {placeholder !== null && <option value="">{placeholder}</option>}
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
+  const renderTaskCard = (task) => {
+    const role = getUserRoleInTask(task);
+    const canDelete = canDeleteTask(task);
+
+    return (
+      <TaskCard
+        key={task.id}
+        task={task}
+        showDetailsButton
+        compact={false}
+        showDeleteButton={canDelete}
+        userRole={role}
+        currentUserId={user?.id}
+        onDelete={() => handleDeleteTask(task.id)}
+      />
+    );
   };
 
   if (loading || teamGroupsLoading) {
@@ -434,18 +513,17 @@ export const Tasks = () => {
 
   return (
     <div className={styles.container}>
-      <section className={styles.hero}>
-        <div className={styles.heroContent}>
-          <h1 className={styles.title}>{getPageTitle()}</h1>
-
-          <p className={styles.subtitle}>
-            {getPageSubtitle()}
-          </p>
+      <header className={styles.pageHeader}>
+        <div className={styles.headerMain}>
+          <div>
+            <h1 className={styles.title}>{getPageTitle()}</h1>
+            <p className={styles.subtitle}>{getPageSubtitle()}</p>
+          </div>
         </div>
 
-        <div className={styles.heroActions}>
+        <div className={styles.headerActions}>
           {hasTeamGroups && (
-            <div className={styles.viewModeSwitcher}>
+            <div className={styles.viewModeSwitcher} aria-label="Режим просмотра задач">
               <Button
                 variant={viewMode === 'my' ? 'primary' : 'secondary'}
                 size="medium"
@@ -459,7 +537,7 @@ export const Tasks = () => {
                 size="medium"
                 onClick={() => handleViewModeChange('all')}
               >
-                Задачи команды
+                Команда
               </Button>
             </div>
           )}
@@ -469,196 +547,163 @@ export const Tasks = () => {
             Создать задачу
           </Button>
         </div>
-      </section>
+      </header>
 
-      <section className={styles.statsGrid} aria-label="Сводка по задачам">
-        <article className={styles.statCard}>
-          <span className={styles.statValue}>{taskStats.total}</span>
-          <span className={styles.statLabel}>
-            {getRussianPluralForm(taskStats.total, [
-              'задача всего',
-              'задачи всего',
-              'задач всего',
-            ])}
-          </span>
-        </article>
+      <div className={`${styles.workspaceLayout} ${!showSidebar ? styles.workspaceLayoutSingle : ''}`}>
+        {showSidebar && (
+          <aside className={styles.sidebar} aria-label="Фильтры задач">
+            <div className={styles.sidebarHeader}>
+              <span>Параметры</span>
 
-        <article className={styles.statCard}>
-          <span className={styles.statValue}>{taskStats.active}</span>
-          <span className={styles.statLabel}>
-            {getRussianPluralForm(taskStats.active, [
-              'задача в работе',
-              'задачи в работе',
-              'задач в работе',
-            ])}
-          </span>
-        </article>
+              {hasActiveControls && (
+                <button
+                  type="button"
+                  className={styles.resetButton}
+                  onClick={resetControls}
+                >
+                  <RotateCcw size={14} strokeWidth={2} aria-hidden="true" />
+                  Сбросить
+                </button>
+              )}
+            </div>
 
-        <article className={styles.statCard}>
-          <span className={styles.statValue}>{taskStats.completed}</span>
-          <span className={styles.statLabel}>
-            {getRussianPluralForm(taskStats.completed, [
-              'задача выполнена',
-              'задачи выполнены',
-              'задач выполнено',
-            ])}
-          </span>
-        </article>
+            <div className={styles.sidebarBody}>
+              <section className={styles.controlsSection}>
+                <h2 className={styles.controlsTitle}>Фильтры</h2>
 
-        <article
-          className={`${styles.statCard} ${
-            taskStats.overdue > 0 ? styles.warningCard : ''
-          }`}
-        >
-          <span className={styles.statValue}>{taskStats.overdue}</span>
-          <span className={styles.statLabel}>
-            {getRussianPluralForm(taskStats.overdue, [
-              'задача просрочена',
-              'задачи просрочены',
-              'задач просрочено',
-            ])}
-          </span>
-        </article>
-      </section>
-
-      {(tasks.length > 0 || hasActiveFilters) && (
-        <FilterSort
-          filters={filterOptions}
-          sortOptions={sortOptions}
-          selectedFilters={filters}
-          selectedSort={sort}
-          onFilterChange={setFilters}
-          onSortChange={setSort}
-          className={styles.filterSort}
-        />
-      )}
-
-      <div className={styles.tasksInfo}>
-        <span className={styles.tasksCount}>
-          Найдено: {formatRussianCount(
-            filteredAndSortedTasks.length,
-            RUSSIAN_PLURAL_FORMS.TASK
-          )}
-        </span>
-
-        {hasActiveFilters && (
-          <button
-            type="button"
-            className={styles.resetButton}
-            onClick={() => setFilters({})}
-          >
-            <RotateCcw size={15} strokeWidth={2} aria-hidden="true" />
-            Сбросить фильтры
-          </button>
-        )}
-      </div>
-
-      {filteredAndSortedTasks.length === 0 ? (
-        <div className={styles.emptyState}>
-          <div className={styles.emptyIcon}>
-            <ClipboardList size={42} strokeWidth={1.8} aria-hidden="true" />
-          </div>
-
-          {hasActiveFilters ? (
-            <>
-              <h2>Задачи не найдены</h2>
-              <p>Попробуйте изменить параметры фильтрации.</p>
-
-              <Button
-                onClick={() => setFilters({})}
-                variant="primary"
-                size="medium"
-              >
-                <RotateCcw size={16} strokeWidth={2} aria-hidden="true" />
-                Сбросить фильтры
-              </Button>
-            </>
-          ) : (
-            <>
-              <h2>Задач пока нет</h2>
-
-              <p>
-                {viewMode === 'my'
-                  ? 'Создайте первую задачу или дождитесь назначения от администратора группы.'
-                  : 'В ваших группах пока нет задач.'}
-              </p>
-
-              <Button to="/tasks/create" variant="primary" size="medium">
-                <Plus size={16} strokeWidth={2} aria-hidden="true" />
-                Создать задачу
-              </Button>
-            </>
-          )}
-        </div>
-      ) : viewMode === 'all' && hasTeamGroups ? (
-        <div className={styles.groupedTasks}>
-          {groupedTasks?.map((group) => (
-            <section key={group.user.id} className={styles.userTaskGroup}>
-              <div className={styles.userHeader}>
-                <div className={styles.userHeaderMain}>
-                  <div className={styles.userAvatar}>
-                    {(group.user.name || group.user.login || '?').charAt(0).toUpperCase()}
-                  </div>
-
-                  <div>
-                    <h2 className={styles.userName}>
-                      {group.user.name || group.user.login || 'Пользователь'}
-                    </h2>
-
-                    {group.user.email && (
-                      <p className={styles.userEmail}>{group.user.email}</p>
-                    )}
-                  </div>
-                </div>
-
-                <span className={styles.taskCount}>
-                  {formatRussianCount(group.tasks.length, RUSSIAN_PLURAL_FORMS.TASK)}
-                </span>
-              </div>
-
-              <div className={styles.userTasksGrid}>
-                {group.tasks.map((task) => {
-                  const role = getUserRoleInTask(task);
-                  const canDelete = canDeleteTask(task);
-
-                  return (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      showDetailsButton
-                      compact={false}
-                      showDeleteButton={canDelete}
-                      userRole={role}
-                      currentUserId={user?.id}
-                      onDelete={() => handleDeleteTask(task.id)}
-                    />
-                  );
+                {renderSelect({
+                  label: 'Статус',
+                  value: filters.status || '',
+                  onChange: (value) => setFilters((prev) => ({ ...prev, status: value })),
+                  options: TASK_STATUS_OPTIONS,
                 })}
-              </div>
-            </section>
-          ))}
-        </div>
-      ) : (
-        <div className={styles.tasksGrid}>
-          {filteredAndSortedTasks.map((task) => {
-            const role = getUserRoleInTask(task);
-            const canDelete = canDeleteTask(task);
 
-            return (
-              <TaskCard
-                key={task.id}
-                task={task}
-                showDetailsButton
-                compact={false}
-                showDeleteButton={canDelete}
-                userRole={role}
-                currentUserId={user?.id}
-                onDelete={() => handleDeleteTask(task.id)}
-              />
-            );
-          })}
-        </div>
-      )}
+                {renderSelect({
+                  label: 'Приоритет',
+                  value: filters.priority || '',
+                  onChange: (value) => setFilters((prev) => ({ ...prev, priority: value })),
+                  options: TASK_PRIORITY_OPTIONS,
+                })}
+
+                {renderSelect({
+                  label: 'Проект',
+                  value: filters.project || '',
+                  onChange: (value) => setFilters((prev) => ({ ...prev, project: value })),
+                  options: projectOptions,
+                })}
+
+                {viewMode === 'all' && hasTeamGroups && renderSelect({
+                  label: 'Группа',
+                  value: filters.group || '',
+                  onChange: (value) => setFilters((prev) => ({ ...prev, group: value })),
+                  options: groupOptions,
+                })}
+
+                {viewMode === 'all' && hasTeamGroups && renderSelect({
+                  label: 'Исполнитель',
+                  value: filters.assignee || '',
+                  onChange: (value) => setFilters((prev) => ({ ...prev, assignee: value })),
+                  options: assigneeOptions,
+                })}
+              </section>
+
+              <section className={styles.controlsSection}>
+                <h2 className={styles.controlsTitle}>Вид</h2>
+
+                {viewMode === 'all' && hasTeamGroups && renderSelect({
+                  label: 'Группировка',
+                  value: groupBy,
+                  onChange: setGroupBy,
+                  options: GROUP_BY_OPTIONS,
+                  placeholder: null,
+                })}
+
+                {renderSelect({
+                  label: 'Сортировка',
+                  value: sort,
+                  onChange: setSort,
+                  options: sortOptions,
+                  placeholder: 'По умолчанию',
+                })}
+              </section>
+            </div>
+          </aside>
+        )}
+
+        <main className={styles.tasksPanel}>
+          {filteredAndSortedTasks.length === 0 ? (
+            <div className={styles.emptyState}>
+              <div className={styles.emptyIcon}>
+                <ClipboardList size={42} strokeWidth={1.8} aria-hidden="true" />
+              </div>
+
+              {hasActiveFilters ? (
+                <>
+                  <h2>Задачи не найдены</h2>
+                  <p>Попробуйте изменить параметры фильтрации.</p>
+
+                  <Button
+                    onClick={resetControls}
+                    variant="primary"
+                    size="medium"
+                  >
+                    <RotateCcw size={16} strokeWidth={2} aria-hidden="true" />
+                    Сбросить параметры
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <h2>Задач пока нет</h2>
+
+                  <p>
+                    {viewMode === 'my'
+                      ? 'Создайте первую задачу или дождитесь назначения от администратора группы.'
+                      : 'В ваших группах пока нет задач.'}
+                  </p>
+
+                  <Button to="/tasks/create" variant="primary" size="medium">
+                    <Plus size={16} strokeWidth={2} aria-hidden="true" />
+                    Создать задачу
+                  </Button>
+                </>
+              )}
+            </div>
+          ) : shouldGroupTasks ? (
+            <div className={styles.groupedTasks}>
+              {groupedTasks.map((group) => (
+                <section key={group.key} className={styles.taskGroup}>
+                  <div className={styles.groupHeader}>
+                    <div className={styles.groupHeaderMain}>
+                      <div className={styles.groupMarker} aria-hidden="true">
+                        {getInitial(group.title)}
+                      </div>
+
+                      <div className={styles.groupTitleBlock}>
+                        <h2 className={styles.groupTitle}>{group.title}</h2>
+                        {group.subtitle && (
+                          <p className={styles.groupSubtitle}>{group.subtitle}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <span className={styles.taskCount}>
+                      {formatRussianCount(group.tasks.length, RUSSIAN_PLURAL_FORMS.TASK)}
+                    </span>
+                  </div>
+
+                  <div className={styles.groupTasksGrid}>
+                    {group.tasks.map(renderTaskCard)}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div className={styles.tasksGrid}>
+              {filteredAndSortedTasks.map(renderTaskCard)}
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 };
