@@ -17,6 +17,7 @@ import {
   formatRussianCount,
   getRussianPluralForm,
   handleApiError,
+  RUSSIAN_CASE_FORMS,
   RUSSIAN_PLURAL_FORMS,
 } from '../../../utils/helpers';
 import {
@@ -31,6 +32,7 @@ import styles from './Tasks.module.css';
 
 const TASK_DONE_STATUSES = [TASK_STATUSES.DONE, 'completed'];
 const TASK_CANCELLED_STATUSES = [TASK_STATUSES.CANCELLED];
+const GROUP_PREPOSITIONAL_FORMS = RUSSIAN_CASE_FORMS.GROUP.PREPOSITIONAL;
 
 const getDateMs = (value) => {
   if (!value) return 0;
@@ -399,7 +401,7 @@ export const Tasks = () => {
       return 'Задачи, назначенные на вас или доступные через ваши рабочие группы.';
     }
 
-    return `Все задачи в ${formatRussianCount(adminGroups.length, RUSSIAN_PLURAL_FORMS.GROUP)}, которыми вы управляете.`;
+    return `Все задачи в ${formatRussianCount(adminGroups.length, GROUP_PREPOSITIONAL_FORMS)}, которыми вы управляете.`;
   };
 
   if (loading || adminGroupsLoading) {

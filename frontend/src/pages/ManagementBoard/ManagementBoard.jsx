@@ -18,10 +18,21 @@ import { Button } from '../../components/ui/Button';
 import {
   formatRussianCount,
   handleApiError,
+  RUSSIAN_CASE_FORMS,
   RUSSIAN_PLURAL_FORMS,
 } from '../../utils/helpers';
 import { BOARD_VIEW_MODES } from '../../utils/constants';
 import styles from './ManagementBoard.module.css';
+
+const ASSIGNEE_FORMS = RUSSIAN_CASE_FORMS.ASSIGNEE.NOMINATIVE;
+
+const getTaskCreatedForAssigneesMessage = (count) => {
+  const formattedCount = formatRussianCount(count, ASSIGNEE_FORMS);
+
+  return count === 1
+    ? `Задача создана. Назначен ${formattedCount}`
+    : `Задача создана. Назначено ${formattedCount}`;
+};
 
 export const ManagementBoard = () => {
   const { showError, showSuccess } = useNotification();
@@ -219,11 +230,7 @@ export const ManagementBoard = () => {
           assignee_ids,
         });
 
-        showSuccess(
-          assignee_ids.length > 1
-            ? `Задача создана для ${assignee_ids.length} пользователей`
-            : 'Задача создана и назначена исполнителю'
-        );
+        showSuccess(getTaskCreatedForAssigneesMessage(assignee_ids.length));
       } else {
         await tasksAPI.quickCreateTask(baseTaskData);
         showSuccess('Задача создана');

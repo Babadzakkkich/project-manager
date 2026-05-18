@@ -17,11 +17,24 @@ import { useNotification } from '../../../hooks/useNotification';
 import {
   formatRussianCount,
   handleApiError,
+  RUSSIAN_CASE_FORMS,
   RUSSIAN_PLURAL_FORMS,
 } from '../../../utils/helpers';
 import styles from './CreateGroup.module.css';
 
 const MAX_GROUPS = 5;
+const GROUP_ACCUSATIVE_FORMS = RUSSIAN_CASE_FORMS.GROUP.ACCUSATIVE;
+const GROUP_GENITIVE_FORMS = RUSSIAN_CASE_FORMS.GROUP.GENITIVE;
+
+const formatCreatedGroupsMessage = (createdCount, totalCount = null) => {
+  const createdText = `Создано: ${formatRussianCount(createdCount, RUSSIAN_PLURAL_FORMS.GROUP)}`;
+
+  if (typeof totalCount === 'number') {
+    return `${createdText} из ${formatRussianCount(totalCount, GROUP_GENITIVE_FORMS)}`;
+  }
+
+  return createdText;
+};
 
 export const CreateGroup = () => {
   const navigate = useNavigate();
@@ -139,7 +152,7 @@ export const CreateGroup = () => {
           showError(errorMessage);
           setErrors({ submit: errorMessage });
         } else {
-          showSuccess(`Создано ${created.length} из ${groups.length} групп`);
+          showSuccess(formatCreatedGroupsMessage(created.length, groups.length));
           setErrors({ submit: `Ошибки: ${errorMessage}` });
           setShowContinueModal(true);
         }
@@ -150,7 +163,7 @@ export const CreateGroup = () => {
       showSuccess(
         created.length === 1
           ? `Группа "${created[0].name}" успешно создана`
-          : `Успешно создано ${created.length} групп`
+          : formatCreatedGroupsMessage(created.length)
       );
 
       setShowContinueModal(true);
@@ -343,7 +356,9 @@ export const CreateGroup = () => {
             disabled={hasEmptyRequiredFields}
             className={styles.submitButton}
           >
-            {groups.length === 1 ? 'Создать группу' : `Создать ${groups.length} групп`}
+            {groups.length === 1
+              ? 'Создать группу'
+              : `Создать ${formatRussianCount(groups.length, GROUP_ACCUSATIVE_FORMS)}`}
           </Button>
         </div>
       </form>
@@ -352,11 +367,11 @@ export const CreateGroup = () => {
         isOpen={showContinueModal}
         onClose={handleContinueCreating}
         onConfirm={handleNavigateToGroups}
-        title="Группы созданы"
+        title={createdGroups.length === 1 ? 'Группа создана' : 'Группы созданы'}
         message={
           createdGroups.length === 1
             ? `Группа "${createdGroups[0]?.name}" была успешно создана.`
-            : `Успешно создано ${createdGroups.length} групп.`
+            : `${formatCreatedGroupsMessage(createdGroups.length)}.`
         }
         confirmText="Перейти к группам"
         cancelText="Создать ещё"

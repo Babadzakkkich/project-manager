@@ -19,6 +19,31 @@ if TYPE_CHECKING:
     from .publisher import NotificationPublisher
 
 
+ASSIGNEE_FORMS = ('исполнитель', 'исполнителя', 'исполнителей')
+
+
+def get_russian_plural_form(count: int, forms) -> str:
+    number = abs(int(count or 0))
+    last_two_digits = number % 100
+    last_digit = number % 10
+
+    if 11 <= last_two_digits <= 19:
+        return forms[2]
+
+    if last_digit == 1:
+        return forms[0]
+
+    if 2 <= last_digit <= 4:
+        return forms[1]
+
+    return forms[2]
+
+
+def format_russian_count(count: int, forms) -> str:
+    number = int(count or 0)
+    return f"{number} {get_russian_plural_form(number, forms)}"
+
+
 class NotificationService:
     """Сервис для работы с уведомлениями"""
     
@@ -728,8 +753,8 @@ class NotificationTriggerService:
         else:
             names = ", ".join(u.login for u in assigned_users[:3])
             if len(assigned_users) > 3:
-                names += f" и еще {len(assigned_users) - 3}"
-            content = f"{assigned_by.login} назначил(а) {names} на задачу '{task.title}'"
+                names += f" и ещё {format_russian_count(len(assigned_users) - 3, ASSIGNEE_FORMS)}"
+            content = f"{assigned_by.login} назначил(а) исполнителей на задачу '{task.title}': {names}"
         
         await self._broadcast_notification(
             user_ids=other_users,
@@ -767,8 +792,8 @@ class NotificationTriggerService:
         else:
             names = ", ".join(u.login for u in unassigned_users[:3])
             if len(unassigned_users) > 3:
-                names += f" и еще {len(unassigned_users) - 3}"
-            content = f"{unassigned_by.login} удалил(а) {names} из задачи '{task.title}'"
+                names += f" и ещё {format_russian_count(len(unassigned_users) - 3, ASSIGNEE_FORMS)}"
+            content = f"{unassigned_by.login} удалил(а) исполнителей из задачи '{task.title}': {names}"
         
         await self._broadcast_notification(
             user_ids=other_users,

@@ -25,10 +25,12 @@ import {
   formatRussianCount,
   getDefaultTaskTags,
   handleApiError,
+  RUSSIAN_CASE_FORMS,
 } from '../../../../utils/helpers';
 import styles from './QuickTaskForm.module.css';
 
-const ASSIGNEE_FORMS = ['исполнитель', 'исполнителя', 'исполнителей'];
+const ASSIGNEE_FORMS = RUSSIAN_CASE_FORMS.ASSIGNEE.NOMINATIVE;
+const USER_GENITIVE_FORMS = RUSSIAN_CASE_FORMS.USER.GENITIVE;
 
 const getUserName = (user) => {
   return user?.name || user?.login || user?.email || 'Пользователь';
@@ -609,7 +611,7 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
               disabled={loading || usersLoading}
             >
               {isAdminMode && assigneeIds.length > 1
-                ? `Создать для ${assigneeIds.length} пользователей`
+                ? `Создать для ${formatRussianCount(assigneeIds.length, USER_GENITIVE_FORMS)}`
                 : 'Создать задачу'}
             </Button>
           </div>

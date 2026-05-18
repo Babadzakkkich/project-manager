@@ -39,9 +39,9 @@ import {
   formatDateForInput,
   formatRussianCount,
   getDefaultTaskTags,
-  getRussianPluralForm,
   handleApiError,
   isValidDateRange,
+  RUSSIAN_CASE_FORMS,
   RUSSIAN_PLURAL_FORMS,
 } from '../../../utils/helpers';
 import styles from './CreateTask.module.css';
@@ -49,7 +49,20 @@ import styles from './CreateTask.module.css';
 const DESCRIPTION_LIMIT = 1000;
 const TITLE_LIMIT = 200;
 
-const ASSIGNEE_FORMS = ['исполнитель', 'исполнителя', 'исполнителей'];
+const ASSIGNEE_FORMS = RUSSIAN_CASE_FORMS.ASSIGNEE.NOMINATIVE;
+const USER_GENITIVE_FORMS = RUSSIAN_CASE_FORMS.USER.GENITIVE;
+
+const getAssigneeAssignmentText = (count) => {
+  const formattedCount = formatRussianCount(count, ASSIGNEE_FORMS);
+
+  return count === 1
+    ? `Назначен ${formattedCount}.`
+    : `Назначено ${formattedCount}.`;
+};
+
+const getTaskCreatedMessage = (title, assigneesCount) => {
+  return `Задача "${title}" создана. ${getAssigneeAssignmentText(assigneesCount)}`;
+};
 
 const getUserName = (user) => {
   return user?.name || user?.login || user?.email || 'Пользователь';
@@ -524,7 +537,7 @@ export const CreateTask = () => {
 
       const successMessage =
         isAdminMode && assigneeIds.length > 0
-          ? `Задача "${formData.title}" создана и назначена ${formatRussianCount(assigneeIds.length, ASSIGNEE_FORMS)}`
+          ? getTaskCreatedMessage(formData.title, assigneeIds.length)
           : `Задача "${formData.title}" успешно создана`;
 
       showSuccess(successMessage);
@@ -1215,7 +1228,7 @@ export const CreateTask = () => {
             className={styles.submitButton}
           >
             {isAdminMode && assigneeIds.length > 1
-              ? `Создать задачу для ${assigneeIds.length} пользователей`
+              ? `Создать задачу для ${formatRussianCount(assigneeIds.length, USER_GENITIVE_FORMS)}`
               : 'Создать задачу'}
           </Button>
         </div>
@@ -1228,7 +1241,7 @@ export const CreateTask = () => {
         title="Задача создана"
         message={
           isAdminMode && assigneeIds.length > 0
-            ? `Задача "${createdTask?.title || formData.title}" успешно создана и назначена ${getRussianPluralForm(assigneeIds.length, ASSIGNEE_FORMS)}.`
+            ? `Задача "${createdTask?.title || formData.title}" успешно создана. ${getAssigneeAssignmentText(assigneeIds.length)}`
             : `Задача "${createdTask?.title || formData.title}" успешно создана.`
         }
         confirmText="Перейти к задаче"

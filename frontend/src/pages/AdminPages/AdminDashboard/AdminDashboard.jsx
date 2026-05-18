@@ -4,7 +4,13 @@ import { RefreshCw } from 'lucide-react';
 import { adminAPI } from '../../../services/api/admin';
 import { Button } from '../../../components/ui/Button';
 import { AdminLayout } from '../AdminLayout';
-import { formatDateTime, formatNumber, handleApiError } from '../../../utils/helpers';
+import {
+  formatDateTime,
+  formatNumber,
+  formatRussianCount,
+  handleApiError,
+  RUSSIAN_CASE_FORMS,
+} from '../../../utils/helpers';
 import { ADMIN_AUDIT_ACTION_TRANSLATIONS } from '../../../utils/constants';
 import styles from './AdminDashboard.module.css';
 
@@ -19,6 +25,9 @@ const STAT_CARDS = [
   { key: 'active_conferences_total', label: 'Активные созвоны', to: '/conferences' },
   { key: 'audit_events_total', label: 'События аудита', to: '/admin/audit' },
 ];
+
+const BLOCKED_USER_FORMS = RUSSIAN_CASE_FORMS.QUALIFIED.BLOCKED_USER;
+const OVERDUE_TASK_FORMS = RUSSIAN_CASE_FORMS.QUALIFIED.OVERDUE_TASK;
 
 const getActionLabel = (action) => ADMIN_AUDIT_ACTION_TRANSLATIONS[action] || action;
 
@@ -55,8 +64,8 @@ export const AdminDashboard = () => {
     if (!stats) return [];
 
     return [
-      stats.users_blocked > 0 && `${stats.users_blocked} заблокированных пользователей`,
-      stats.tasks_overdue > 0 && `${stats.tasks_overdue} просроченных задач`,
+      stats.users_blocked > 0 && formatRussianCount(stats.users_blocked, BLOCKED_USER_FORMS),
+      stats.tasks_overdue > 0 && formatRussianCount(stats.tasks_overdue, OVERDUE_TASK_FORMS),
     ].filter(Boolean);
   }, [stats]);
 

@@ -25,6 +25,7 @@ import { useAuthContext } from '../../../contexts/AuthContext';
 import { useNotification } from '../../../hooks/useNotification';
 import {
   formatDate,
+  formatRussianCount,
   getRussianPluralForm,
   getUserRoleTranslation,
   handleApiError,
@@ -605,7 +606,7 @@ export const GroupDetail = () => {
                   className={styles.moreProjects}
                   onClick={() => setShowProjectsModal(true)}
                 >
-                  Ещё {group.projects.length - 3} проектов
+                  Ещё {formatRussianCount(group.projects.length - 3, RUSSIAN_PLURAL_FORMS.PROJECT)}
                   <FolderKanban size={16} strokeWidth={2} aria-hidden="true" />
                 </button>
               )}

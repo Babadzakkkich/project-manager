@@ -320,6 +320,35 @@ export const RUSSIAN_PLURAL_FORMS = {
   WEEK: ['неделя', 'недели', 'недель'],
 };
 
+export const RUSSIAN_CASE_FORMS = {
+  TASK: {
+    GENITIVE: ['задачи', 'задач', 'задач'],
+  },
+  GROUP: {
+    ACCUSATIVE: ['группу', 'группы', 'групп'],
+    GENITIVE: ['группы', 'групп', 'групп'],
+    PREPOSITIONAL: ['группе', 'группах', 'группах'],
+  },
+  USER: {
+    GENITIVE: ['пользователя', 'пользователей', 'пользователей'],
+  },
+  ASSIGNEE: {
+    NOMINATIVE: ['исполнитель', 'исполнителя', 'исполнителей'],
+  },
+  QUALIFIED: {
+    BLOCKED_USER: [
+      'заблокированный пользователь',
+      'заблокированных пользователя',
+      'заблокированных пользователей',
+    ],
+    OVERDUE_TASK: [
+      'просроченная задача',
+      'просроченные задачи',
+      'просроченных задач',
+    ],
+  },
+};
+
 export const getRussianPluralForm = (count, forms) => {
   const number = Math.abs(Number(count)) || 0;
   const lastTwoDigits = number % 100;

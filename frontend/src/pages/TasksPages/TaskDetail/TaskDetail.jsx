@@ -36,6 +36,7 @@ import {
   getRussianPluralForm,
   handleApiError,
   isValidDateRange,
+  RUSSIAN_CASE_FORMS,
   RUSSIAN_PLURAL_FORMS,
 } from '../../../utils/helpers';
 import {
@@ -52,7 +53,15 @@ import styles from './TaskDetail.module.css';
 
 const TITLE_LIMIT = 200;
 const DESCRIPTION_LIMIT = 1000;
-const ASSIGNEE_FORMS = ['исполнитель', 'исполнителя', 'исполнителей'];
+const ASSIGNEE_FORMS = RUSSIAN_CASE_FORMS.ASSIGNEE.NOMINATIVE;
+
+const getAddedAssigneesMessage = (count) => {
+  const formattedCount = formatRussianCount(count, ASSIGNEE_FORMS);
+
+  return count === 1
+    ? `Добавлен ${formattedCount}`
+    : `Добавлено ${formattedCount}`;
+};
 
 const TASK_PROGRESS = {
   backlog: 0,
@@ -413,7 +422,7 @@ export const TaskDetail = () => {
         user_ids: newUserIds.map(Number),
       });
 
-      showSuccess(`Добавлено ${formatRussianCount(newUserIds.length, ASSIGNEE_FORMS)}`);
+      showSuccess(getAddedAssigneesMessage(newUserIds.length));
 
       setNewUserIds([]);
       setAddingUsers(false);

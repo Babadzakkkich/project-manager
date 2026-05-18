@@ -3,8 +3,15 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { TaskColumn } from '../TaskColumn/TaskColumn';
 import { KANBAN_CONFIG } from '../../../../utils/constants';
 import { sortTasksByPosition } from '../../../../utils/taskStatus';
+import {
+  formatRussianCount,
+  RUSSIAN_CASE_FORMS,
+  RUSSIAN_PLURAL_FORMS,
+} from '../../../../utils/helpers';
 import { useAutoScroll } from '../../../../hooks/useAutoScroll';
 import styles from './BoardView.module.css';
+
+const TASK_GENITIVE_FORMS = RUSSIAN_CASE_FORMS.TASK.GENITIVE;
 
 export const BoardView = ({
   tasks,
@@ -107,8 +114,8 @@ export const BoardView = ({
     >
       {hasActiveFilters && (
         <div className={styles.filterResult}>
-          Показано задач: <strong>{filteredTasksCount}</strong>
-          <span>из {safeTasks.length}</span>
+          Показано: <strong>{formatRussianCount(filteredTasksCount, RUSSIAN_PLURAL_FORMS.TASK)}</strong>
+          <span>из {formatRussianCount(safeTasks.length, TASK_GENITIVE_FORMS)}</span>
         </div>
       )}
 
