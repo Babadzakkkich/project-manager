@@ -61,7 +61,7 @@ async def get_my_tasks(
             detail=f"Не удалось загрузить задачи пользователя: {str(e)}"
         )
     
-# Получить задачи команд (где пользователь администратор)
+# Получить задачи команд (где пользователь состоит в группе)
 @router.get("/team", response_model=list[TaskReadWithRelations])
 async def get_team_tasks(
     service_factory: ServiceFactory = Depends(get_service_factory),

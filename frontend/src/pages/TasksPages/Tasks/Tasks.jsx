@@ -52,44 +52,46 @@ const getProjectFilterValue = (task) => {
 export const Tasks = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [adminGroupsLoading, setAdminGroupsLoading] = useState(true);
+  const [teamGroupsLoading, setTeamGroupsLoading] = useState(true);
   const [error, setError] = useState('');
 
   const [filters, setFilters] = useState({});
   const [sort, setSort] = useState('');
   const [viewMode, setViewMode] = useState('my');
 
-  const [adminGroups, setAdminGroups] = useState([]);
+  const [teamGroups, setTeamGroups] = useState([]);
   const [groupUsers, setGroupUsers] = useState([]);
   const [projectOptions, setProjectOptions] = useState([]);
 
   const { user } = useAuthContext();
 
-  const isAdmin = useMemo(() => {
-    return adminGroups.length > 0;
-  }, [adminGroups]);
+  const hasTeamGroups = useMemo(() => {
+    return teamGroups.length > 0;
+  }, [teamGroups]);
 
-  const loadAdminGroups = useCallback(async () => {
-    if (!user?.id) return;
+  const loadTeamGroups = useCallback(async () => {
+    if (!user?.id) {
+      setTeamGroups([]);
+      setGroupUsers([]);
+      setTeamGroupsLoading(false);
+      return;
+    }
 
     try {
-      setAdminGroupsLoading(true);
+      setTeamGroupsLoading(true);
 
       const groupsData = await groupsAPI.getMyGroups();
       const safeGroups = Array.isArray(groupsData) ? groupsData : [];
 
-      const userAdminGroups = safeGroups.filter((group) =>
-        group.users?.some((groupUser) =>
-          groupUser.id === user.id &&
-          groupUser.role === 'admin'
-        )
+      const userTeamGroups = safeGroups.filter((group) =>
+        group.users?.some((groupUser) => groupUser.id === user.id)
       );
 
-      setAdminGroups(userAdminGroups);
+      setTeamGroups(userTeamGroups);
 
       const uniqueUsers = [];
 
-      userAdminGroups.forEach((group) => {
+      userTeamGroups.forEach((group) => {
         if (!Array.isArray(group.users)) return;
 
         group.users.forEach((groupUser) => {
@@ -101,11 +103,11 @@ export const Tasks = () => {
 
       setGroupUsers(uniqueUsers);
     } catch (err) {
-      console.error('Error loading admin groups:', err);
-      setAdminGroups([]);
+      console.error('Error loading user groups:', err);
+      setTeamGroups([]);
       setGroupUsers([]);
     } finally {
-      setAdminGroupsLoading(false);
+      setTeamGroupsLoading(false);
     }
   }, [user?.id]);
 
@@ -115,7 +117,7 @@ export const Tasks = () => {
       setError('');
 
       const tasksData =
-        isAdmin && viewMode === 'all'
+        hasTeamGroups && viewMode === 'all'
           ? await tasksAPI.getTeamTasks()
           : await tasksAPI.getMyTasks();
 
@@ -127,11 +129,11 @@ export const Tasks = () => {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, viewMode]);
+  }, [hasTeamGroups, viewMode]);
 
   useEffect(() => {
-    loadAdminGroups();
-  }, [loadAdminGroups]);
+    loadTeamGroups();
+  }, [loadTeamGroups]);
 
   useEffect(() => {
     loadTasks();
@@ -175,7 +177,7 @@ export const Tasks = () => {
       },
     ];
 
-    if (isAdmin && viewMode === 'all') {
+    if (hasTeamGroups && viewMode === 'all') {
       return [
         ...baseOptions,
         {
@@ -195,7 +197,7 @@ export const Tasks = () => {
     }
 
     return baseOptions;
-  }, [isAdmin, viewMode, groupUsers, projectOptions]);
+  }, [hasTeamGroups, viewMode, groupUsers, projectOptions]);
 
   const sortOptions = [
     { value: 'title_asc', label: 'По названию (А-Я)' },
@@ -259,7 +261,7 @@ export const Tasks = () => {
     if (
       filters.assignee &&
       filters.assignee !== 'all' &&
-      isAdmin &&
+      hasTeamGroups &&
       viewMode === 'all'
     ) {
       const assigneeId = Number(filters.assignee);
@@ -316,10 +318,10 @@ export const Tasks = () => {
     }
 
     return result;
-  }, [tasks, filters, sort, isAdmin, viewMode]);
+  }, [tasks, filters, sort, hasTeamGroups, viewMode]);
 
   const groupedTasks = useMemo(() => {
-    if (viewMode !== 'all' || !isAdmin) {
+    if (viewMode !== 'all' || !hasTeamGroups) {
       return null;
     }
 
@@ -356,7 +358,7 @@ export const Tasks = () => {
     });
 
     return Object.values(grouped);
-  }, [filteredAndSortedTasks, viewMode, isAdmin]);
+  }, [filteredAndSortedTasks, viewMode, hasTeamGroups]);
 
   const taskStats = useMemo(() => {
     const total = filteredAndSortedTasks.length;
@@ -398,13 +400,13 @@ export const Tasks = () => {
 
   const getPageSubtitle = () => {
     if (viewMode === 'my') {
-      return 'Задачи, назначенные на вас или доступные через ваши рабочие группы.';
+      return 'Задачи, назначенные на вас.';
     }
 
-    return `Все задачи в ${formatRussianCount(adminGroups.length, GROUP_PREPOSITIONAL_FORMS)}, которыми вы управляете.`;
+    return `Все задачи в ${formatRussianCount(teamGroups.length, GROUP_PREPOSITIONAL_FORMS)}, в которых вы состоите.`;
   };
 
-  if (loading || adminGroupsLoading) {
+  if (loading || teamGroupsLoading) {
     return (
       <div className={styles.loadingContainer}>
         <div className={styles.spinner}></div>
@@ -442,7 +444,7 @@ export const Tasks = () => {
         </div>
 
         <div className={styles.heroActions}>
-          {isAdmin && (
+          {hasTeamGroups && (
             <div className={styles.viewModeSwitcher}>
               <Button
                 variant={viewMode === 'my' ? 'primary' : 'secondary'}
@@ -578,7 +580,7 @@ export const Tasks = () => {
               <p>
                 {viewMode === 'my'
                   ? 'Создайте первую задачу или дождитесь назначения от администратора группы.'
-                  : 'В группах, которыми вы управляете, пока нет задач.'}
+                  : 'В ваших группах пока нет задач.'}
               </p>
 
               <Button to="/tasks/create" variant="primary" size="medium">
@@ -588,7 +590,7 @@ export const Tasks = () => {
             </>
           )}
         </div>
-      ) : viewMode === 'all' && isAdmin ? (
+      ) : viewMode === 'all' && hasTeamGroups ? (
         <div className={styles.groupedTasks}>
           {groupedTasks?.map((group) => (
             <section key={group.user.id} className={styles.userTaskGroup}>

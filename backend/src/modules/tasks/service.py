@@ -98,7 +98,7 @@ class TaskService:
         return tasks
     
     async def get_team_tasks(self, user_id: int) -> List[TaskReadWithRelations]:
-        """Получение задач команд, где пользователь администратор"""
+        """Получение задач команд, где пользователь состоит в группе"""
         self.logger.debug(f"Fetching team tasks for user {user_id}")
         
         # Используем GroupService через фабрику
@@ -107,23 +107,16 @@ class TaskService:
             return []
         
         user_groups = await self.group_service.get_user_groups(user_id)
-        
-        admin_groups = []
-        for group in user_groups:
-            for user in group.users:
-                if user.id == user_id and user.role == 'admin':
-                    admin_groups.append(group)
-                    break
 
-        if not admin_groups:
-            self.logger.debug(f"No admin groups found for user {user_id}")
+        if not user_groups:
+            self.logger.debug(f"No groups found for user {user_id}")
             return []
 
-        admin_group_ids = [group.id for group in admin_groups]
+        user_group_ids = [group.id for group in user_groups]
 
         stmt = (
             select(Task)
-            .where(Task.group_id.in_(admin_group_ids))
+            .where(Task.group_id.in_(user_group_ids))
             .options(
                 selectinload(Task.project),
                 selectinload(Task.group).selectinload(Group.group_members).selectinload(GroupMember.user),
