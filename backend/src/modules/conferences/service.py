@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Set, TYPE_CHECKING
 
 from sqlalchemy import select, delete, func, or_, and_, insert
@@ -30,6 +30,37 @@ from core.utils.livekit import livekit_token, generate_room_name
 if TYPE_CHECKING:
     from core.services import ServiceFactory
     from modules.notifications.service import NotificationTriggerService
+
+
+DEFAULT_KICK_DURATION_MINUTES = 15
+
+
+class ConferenceJoinDeniedError(Exception):
+    """Ошибка подключения к созвону с кодом причины для фронтенда."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "conference_join_denied",
+        kicked_until: Optional[datetime] = None,
+        kick_reason: Optional[str] = None,
+    ):
+        super().__init__(message)
+        self.message = message
+        self.code = code
+        self.kicked_until = kicked_until
+        self.kick_reason = kick_reason
+
+
+def _ensure_aware_utc(value: Optional[datetime]) -> Optional[datetime]:
+    if value is None:
+        return None
+
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+
+    return value.astimezone(timezone.utc)
 
 
 class ConferenceService:
@@ -92,6 +123,74 @@ class ConferenceService:
             return user_id in invited_ids
 
         return False
+
+    def _get_participant_from_loaded_room(
+        self,
+        room: ConferenceRoom,
+        user_id: int,
+    ) -> Optional[ConferenceParticipant]:
+        return next(
+            (participant for participant in room.participants if participant.user_id == user_id),
+            None,
+        )
+
+    def _get_active_kick_from_loaded_room(
+        self,
+        room: ConferenceRoom,
+        user_id: int,
+    ) -> Optional[ConferenceParticipant]:
+        participant = self._get_participant_from_loaded_room(room, user_id)
+
+        if not participant:
+            return None
+
+        kicked_until = _ensure_aware_utc(participant.kicked_until)
+
+        if kicked_until and kicked_until > datetime.now(timezone.utc):
+            return participant
+
+        return None
+
+    async def get_active_kick(
+        self,
+        room_id: int,
+        user_id: int,
+    ) -> Optional[ConferenceParticipant]:
+        """Получение активной временной блокировки входа пользователя в комнату."""
+        stmt = select(ConferenceParticipant).where(
+            ConferenceParticipant.room_id == room_id,
+            ConferenceParticipant.user_id == user_id,
+            ConferenceParticipant.kicked_until.is_not(None),
+            ConferenceParticipant.kicked_until > datetime.now(timezone.utc),
+        )
+
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    def get_current_user_kick_info_from_room(
+        self,
+        room: ConferenceRoom,
+        user_id: int,
+    ) -> dict:
+        """Данные активного временного удаления для отображения в списке созвонов."""
+        active_kick = self._get_active_kick_from_loaded_room(room, user_id)
+
+        if not active_kick:
+            return {
+                "current_user_can_join": True,
+                "is_current_user_kicked": False,
+                "current_user_kicked_at": None,
+                "current_user_kicked_until": None,
+                "current_user_kick_reason": None,
+            }
+
+        return {
+            "current_user_can_join": False,
+            "is_current_user_kicked": True,
+            "current_user_kicked_at": _ensure_aware_utc(active_kick.kicked_at),
+            "current_user_kicked_until": _ensure_aware_utc(active_kick.kicked_until),
+            "current_user_kick_reason": active_kick.kick_reason,
+        }
 
     async def _is_project_admin(self, user_id: int, project_id: int) -> bool:
         """Проверка, является ли пользователь админом хотя бы одной группы проекта."""
@@ -305,6 +404,7 @@ class ConferenceService:
         conditions = [
             ConferenceRoom.created_by == user_id,
             ConferenceRoom.invited_users.any(User.id == user_id),
+            ConferenceRoom.participants.any(ConferenceParticipant.user_id == user_id),
         ]
 
         if user_group_ids:
@@ -344,7 +444,12 @@ class ConferenceService:
         return filtered_rooms
 
     async def join_room(self, room_id: int, user_id: int) -> tuple[Optional[ConferenceRoom], Optional[str]]:
-        """Вход пользователя в комнату."""
+        """Вход пользователя в комнату.
+
+        Повторный вход не создаёт новую строку участника, потому что в таблице
+        действует уникальность по паре room_id/user_id. Если пользователь уже
+        был в комнате и вышел, его запись реактивируется.
+        """
         room = await self.get_room_by_id(room_id)
         if not room or not room.is_active:
             self.logger.warning(f"Room {room_id} not found or inactive")
@@ -354,24 +459,51 @@ class ConferenceService:
             self.logger.warning(f"User {user_id} cannot join room {room_id}")
             return None, None
 
+        active_kick = self._get_active_kick_from_loaded_room(room, user_id)
+        if active_kick:
+            kicked_until = _ensure_aware_utc(active_kick.kicked_until)
+            self.logger.info(
+                f"User {user_id} is temporarily kicked from room {room_id} until {kicked_until}"
+            )
+            raise ConferenceJoinDeniedError(
+                "Вы временно удалены из созвона. Повторный вход будет доступен позже.",
+                code="conference_kicked",
+                kicked_until=kicked_until,
+                kick_reason=active_kick.kick_reason,
+            )
+
         active_count = len([participant for participant in room.participants if participant.left_at is None])
-        existing_active = next(
-            (participant for participant in room.participants if participant.user_id == user_id and participant.left_at is None),
-            None,
-        )
+        participant = self._get_participant_from_loaded_room(room, user_id)
+        existing_active = participant and participant.left_at is None
 
         if not existing_active:
             if active_count >= room.max_participants:
                 self.logger.warning(f"Room {room_id} is full")
                 return None, None
 
-            participant = ConferenceParticipant(
-                room_id=room_id,
-                user_id=user_id,
-                is_video_on=True,
-                is_audio_on=True,
-            )
-            self.session.add(participant)
+            now = datetime.now(timezone.utc)
+
+            if participant:
+                participant.left_at = None
+                participant.joined_at = now
+                participant.is_video_on = True
+                participant.is_audio_on = True
+                participant.is_speaking = False
+                participant.participant_sid = None
+                participant.kicked_at = None
+                participant.kicked_until = None
+                participant.kicked_by_id = None
+                participant.kick_reason = None
+            else:
+                participant = ConferenceParticipant(
+                    room_id=room_id,
+                    user_id=user_id,
+                    joined_at=now,
+                    is_video_on=True,
+                    is_audio_on=True,
+                )
+                self.session.add(participant)
+
             await self.session.commit()
             room = await self.get_room_by_id(room_id)
 
@@ -473,7 +605,10 @@ class ConferenceService:
         )
 
         if not participant:
-            return False
+            # Выход должен быть идемпотентным: после кика или повторного клика
+            # пользователь уже может быть помечен как вышедший, но фронтенд всё
+            # равно должен спокойно вернуться к списку созвонов.
+            return True
 
         active_count_before_leave = len([item for item in room.participants if item.left_at is None])
         is_last_participant = active_count_before_leave <= 1
@@ -494,6 +629,65 @@ class ConferenceService:
             asyncio.create_task(self._delete_livekit_room_async(room.room_name))
 
         return True
+
+    async def kick_participant(
+        self,
+        room_id: int,
+        moderator_id: int,
+        target_user_id: int,
+        duration_minutes: int = DEFAULT_KICK_DURATION_MINUTES,
+        reason: Optional[str] = None,
+    ) -> Optional[ConferenceParticipant]:
+        """Временное удаление участника из активного созвона."""
+        room = await self.get_room_by_id(room_id)
+        if not room or not room.is_active:
+            return None
+
+        if not await self._is_room_moderator(moderator_id, room):
+            self.logger.warning(f"User {moderator_id} not allowed to kick from room {room_id}")
+            return None
+
+        if target_user_id == moderator_id:
+            self.logger.warning(f"User {moderator_id} tried to kick themselves from room {room_id}")
+            return None
+
+        if await self._is_room_moderator(target_user_id, room):
+            self.logger.warning(
+                f"User {moderator_id} tried to kick another moderator {target_user_id} "
+                f"from room {room_id}"
+            )
+            return None
+
+        participant = next(
+            (item for item in room.participants if item.user_id == target_user_id and item.left_at is None),
+            None,
+        )
+
+        if not participant:
+            self.logger.warning(f"Target user {target_user_id} is not active in room {room_id}")
+            return None
+
+        safe_duration_minutes = max(1, min(int(duration_minutes or DEFAULT_KICK_DURATION_MINUTES), 1440))
+        now = datetime.now(timezone.utc)
+        kicked_until = now + timedelta(minutes=safe_duration_minutes)
+
+        participant.left_at = now
+        participant.kicked_at = now
+        participant.kicked_until = kicked_until
+        participant.kicked_by_id = moderator_id
+        participant.kick_reason = reason.strip() if reason else None
+        participant.is_speaking = False
+        participant.is_video_on = False
+        participant.is_audio_on = False
+        participant.participant_sid = None
+
+        await self.session.commit()
+        await self.session.refresh(participant)
+
+        self.logger.info(
+            f"User {target_user_id} was kicked from room {room_id} by {moderator_id} until {kicked_until}"
+        )
+        return participant
 
     async def end_conference(self, room_id: int, user_id: int) -> bool:
         """Завершение созвона, только для модератора."""

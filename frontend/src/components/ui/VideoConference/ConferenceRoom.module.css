@@ -195,6 +195,41 @@
   line-height: var(--line-normal);
 }
 
+.kickNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  padding: var(--space-4);
+  border: 1px solid rgba(245, 158, 11, 0.34);
+  border-radius: var(--radius-xl);
+  background: rgba(245, 158, 11, 0.14);
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.kickNotice svg {
+  flex-shrink: 0;
+  color: var(--color-warning);
+  margin-top: 2px;
+}
+
+.kickNotice strong {
+  display: block;
+  color: #ffffff;
+  font-size: var(--text-sm);
+  font-weight: var(--font-extrabold);
+  line-height: var(--line-tight);
+}
+
+.kickNotice span {
+  display: block;
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-normal);
+}
+
 .preJoinActions {
   display: grid;
   grid-template-columns: 1fr;

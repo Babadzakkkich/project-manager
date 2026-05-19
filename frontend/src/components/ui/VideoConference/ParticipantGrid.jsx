@@ -15,9 +15,6 @@ const isParticipantScreenSharing = (participant) => {
 export const ParticipantGrid = ({
   participants,
   localParticipantId,
-  isModerator,
-  onMuteParticipant,
-  onKickParticipant,
 }) => {
   const [activeSpeakerId] = useState(null);
   const [focusedParticipantId, setFocusedParticipantId] = useState(null);
@@ -163,10 +160,7 @@ export const ParticipantGrid = ({
             <ParticipantTile
               participant={participant}
               isLocal={isLocal}
-              isModerator={isModerator}
               isActiveSpeaker={participant.identity === activeSpeakerId}
-              onMute={onMuteParticipant}
-              onKick={onKickParticipant}
             />
           </div>
         );

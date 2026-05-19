@@ -95,6 +95,43 @@ const getCreatorName = (creator) => {
   return creator?.name || creator?.login || creator?.email || 'Неизвестно';
 };
 
+const formatKickDateTime = (value) => {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+};
+
+const getActiveKickInfo = (room) => {
+  const kickedUntil = room?.current_user_kicked_until;
+  const kickedUntilTime = kickedUntil ? new Date(kickedUntil).getTime() : 0;
+  const isKicked = Boolean(
+    room?.is_current_user_kicked &&
+    kickedUntilTime &&
+    !Number.isNaN(kickedUntilTime) &&
+    kickedUntilTime > Date.now()
+  );
+
+  return {
+    isKicked,
+    kickedUntil,
+    kickedUntilLabel: formatKickDateTime(kickedUntil),
+    reason: room?.current_user_kick_reason?.trim() || '',
+  };
+};
+
 const getConnectionLabel = (connectionState) => {
   if (connectionState === ConnectionState.Connected) {
     return 'Подключено';
@@ -163,6 +200,7 @@ export const ConferenceRoom = () => {
   } = useConference(numericRoomId);
 
   const displayRoom = roomData || roomInfo;
+  const currentUserKick = getActiveKickInfo(displayRoom);
   const roomType = getRoomTypeConfig(displayRoom?.room_type);
   const RoomTypeIcon = roomType.Icon;
 
@@ -262,6 +300,29 @@ export const ConferenceRoom = () => {
   }, [connectionState]);
 
   useEffect(() => {
+    const handleKicked = (event) => {
+      leaveBeaconSentRef.current = true;
+      hasConnected.current = false;
+      setJoiningRoom(false);
+      setLeavingRoom(false);
+      setShowLeaveLastModal(false);
+      setShowEndModal(false);
+      navigate('/conferences', {
+        replace: true,
+        state: {
+          conferenceKickFeedback: event.detail || {},
+        },
+      });
+    };
+
+    window.addEventListener('conference:kicked', handleKicked);
+
+    return () => {
+      window.removeEventListener('conference:kicked', handleKicked);
+    };
+  }, [navigate]);
+
+  useEffect(() => {
     const reactionTimers = reactionTimersRef.current;
 
     const handleReaction = (event) => {
@@ -320,6 +381,10 @@ export const ConferenceRoom = () => {
   }, []);
 
   const handleJoinRoom = () => {
+    if (currentUserKick.isKicked) {
+      return;
+    }
+
     setUserInteracted(true);
   };
 
@@ -335,7 +400,8 @@ export const ConferenceRoom = () => {
         auto_end_if_last: autoEndIfLast,
       });
 
-      disconnect();
+      hasConnected.current = false;
+      disconnect({ notifyServer: false });
       navigate('/conferences');
     } catch (err) {
       console.error('Failed to leave room:', err);
@@ -389,6 +455,7 @@ export const ConferenceRoom = () => {
   const handleEndConference = async () => {
     leaveBeaconSentRef.current = true;
     await endConference();
+    hasConnected.current = false;
     setShowEndModal(false);
     navigate('/conferences');
   };
@@ -436,8 +503,9 @@ export const ConferenceRoom = () => {
             </h1>
 
             <p className={styles.preJoinDescription}>
-              Перед входом проверьте, что браузеру разрешён доступ к микрофону
-              и камере. Подключение к комнате начнётся только после нажатия кнопки.
+              {currentUserKick.isKicked
+                ? 'Модератор временно ограничил ваш повторный вход в этот созвон.'
+                : 'Перед входом проверьте, что браузеру разрешён доступ к микрофону и камере. Подключение к комнате начнётся только после нажатия кнопки.'}
             </p>
 
             {displayRoom && (
@@ -477,16 +545,39 @@ export const ConferenceRoom = () => {
               </div>
             </div>
 
+            {currentUserKick.isKicked && (
+              <div className={styles.kickNotice}>
+                <AlertTriangle size={18} strokeWidth={2.1} aria-hidden="true" />
+                <div>
+                  <strong>Вход временно заблокирован</strong>
+                  <span>
+                    Доступ будет открыт {currentUserKick.kickedUntilLabel || 'после окончания блокировки'}
+                    {currentUserKick.reason
+                      ? `. Причина: ${currentUserKick.reason}`
+                      : '. Причина не указана.'}
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div className={styles.preJoinActions}>
               <Button
-                variant="primary"
+                variant={currentUserKick.isKicked ? 'secondary' : 'primary'}
                 size="large"
                 onClick={handleJoinRoom}
                 className={styles.joinButton}
-                disabled={!displayRoom}
+                disabled={!displayRoom || currentUserKick.isKicked}
               >
-                <Video size={18} strokeWidth={2} aria-hidden="true" />
-                {displayRoom ? 'Войти в созвон' : 'Загрузка...'}
+                {currentUserKick.isKicked ? (
+                  <AlertTriangle size={18} strokeWidth={2} aria-hidden="true" />
+                ) : (
+                  <Video size={18} strokeWidth={2} aria-hidden="true" />
+                )}
+                {displayRoom
+                  ? currentUserKick.isKicked
+                    ? 'Вход недоступен'
+                    : 'Войти в созвон'
+                  : 'Загрузка...'}
               </Button>
 
               <Button
@@ -633,9 +724,6 @@ export const ConferenceRoom = () => {
         <ParticipantGrid
           participants={participants}
           localParticipantId={user?.id?.toString()}
-          isModerator={isModerator}
-          onMuteParticipant={muteParticipant}
-          onKickParticipant={kickParticipant}
         />
 
         <div className={styles.floatingReactionsLayer} aria-hidden="true">

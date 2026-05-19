@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Crown,
   Mic,
@@ -21,6 +21,30 @@ const getParticipantName = (participant) => {
 const getParticipantInitial = (participant) => {
   return getParticipantName(participant).charAt(0).toUpperCase();
 };
+
+const getParticipantMetadata = (participant) => {
+  if (!participant?.metadata) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(participant.metadata);
+  } catch {
+    return {};
+  }
+};
+
+const isParticipantModerator = (participant) => {
+  return Boolean(getParticipantMetadata(participant).is_admin);
+};
+
+const KICK_DURATION_OPTIONS = [
+  { value: 5, label: '5 минут' },
+  { value: 15, label: '15 минут' },
+  { value: 30, label: '30 минут' },
+  { value: 60, label: '1 час' },
+  { value: 180, label: '3 часа' },
+];
 
 const getAudioEnabled = (participant) => {
   if (typeof participant?.isMicrophoneEnabled === 'boolean') {
@@ -97,9 +121,12 @@ const ParticipantStatus = ({ participant }) => {
 const ParticipantItem = ({
   participant,
   isLocal,
+  isModeratorParticipant,
   canModerate,
   onMuteParticipant,
   onKickParticipant,
+  kickDurationMinutes,
+  kickReason,
 }) => {
   const name = getParticipantName(participant);
   const isSpeaking = Boolean(participant?.isSpeaking);
@@ -111,7 +138,10 @@ const ParticipantItem = ({
 
   const handleKick = () => {
     if (!canModerate) return;
-    onKickParticipant?.(participant.identity);
+    onKickParticipant?.(participant.identity, {
+      durationMinutes: kickDurationMinutes,
+      reason: kickReason?.trim() || null,
+    });
   };
 
   return (
@@ -133,6 +163,12 @@ const ParticipantItem = ({
           {isLocal && (
             <span className={styles.localBadge}>
               Вы
+            </span>
+          )}
+
+          {isModeratorParticipant && (
+            <span className={styles.moderatorBadge}>
+              Модератор
             </span>
           )}
 
@@ -162,8 +198,8 @@ const ParticipantItem = ({
             type="button"
             className={`${styles.actionButton} ${styles.dangerAction}`}
             onClick={handleKick}
-            title={`Удалить из созвона: ${name}`}
-            aria-label={`Удалить участника ${name} из созвона`}
+            title={`Временно удалить из созвона: ${name}`}
+            aria-label={`Временно удалить участника ${name} из созвона`}
           >
             <UserMinus size={16} strokeWidth={2.2} aria-hidden="true" />
           </button>
@@ -181,6 +217,9 @@ export const ParticipantsPanel = ({
   onKickParticipant,
   onClose,
 }) => {
+  const [kickDurationMinutes, setKickDurationMinutes] = useState(15);
+  const [kickReason, setKickReason] = useState('');
+
   const safeParticipants = useMemo(() => {
     return Array.isArray(participants) ? participants : [];
   }, [participants]);
@@ -198,10 +237,6 @@ export const ParticipantsPanel = ({
         getParticipantName(a).localeCompare(getParticipantName(b), 'ru-RU')
       );
   }, [safeParticipants, localParticipantId]);
-
-  const speakingCount = safeParticipants.filter((participant) =>
-    Boolean(participant?.isSpeaking)
-  ).length;
 
   return (
     <aside className={styles.panel} aria-label="Список участников созвона">
@@ -227,27 +262,39 @@ export const ParticipantsPanel = ({
         </button>
       </header>
 
-      <div className={styles.summary}>
-        <div className={styles.summaryItem}>
-          <span className={styles.summaryValue}>{safeParticipants.length}</span>
-          <span className={styles.summaryLabel}>Всего</span>
-        </div>
-
-        <div className={styles.summaryItem}>
-          <span className={styles.summaryValue}>{remoteParticipants.length}</span>
-          <span className={styles.summaryLabel}>Другие</span>
-        </div>
-
-        <div className={styles.summaryItem}>
-          <span className={styles.summaryValue}>{speakingCount}</span>
-          <span className={styles.summaryLabel}>Говорят</span>
-        </div>
-      </div>
 
       {isModerator && (
-        <div className={styles.moderatorNote}>
-          <Crown size={15} strokeWidth={2} aria-hidden="true" />
-          Вы можете отключать микрофон и удалять участников.
+        <div className={styles.moderatorControls}>
+          <div className={styles.moderatorNote}>
+            <Crown size={15} strokeWidth={2} aria-hidden="true" />
+            Вы можете отключать микрофон и временно удалять обычных участников.
+          </div>
+
+          <label className={styles.kickDurationField}>
+            <span>Блокировка входа</span>
+            <select
+              value={kickDurationMinutes}
+              onChange={(event) => setKickDurationMinutes(Number(event.target.value))}
+              className={styles.kickDurationSelect}
+            >
+              {KICK_DURATION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className={styles.kickReasonField}>
+            <span>Причина удаления</span>
+            <textarea
+              value={kickReason}
+              onChange={(event) => setKickReason(event.target.value.slice(0, 300))}
+              className={styles.kickReasonInput}
+              placeholder="Например: нарушение правил созвона"
+              rows={2}
+            />
+          </label>
         </div>
       )}
 
@@ -269,9 +316,12 @@ export const ParticipantsPanel = ({
                 <ParticipantItem
                   participant={localParticipant}
                   isLocal
+                  isModeratorParticipant={isParticipantModerator(localParticipant)}
                   canModerate={false}
                   onMuteParticipant={onMuteParticipant}
                   onKickParticipant={onKickParticipant}
+                  kickDurationMinutes={kickDurationMinutes}
+                  kickReason={kickReason}
                 />
               </div>
             )}
@@ -285,9 +335,12 @@ export const ParticipantsPanel = ({
                     key={participant.identity}
                     participant={participant}
                     isLocal={false}
-                    canModerate={isModerator}
+                    isModeratorParticipant={isParticipantModerator(participant)}
+                    canModerate={isModerator && !isParticipantModerator(participant)}
                     onMuteParticipant={onMuteParticipant}
                     onKickParticipant={onKickParticipant}
+                    kickDurationMinutes={kickDurationMinutes}
+                    kickReason={kickReason}
                   />
                 ))}
               </div>

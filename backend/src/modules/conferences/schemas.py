@@ -21,6 +21,21 @@ class LeaveConferenceRequest(BaseModel):
     auto_end_if_last: bool = False
 
 
+class KickConferenceParticipantRequest(BaseModel):
+    """Параметры временного удаления участника из созвона."""
+    duration_minutes: int = Field(default=15, ge=1, le=1440)
+    reason: Optional[str] = Field(default=None, max_length=300)
+
+
+class KickConferenceParticipantResponse(BaseModel):
+    """Результат временного удаления участника из созвона."""
+    room_id: int
+    user_id: int
+    kicked_until: datetime
+    reason: Optional[str] = None
+    detail: str
+
+
 class LeaveConferenceImpactResponse(BaseModel):
     """Информация о последствиях выхода пользователя из комнаты."""
     room_id: int
@@ -73,6 +88,11 @@ class ConferenceRoomWithDetails(ConferenceRoomResponse):
     creator: Optional[CreatorInfo] = None
     participants_count: int = 0
     is_moderator: bool = False
+    current_user_can_join: bool = True
+    is_current_user_kicked: bool = False
+    current_user_kicked_at: Optional[datetime] = None
+    current_user_kicked_until: Optional[datetime] = None
+    current_user_kick_reason: Optional[str] = None
 
 
 class JoinConferenceResponse(BaseModel):

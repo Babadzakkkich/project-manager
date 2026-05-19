@@ -75,41 +75,13 @@
   color: #ffffff;
 }
 
-.summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+.moderatorControls {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
   flex-shrink: 0;
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.summaryItem {
-  min-width: 0;
-  padding: var(--space-3);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: var(--radius-xl);
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.summaryValue {
-  display: block;
-  color: #ffffff;
-  font-family: var(--font-accent);
-  font-size: var(--text-lg);
-  font-weight: var(--font-extrabold);
-  line-height: 1;
-}
-
-.summaryLabel {
-  display: block;
-  margin-top: 5px;
-  color: rgba(255, 255, 255, 0.52);
-  font-size: 10px;
-  font-weight: var(--font-extrabold);
-  line-height: 1;
-  text-transform: uppercase;
-  letter-spacing: var(--letter-wide);
+  margin: var(--space-3) var(--space-4) 0;
 }
 
 .moderatorNote {
@@ -117,7 +89,7 @@
   align-items: flex-start;
   gap: var(--space-2);
   flex-shrink: 0;
-  margin: var(--space-3) var(--space-4) 0;
+  margin: 0;
   padding: var(--space-3);
   border: 1px solid rgba(158, 240, 26, 0.18);
   border-radius: var(--radius-xl);
@@ -132,6 +104,63 @@
   flex-shrink: 0;
   color: #ccff33;
   margin-top: 1px;
+}
+
+.kickDurationField,
+.kickReasonField {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(255, 255, 255, 0.66);
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+}
+
+.kickDurationField {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.kickReasonField {
+  grid-template-columns: 1fr;
+}
+
+.kickDurationSelect,
+.kickReasonInput {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-lg);
+  background: rgba(7, 19, 13, 0.82);
+  color: #ffffff;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  outline: none;
+}
+
+.kickDurationSelect {
+  min-height: 32px;
+  padding: 0 28px 0 10px;
+  font-weight: var(--font-extrabold);
+}
+
+.kickReasonInput {
+  min-height: 58px;
+  resize: vertical;
+  padding: 9px 10px;
+  line-height: var(--line-normal);
+}
+
+.kickReasonInput::placeholder {
+  color: rgba(255, 255, 255, 0.36);
+}
+
+.kickDurationSelect:focus,
+.kickReasonInput:focus {
+  border-color: rgba(158, 240, 26, 0.36);
+  box-shadow: 0 0 0 3px rgba(56, 176, 0, 0.12);
 }
 
 .list {
@@ -253,6 +282,7 @@
 }
 
 .localBadge,
+.moderatorBadge,
 .speakingBadge {
   min-height: 20px;
   display: inline-flex;
@@ -269,6 +299,12 @@
   border: 1px solid rgba(158, 240, 26, 0.24);
   background: rgba(56, 176, 0, 0.16);
   color: #ccff33;
+}
+
+.moderatorBadge {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .speakingBadge {
@@ -396,11 +432,8 @@
     padding: var(--space-3);
   }
 
-  .summary {
-    padding: var(--space-3);
-  }
 
-  .moderatorNote {
+  .moderatorControls {
     margin-left: var(--space-3);
     margin-right: var(--space-3);
   }
@@ -427,9 +460,6 @@
 }
 
 @media (max-width: 420px) {
-  .summary {
-    grid-template-columns: 1fr;
-  }
 
   .title {
     font-size: var(--text-lg);

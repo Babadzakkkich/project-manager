@@ -224,7 +224,7 @@ class User(Base):
         "ConferenceRoom", back_populates="creator"
     )
     conference_participations: Mapped[List["ConferenceParticipant"]] = relationship(
-        "ConferenceParticipant", back_populates="user"
+        "ConferenceParticipant", back_populates="user", foreign_keys="ConferenceParticipant.user_id"
     )
     invited_conferences: Mapped[List["ConferenceRoom"]] = relationship(
         "ConferenceRoom", 
@@ -527,13 +527,18 @@ class ConferenceParticipant(Base):
     is_video_on: Mapped[bool] = mapped_column(Boolean, default=True)
     is_audio_on: Mapped[bool] = mapped_column(Boolean, default=True)
     participant_sid: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    kicked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    kicked_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    kicked_by_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    kick_reason: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
     
     __table_args__ = (
         UniqueConstraint('room_id', 'user_id', name='uq_conference_participant'),
     )
     
     room: Mapped["ConferenceRoom"] = relationship("ConferenceRoom", back_populates="participants")
-    user: Mapped["User"] = relationship("User", back_populates="conference_participations")
+    user: Mapped["User"] = relationship("User", back_populates="conference_participations", foreign_keys=[user_id])
+    kicked_by: Mapped[Optional["User"]] = relationship("User", foreign_keys=[kicked_by_id])
 
 
 class ConferenceMessage(Base):
