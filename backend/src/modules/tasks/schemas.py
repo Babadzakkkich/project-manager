@@ -83,3 +83,41 @@ class TaskHistoryRead(BaseModel):
     user: BaseUserInfo
 
     model_config = ConfigDict(from_attributes=True)
+
+class TaskCommentCreate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=2000)
+    parent_id: Optional[int] = None
+
+
+class TaskCommentUpdate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=2000)
+
+
+class TaskCommentRead(BaseModel):
+    id: int
+    task_id: int
+    author_id: int
+    parent_id: Optional[int]
+    content: str
+    is_edited: bool
+    is_deleted: bool
+    created_at: datetime
+    updated_at: Optional[datetime]
+    author: BaseUserInfo
+    mentioned_users: List[BaseUserInfo] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TaskTimelineItem(BaseModel):
+    type: str
+    id: int
+    created_at: datetime
+    actor: Optional[BaseUserInfo] = None
+    action: Optional[str] = None
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    details: Optional[str] = None
+    comment: Optional[TaskCommentRead] = None
+
+    model_config = ConfigDict(from_attributes=True)

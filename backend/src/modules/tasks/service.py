@@ -1,4 +1,7 @@
 from typing import Optional, List, TYPE_CHECKING, Dict, Any
+import json
+import re
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete, select, and_
 from sqlalchemy.orm import selectinload
@@ -10,9 +13,9 @@ from shared.dependencies import (
     ensure_global_admin_by_id,
     is_global_admin_user,
 )
-from core.database.models import Task, Project, User, Group, GroupMember, TaskHistory, TaskStatus, TaskPriority
+from core.database.models import Task, Project, User, Group, GroupMember, TaskHistory, TaskComment, TaskStatus, TaskPriority
 from core.logger import logger
-from .schemas import AddRemoveUsersToTask, TaskCreate, TaskReadWithRelations, TaskUpdate, TaskRead, TaskBulkUpdate
+from .schemas import AddRemoveUsersToTask, TaskCreate, TaskReadWithRelations, TaskUpdate, TaskRead, TaskBulkUpdate, TaskCommentCreate, TaskCommentUpdate
 from .exceptions import (
     TaskNotFoundError,
     TaskCreationError,
@@ -24,7 +27,8 @@ from .exceptions import (
     UsersNotInGroupError,
     UsersNotInTaskError,
     TaskNoGroupError,
-    TaskAccessDeniedError
+    TaskAccessDeniedError,
+    TaskCommentNotFoundError
 )
 
 if TYPE_CHECKING:
@@ -58,6 +62,95 @@ class TaskService:
             self._notification_trigger = self.service_factory.get('notification_trigger')
         return self._notification_trigger
     
+    async def _ensure_task_view_access(self, task_id: int, current_user: User) -> Task:
+        """Проверить право просмотра задачи и вернуть задачу с основными связями."""
+        task = await self.get_task_by_id(task_id)
+
+        if is_global_admin_user(current_user):
+            return task
+
+        if not task.group_id or not await check_user_in_group(self.session, current_user.id, task.group_id):
+            raise TaskAccessDeniedError("Нет доступа к задаче")
+
+        return task
+
+    async def _ensure_comment_manage_access(self, comment: TaskComment, current_user: User) -> Task:
+        """Проверить право изменения или удаления комментария."""
+        task = await self._ensure_task_view_access(comment.task_id, current_user)
+
+        if comment.author_id == current_user.id:
+            return task
+
+        if is_global_admin_user(current_user):
+            return task
+
+        try:
+            await ensure_user_is_admin(self.session, current_user.id, task.group_id)
+            return task
+        except InsufficientPermissionsError:
+            raise TaskAccessDeniedError("Можно изменять только свои комментарии")
+
+    def _extract_mention_logins(self, content: str) -> set[str]:
+        """Извлечь логины из упоминаний вида @login."""
+        return {
+            item
+            for item in re.findall(r"@([A-Za-z0-9_]{3,50})", content or "")
+        }
+
+    async def _get_mentioned_users(self, content: str, group_id: Optional[int]) -> List[User]:
+        """Найти упомянутых пользователей среди участников группы задачи."""
+        mention_logins = self._extract_mention_logins(content)
+        if not mention_logins or not group_id:
+            return []
+
+        stmt = (
+            select(User)
+            .join(GroupMember, GroupMember.user_id == User.id)
+            .where(GroupMember.group_id == group_id)
+            .where(User.login.in_(mention_logins))
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().unique().all()
+
+    async def _get_task_comment(self, task_id: int, comment_id: int) -> TaskComment:
+        stmt = (
+            select(TaskComment)
+            .options(
+                selectinload(TaskComment.author),
+                selectinload(TaskComment.mentioned_users),
+            )
+            .where(TaskComment.id == comment_id, TaskComment.task_id == task_id)
+        )
+        result = await self.session.execute(stmt)
+        comment = result.scalar_one_or_none()
+
+        if not comment:
+            raise TaskCommentNotFoundError(comment_id)
+
+        return comment
+
+    def _add_history(
+        self,
+        task_id: int,
+        user_id: int,
+        action: str,
+        old_value: Optional[str] = None,
+        new_value: Optional[str] = None,
+        details: Optional[Dict[str, Any] | str] = None,
+    ) -> None:
+        prepared_details = details
+        if isinstance(details, (dict, list)):
+            prepared_details = json.dumps(details, ensure_ascii=False)
+
+        self.session.add(TaskHistory(
+            task_id=task_id,
+            user_id=user_id,
+            action=action,
+            old_value=old_value,
+            new_value=new_value,
+            details=prepared_details,
+        ))
+
     async def get_all_tasks(self, current_user_id: int) -> List[TaskRead]:
         """Получение всех задач (только для глобального администратора)"""
         self.logger.info(f"Fetching all tasks by global admin {current_user_id}")
@@ -212,6 +305,14 @@ class TaskService:
             new_task.assignees.append(current_user)
 
             self.session.add(new_task)
+            await self.session.flush()
+            self._add_history(
+                task_id=new_task.id,
+                user_id=current_user.id,
+                action="task_created",
+                new_value=new_task.title,
+                details={"assignee_ids": [current_user.id]},
+            )
             await self.session.commit()
             
             self.logger.info(f"Task created successfully with ID: {new_task.id}")
@@ -313,6 +414,14 @@ class TaskService:
                 assigned_users.append(current_user)
 
             self.session.add(new_task)
+            await self.session.flush()
+            self._add_history(
+                task_id=new_task.id,
+                user_id=current_user.id,
+                action="task_created",
+                new_value=new_task.title,
+                details={"assignee_ids": [u.id for u in assigned_users]},
+            )
             await self.session.commit()
             
             self.logger.info(f"Task for users created successfully with ID: {new_task.id}")
@@ -372,6 +481,15 @@ class TaskService:
                     task.assignees.append(user)
                     added_users.append(user)
 
+            if added_users:
+                self._add_history(
+                    task_id=task.id,
+                    user_id=current_user.id,
+                    action="assignees_added",
+                    new_value=", ".join(user.login for user in added_users),
+                    details={"user_ids": [user.id for user in added_users]},
+                )
+
             await self.session.commit()
             self.logger.info(f"Users added to task {task_id} successfully")
             
@@ -428,6 +546,16 @@ class TaskService:
             for key, value in task_update.model_dump(exclude_unset=True).items():
                 setattr(db_task, key, value)
 
+            for field_name, change in changes.items():
+                self._add_history(
+                    task_id=db_task.id,
+                    user_id=current_user.id,
+                    action=f"{field_name}_changed",
+                    old_value=str(change.get('old')) if change.get('old') is not None else None,
+                    new_value=str(change.get('new')) if change.get('new') is not None else None,
+                    details={"field": field_name},
+                )
+
             await self.session.commit()
             await self.session.refresh(db_task)
             
@@ -467,6 +595,15 @@ class TaskService:
 
             for user in users_to_remove:
                 task.assignees.remove(user)
+
+            if users_to_remove:
+                self._add_history(
+                    task_id=task.id,
+                    user_id=current_user.id,
+                    action="assignees_removed",
+                    old_value=", ".join(user.login for user in users_to_remove),
+                    details={"user_ids": [user.id for user in users_to_remove]},
+                )
 
             # Если не осталось исполнителей, удаляем задачу
             if not task.assignees:
@@ -561,14 +698,13 @@ class TaskService:
             task.status = new_status
 
             # Создаем запись в истории
-            history_entry = TaskHistory(
+            self._add_history(
                 task_id=task_id,
                 user_id=current_user.id,
-                action="status_change",
+                action="status_changed",
                 old_value=old_status.value,
-                new_value=new_status.value
+                new_value=new_status.value,
             )
-            self.session.add(history_entry)
 
             await self.session.commit()
             await self.session.refresh(task)
@@ -609,14 +745,13 @@ class TaskService:
             task.priority = new_priority
 
             # Создаем запись в истории
-            history_entry = TaskHistory(
+            self._add_history(
                 task_id=task_id,
                 user_id=current_user.id,
-                action="priority_change",
+                action="priority_changed",
                 old_value=old_priority.value,
-                new_value=new_priority.value
+                new_value=new_priority.value,
             )
-            self.session.add(history_entry)
 
             await self.session.commit()
             await self.session.refresh(task)
@@ -687,14 +822,13 @@ class TaskService:
                     old_status = task.status
                     task.status = update.status
                     
-                    history_entry = TaskHistory(
+                    self._add_history(
                         task_id=task.id,
                         user_id=current_user.id,
-                        action="status_change",
+                        action="status_changed",
                         old_value=old_status.value,
-                        new_value=update.status.value
+                        new_value=update.status.value,
                     )
-                    self.session.add(history_entry)
                     
                     # Отправляем уведомление
                     if self.notification_trigger:
@@ -712,14 +846,13 @@ class TaskService:
                     old_priority = task.priority
                     task.priority = update.priority
                     
-                    history_entry = TaskHistory(
+                    self._add_history(
                         task_id=task.id,
                         user_id=current_user.id,
-                        action="priority_change",
+                        action="priority_changed",
                         old_value=old_priority.value,
-                        new_value=update.priority.value
+                        new_value=update.priority.value,
                     )
-                    self.session.add(history_entry)
                     
                     # Отправляем уведомление
                     if self.notification_trigger:
@@ -840,6 +973,216 @@ class TaskService:
             self.logger.error(f"Error in quick create task: {e}", exc_info=True)
             raise TaskCreationError(f"Не удалось быстро создать задачу: {str(e)}")
     
+    async def get_task_comments(self, task_id: int, current_user: User) -> List[TaskComment]:
+        """Получить комментарии задачи."""
+        await self._ensure_task_view_access(task_id, current_user)
+
+        stmt = (
+            select(TaskComment)
+            .options(
+                selectinload(TaskComment.author),
+                selectinload(TaskComment.mentioned_users),
+            )
+            .where(TaskComment.task_id == task_id)
+            .order_by(TaskComment.created_at.asc())
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().unique().all()
+
+    async def create_task_comment(
+        self,
+        task_id: int,
+        comment_data: TaskCommentCreate,
+        current_user: User,
+    ) -> TaskComment:
+        """Создать комментарий или ответ к комментарию."""
+        task = await self._ensure_task_view_access(task_id, current_user)
+        content = comment_data.content.strip()
+
+        if not content:
+            raise TaskUpdateError("Комментарий не может быть пустым")
+
+        parent_id = comment_data.parent_id
+        if parent_id is not None:
+            parent_comment = await self._get_task_comment(task_id, parent_id)
+            if parent_comment.is_deleted:
+                raise TaskUpdateError("Нельзя ответить на удалённый комментарий")
+
+        mentioned_users = await self._get_mentioned_users(content, task.group_id)
+
+        comment = TaskComment(
+            task_id=task_id,
+            author_id=current_user.id,
+            parent_id=parent_id,
+            content=content,
+            mentioned_users=mentioned_users,
+        )
+        self.session.add(comment)
+        await self.session.flush()
+
+        self._add_history(
+            task_id=task_id,
+            user_id=current_user.id,
+            action="comment_replied" if parent_id else "comment_added",
+            new_value=str(comment.id),
+            details={
+                "comment_id": comment.id,
+                "parent_id": parent_id,
+                "mentioned_user_ids": [user.id for user in mentioned_users],
+            },
+        )
+
+        await self.session.commit()
+
+        if self.notification_trigger:
+            mentioned_user_ids = {user.id for user in mentioned_users}
+            await self.notification_trigger.on_task_comment_added(
+                task=task,
+                comment_author=current_user,
+                mentioned_user_ids=mentioned_user_ids,
+            )
+            if mentioned_user_ids:
+                await self.notification_trigger.on_task_comment_mentions(
+                    task=task,
+                    comment_author=current_user,
+                    mentioned_user_ids=mentioned_user_ids,
+                )
+
+        return await self._get_task_comment(task_id, comment.id)
+
+    async def update_task_comment(
+        self,
+        task_id: int,
+        comment_id: int,
+        comment_data: TaskCommentUpdate,
+        current_user: User,
+    ) -> TaskComment:
+        """Обновить комментарий."""
+        comment = await self._get_task_comment(task_id, comment_id)
+        task = await self._ensure_comment_manage_access(comment, current_user)
+
+        if comment.is_deleted:
+            raise TaskUpdateError("Нельзя изменить удалённый комментарий")
+
+        content = comment_data.content.strip()
+        if not content:
+            raise TaskUpdateError("Комментарий не может быть пустым")
+
+        old_content = comment.content
+        old_mentions = {user.id for user in comment.mentioned_users}
+        mentioned_users = await self._get_mentioned_users(content, task.group_id)
+        new_mentions = {user.id for user in mentioned_users}
+
+        comment.content = content
+        comment.is_edited = True
+        comment.mentioned_users = mentioned_users
+
+        self._add_history(
+            task_id=task_id,
+            user_id=current_user.id,
+            action="comment_updated",
+            old_value=str(comment_id),
+            new_value=str(comment_id),
+            details={
+                "comment_id": comment_id,
+                "mentioned_user_ids": list(new_mentions),
+            },
+        )
+
+        await self.session.commit()
+
+        newly_mentioned_user_ids = new_mentions - old_mentions
+        if self.notification_trigger and newly_mentioned_user_ids:
+            await self.notification_trigger.on_task_comment_mentions(
+                task=task,
+                comment_author=current_user,
+                mentioned_user_ids=newly_mentioned_user_ids,
+            )
+
+        self.logger.debug(
+            "Comment %s updated. Old length=%s, new length=%s",
+            comment_id,
+            len(old_content or ""),
+            len(content),
+        )
+        return await self._get_task_comment(task_id, comment_id)
+
+    async def delete_task_comment(self, task_id: int, comment_id: int, current_user: User) -> dict:
+        """Мягко удалить комментарий."""
+        comment = await self._get_task_comment(task_id, comment_id)
+        await self._ensure_comment_manage_access(comment, current_user)
+
+        if comment.is_deleted:
+            return {"detail": "Комментарий уже удалён"}
+
+        comment.content = "Комментарий удалён"
+        comment.is_deleted = True
+        comment.deleted_at = datetime.now(timezone.utc)
+        comment.mentioned_users = []
+
+        self._add_history(
+            task_id=task_id,
+            user_id=current_user.id,
+            action="comment_deleted",
+            old_value=str(comment_id),
+            details={"comment_id": comment_id},
+        )
+
+        await self.session.commit()
+        return {"detail": "Комментарий удалён"}
+
+    async def get_task_timeline(self, task_id: int, current_user: User) -> List[Dict[str, Any]]:
+        """Получить единую ленту комментариев и системной истории задачи."""
+        await self._ensure_task_view_access(task_id, current_user)
+
+        comments_stmt = (
+            select(TaskComment)
+            .options(
+                selectinload(TaskComment.author),
+                selectinload(TaskComment.mentioned_users),
+            )
+            .where(TaskComment.task_id == task_id)
+        )
+        history_stmt = (
+            select(TaskHistory)
+            .options(selectinload(TaskHistory.user))
+            .where(TaskHistory.task_id == task_id)
+        )
+
+        comments_result = await self.session.execute(comments_stmt)
+        history_result = await self.session.execute(history_stmt)
+
+        timeline: List[Dict[str, Any]] = []
+
+        for comment in comments_result.scalars().unique().all():
+            timeline.append({
+                "type": "comment",
+                "id": comment.id,
+                "created_at": comment.created_at,
+                "actor": comment.author,
+                "comment": comment,
+            })
+
+        for item in history_result.scalars().unique().all():
+            # Комментарии уже отображаются отдельными элементами ленты.
+            # Техническую историю комментариев сохраняем в БД, но не дублируем в интерфейсе.
+            if item.action in {"comment_added", "comment_replied", "comment_updated", "comment_deleted"}:
+                continue
+
+            timeline.append({
+                "type": "activity",
+                "id": item.id,
+                "created_at": item.created_at,
+                "actor": item.user,
+                "action": item.action,
+                "old_value": item.old_value,
+                "new_value": item.new_value,
+                "details": item.details,
+            })
+
+        timeline.sort(key=lambda item: item["created_at"], reverse=True)
+        return timeline
+
     async def get_task_history(self, task_id: int) -> List[TaskHistory]:
         """Получение истории изменений задачи"""
         self.logger.debug(f"Fetching history for task {task_id}")

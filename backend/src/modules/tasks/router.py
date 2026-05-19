@@ -16,7 +16,8 @@ from .service import TaskService
 from .schemas import (
     AddRemoveUsersToTask, TaskCreate, TaskCreateExtended, TaskRead, 
     TaskUpdate, TaskReadWithRelations, TaskBulkUpdate, BoardViewRequest,
-    TaskHistoryRead
+    TaskHistoryRead, TaskCommentCreate, TaskCommentUpdate, TaskCommentRead,
+    TaskTimelineItem
 )
 from .exceptions import (
     TaskNotFoundError,
@@ -29,7 +30,8 @@ from .exceptions import (
     UsersNotInGroupError,
     UsersNotInTaskError,
     TaskNoGroupError,
-    TaskAccessDeniedError
+    TaskAccessDeniedError,
+    TaskCommentNotFoundError
 )
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
@@ -77,6 +79,95 @@ async def get_team_tasks(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Не удалось загрузить задачи команды: {str(e)}"
         )
+
+# Получить единую ленту активности задачи
+@router.get("/{task_id}/timeline", response_model=List[TaskTimelineItem])
+async def get_task_timeline(
+    task_id: int,
+    service_factory: ServiceFactory = Depends(get_service_factory),
+    current_user: User = Depends(get_current_user),
+):
+    logger.info(f"GET /tasks/{task_id}/timeline by user {current_user.id}")
+    task_service = service_factory.get('task')
+
+    try:
+        return await task_service.get_task_timeline(task_id, current_user)
+    except (TaskNotFoundError, TaskAccessDeniedError) as e:
+        logger.error(f"Error getting task timeline: {e.detail}")
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+
+# Получить комментарии задачи
+@router.get("/{task_id}/comments", response_model=List[TaskCommentRead])
+async def get_task_comments(
+    task_id: int,
+    service_factory: ServiceFactory = Depends(get_service_factory),
+    current_user: User = Depends(get_current_user),
+):
+    logger.info(f"GET /tasks/{task_id}/comments by user {current_user.id}")
+    task_service = service_factory.get('task')
+
+    try:
+        return await task_service.get_task_comments(task_id, current_user)
+    except (TaskNotFoundError, TaskAccessDeniedError) as e:
+        logger.error(f"Error getting task comments: {e.detail}")
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+
+# Добавить комментарий или ответ к комментарию
+@router.post("/{task_id}/comments", response_model=TaskCommentRead, status_code=status.HTTP_201_CREATED)
+async def create_task_comment(
+    task_id: int,
+    comment_data: TaskCommentCreate,
+    service_factory: ServiceFactory = Depends(get_service_factory),
+    current_user: User = Depends(get_current_user),
+):
+    logger.info(f"POST /tasks/{task_id}/comments by user {current_user.id}")
+    task_service = service_factory.get('task')
+
+    try:
+        return await task_service.create_task_comment(task_id, comment_data, current_user)
+    except (TaskNotFoundError, TaskCommentNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
+        logger.error(f"Error creating task comment: {e.detail}")
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+
+# Обновить комментарий
+@router.patch("/{task_id}/comments/{comment_id}", response_model=TaskCommentRead)
+async def update_task_comment(
+    task_id: int,
+    comment_id: int,
+    comment_data: TaskCommentUpdate,
+    service_factory: ServiceFactory = Depends(get_service_factory),
+    current_user: User = Depends(get_current_user),
+):
+    logger.info(f"PATCH /tasks/{task_id}/comments/{comment_id} by user {current_user.id}")
+    task_service = service_factory.get('task')
+
+    try:
+        return await task_service.update_task_comment(task_id, comment_id, comment_data, current_user)
+    except (TaskNotFoundError, TaskCommentNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
+        logger.error(f"Error updating task comment: {e.detail}")
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+
+# Удалить комментарий
+@router.delete("/{task_id}/comments/{comment_id}", status_code=status.HTTP_200_OK)
+async def delete_task_comment(
+    task_id: int,
+    comment_id: int,
+    service_factory: ServiceFactory = Depends(get_service_factory),
+    current_user: User = Depends(get_current_user),
+):
+    logger.info(f"DELETE /tasks/{task_id}/comments/{comment_id} by user {current_user.id}")
+    task_service = service_factory.get('task')
+
+    try:
+        return await task_service.delete_task_comment(task_id, comment_id, current_user)
+    except (TaskNotFoundError, TaskCommentNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
+        logger.error(f"Error deleting task comment: {e.detail}")
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
 
 # Получить информацию о задаче (только для участников группы задачи)
 @router.get("/{task_id}", response_model=TaskReadWithRelations)
@@ -203,7 +294,7 @@ async def update_task_by_id(
     try:
         db_task = await task_service.get_task_by_id(task_id)
         return await task_service.update_task(db_task, task_data, current_user)
-    except (TaskNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
+    except (TaskNotFoundError, TaskCommentNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
         logger.error(f"Error updating task {task_id}: {e.detail}")
         raise HTTPException(
             status_code=e.status_code,
@@ -297,7 +388,7 @@ async def update_task_status(
     
     try:
         return await task_service.update_task_status(task_id, status_update, current_user)
-    except (TaskNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
+    except (TaskNotFoundError, TaskCommentNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
         logger.error(f"Error updating task status: {e.detail}")
         raise HTTPException(
             status_code=e.status_code,
@@ -317,7 +408,7 @@ async def update_task_position(
     
     try:
         return await task_service.update_task_position(task_id, position, current_user)
-    except (TaskNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
+    except (TaskNotFoundError, TaskCommentNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
         logger.error(f"Error updating task position: {e.detail}")
         raise HTTPException(
             status_code=e.status_code,
@@ -337,7 +428,7 @@ async def update_task_priority(
     
     try:
         return await task_service.update_task_priority(task_id, priority_update, current_user)
-    except (TaskNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
+    except (TaskNotFoundError, TaskCommentNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
         logger.error(f"Error updating task priority: {e.detail}")
         raise HTTPException(
             status_code=e.status_code,
@@ -356,7 +447,7 @@ async def bulk_update_tasks(
     
     try:
         return await task_service.bulk_update_tasks(updates, current_user)
-    except (TaskNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
+    except (TaskNotFoundError, TaskCommentNotFoundError, TaskAccessDeniedError, TaskUpdateError) as e:
         logger.error(f"Error in bulk update: {e.detail}")
         raise HTTPException(
             status_code=e.status_code,

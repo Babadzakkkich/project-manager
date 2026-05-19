@@ -110,6 +110,14 @@ conference_invited_users = Table(
 )
 
 
+task_comment_mentions = Table(
+    "task_comment_mentions",
+    Base.metadata,
+    Column("comment_id", Integer, ForeignKey("task_comments.id", ondelete="CASCADE"), primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
 # ==================== СУЩЕСТВУЮЩИЕ МОДЕЛИ ====================
 
 class GroupInvitation(Base):
@@ -192,6 +200,12 @@ class User(Base):
     )
     assigned_tasks: Mapped[List["Task"]] = relationship(
         "Task", secondary=task_user_association, back_populates="assignees"
+    )
+    task_comments: Mapped[List["TaskComment"]] = relationship(
+        "TaskComment", back_populates="author", cascade="all, delete-orphan"
+    )
+    mentioned_in_task_comments: Mapped[List["TaskComment"]] = relationship(
+        "TaskComment", secondary=task_comment_mentions, back_populates="mentioned_users"
     )
     notifications: Mapped[List["Notification"]] = relationship(
         "Notification", 
@@ -333,6 +347,13 @@ class Task(Base):
     assignees: Mapped[List["User"]] = relationship(
         "User", secondary=task_user_association, back_populates="assigned_tasks"
     )
+    comments: Mapped[List["TaskComment"]] = relationship(
+        "TaskComment",
+        back_populates="task",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="TaskComment.created_at",
+    )
     group_id: Mapped[Optional[int]] = mapped_column(ForeignKey("groups.id", ondelete="SET NULL"))
     group: Mapped["Group"] = relationship("Group", back_populates="tasks")
     
@@ -363,6 +384,46 @@ class TaskHistory(Base):
     
     task: Mapped["Task"] = relationship("Task")
     user: Mapped["User"] = relationship("User")
+
+
+
+class TaskComment(Base):
+    __tablename__ = "task_comments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("task_comments.id", ondelete="CASCADE"), nullable=True, index=True)
+
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    is_edited: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    task: Mapped["Task"] = relationship("Task", back_populates="comments")
+    author: Mapped["User"] = relationship("User", back_populates="task_comments")
+    parent: Mapped[Optional["TaskComment"]] = relationship(
+        "TaskComment", remote_side=[id], back_populates="replies"
+    )
+    replies: Mapped[List["TaskComment"]] = relationship(
+        "TaskComment", back_populates="parent", cascade="all, delete-orphan"
+    )
+    mentioned_users: Mapped[List["User"]] = relationship(
+        "User", secondary=task_comment_mentions, back_populates="mentioned_in_task_comments"
+    )
 
 
 class AdminAuditLog(Base):
