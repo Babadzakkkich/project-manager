@@ -1,18 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
-  Clock3,
   FolderKanban,
   Plus,
   RotateCcw,
-  Users,
 } from 'lucide-react';
 
 import { projectsAPI } from '../../../services/api/projects';
 import { Button } from '../../../components/ui/Button';
-import { FilterSort } from '../../../components/ui/FilterSort';
 import { ProjectCard } from '../../../components/ui/ProjectCard';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import {
@@ -21,42 +16,30 @@ import {
 } from '../../../utils/constants';
 import {
   formatRussianCount,
-  getRussianPluralForm,
   handleApiError,
   RUSSIAN_PLURAL_FORMS,
 } from '../../../utils/helpers';
 import styles from './Projects.module.css';
 
-const ACTIVE_PROJECT_STATUSES = ['planned', 'in_progress', 'on_hold'];
-const COMPLETED_PROJECT_STATUSES = ['completed'];
-const CANCELLED_PROJECT_STATUSES = ['cancelled'];
+const SORT_OPTIONS = [
+  { value: 'title_asc', label: 'По названию (А-Я)' },
+  { value: 'title_desc', label: 'По названию (Я-А)' },
+  { value: 'start_date_desc', label: 'Сначала новые' },
+  { value: 'start_date_asc', label: 'Сначала старые' },
+  { value: 'end_date_asc', label: 'Ближайшие сроки' },
+  { value: 'end_date_desc', label: 'Дальние сроки' },
+  { value: 'status', label: 'По статусу' },
+];
+
+const compareText = (a = '', b = '') => {
+  return String(a || '').localeCompare(String(b || ''), 'ru-RU');
+};
 
 const getDateMs = (value) => {
   if (!value) return 0;
 
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
-};
-
-const isProjectOverdue = (project) => {
-  if (!project?.end_date) return false;
-
-  if (
-    COMPLETED_PROJECT_STATUSES.includes(project.status) ||
-    CANCELLED_PROJECT_STATUSES.includes(project.status)
-  ) {
-    return false;
-  }
-
-  const deadline = new Date(project.end_date);
-  const today = new Date();
-
-  if (Number.isNaN(deadline.getTime())) return false;
-
-  deadline.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
-
-  return deadline < today;
 };
 
 export const Projects = () => {
@@ -67,24 +50,6 @@ export const Projects = () => {
   const [sort, setSort] = useState('');
 
   const { user } = useAuthContext();
-
-  const filterOptions = [
-    {
-      key: 'status',
-      label: 'Статус проекта',
-      options: PROJECT_STATUS_OPTIONS,
-    },
-  ];
-
-  const sortOptions = [
-    { value: 'title_asc', label: 'По названию (А-Я)' },
-    { value: 'title_desc', label: 'По названию (Я-А)' },
-    { value: 'start_date_desc', label: 'Сначала новые' },
-    { value: 'start_date_asc', label: 'Сначала старые' },
-    { value: 'end_date_asc', label: 'Ближайшие сроки' },
-    { value: 'end_date_desc', label: 'Дальние сроки' },
-    { value: 'status', label: 'По статусу' },
-  ];
 
   const loadProjects = useCallback(async () => {
     try {
@@ -145,15 +110,11 @@ export const Projects = () => {
     if (sort) {
       switch (sort) {
         case 'title_asc':
-          result.sort((a, b) =>
-            String(a.title || '').localeCompare(String(b.title || ''), 'ru-RU')
-          );
+          result.sort((a, b) => compareText(a.title, b.title));
           break;
 
         case 'title_desc':
-          result.sort((a, b) =>
-            String(b.title || '').localeCompare(String(a.title || ''), 'ru-RU')
-          );
+          result.sort((a, b) => compareText(b.title, a.title));
           break;
 
         case 'start_date_desc':
@@ -174,11 +135,10 @@ export const Projects = () => {
 
         case 'status':
           result.sort((a, b) =>
-            String(PROJECT_STATUS_TRANSLATIONS[a.status] || a.status || '')
-              .localeCompare(
-                String(PROJECT_STATUS_TRANSLATIONS[b.status] || b.status || ''),
-                'ru-RU'
-              )
+            compareText(
+              PROJECT_STATUS_TRANSLATIONS[a.status] || a.status,
+              PROJECT_STATUS_TRANSLATIONS[b.status] || b.status
+            )
           );
           break;
 
@@ -190,35 +150,36 @@ export const Projects = () => {
     return result;
   }, [projects, filters, sort]);
 
-  const stats = useMemo(() => {
-    const activeProjects = projects.filter((project) =>
-      ACTIVE_PROJECT_STATUSES.includes(project.status)
-    ).length;
-
-    const completedProjects = projects.filter((project) =>
-      COMPLETED_PROJECT_STATUSES.includes(project.status)
-    ).length;
-
-    const overdueProjects = projects.filter(isProjectOverdue).length;
-
-    const linkedGroups = projects.reduce(
-      (total, project) => total + (project.groups?.length || project.groups_count || 0),
-      0
-    );
-
-    return {
-      totalProjects: projects.length,
-      activeProjects,
-      completedProjects,
-      overdueProjects,
-      linkedGroups,
-    };
-  }, [projects]);
-
-  const hasActiveFilters = Object.keys(filters).some((key) => filters[key]);
+  const hasActiveFilters = Object.keys(filters).some((key) => filters[key] && filters[key] !== '');
+  const hasActiveControls = hasActiveFilters || Boolean(sort);
+  const showSidebar = projects.length > 0 || hasActiveControls;
   const selectedStatusLabel = filters.status
     ? PROJECT_STATUS_TRANSLATIONS[filters.status] || filters.status
     : '';
+
+  const resetControls = () => {
+    setFilters({});
+    setSort('');
+  };
+
+  const renderSelect = ({ label, value, onChange, options, placeholder = 'Все' }) => (
+    <label className={styles.controlGroup}>
+      <span className={styles.controlLabel}>{label}</span>
+
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={styles.controlSelect}
+      >
+        {placeholder !== null && <option value="">{placeholder}</option>}
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 
   if (loading) {
     return (
@@ -248,147 +209,131 @@ export const Projects = () => {
 
   return (
     <div className={styles.container}>
-      <section className={styles.hero}>
-        <div className={styles.heroContent}>
+      <header className={styles.pageHeader}>
+        <div className={styles.headerMain}>
           <h1 className={styles.title}>Проекты</h1>
-
           <p className={styles.subtitle}>
-            Управляйте проектами, сроками, статусами, связанными группами и задачами.
+            Проекты, сроки, статусы и связь с рабочими группами.
           </p>
         </div>
 
-        <div className={styles.heroActions}>
+        <div className={styles.headerActions}>
           <Button to="/projects/create" variant="primary" size="medium">
             <Plus size={17} strokeWidth={2} aria-hidden="true" />
             Создать проект
           </Button>
         </div>
-      </section>
+      </header>
 
-      <section className={styles.statsGrid} aria-label="Сводка по проектам">
-        <article className={styles.statCard}>
-          <span className={styles.statValue}>{stats.totalProjects}</span>
-          <span className={styles.statLabel}>
-            {getRussianPluralForm(stats.totalProjects, RUSSIAN_PLURAL_FORMS.PROJECT)} всего
-          </span>
-        </article>
+      <div className={`${styles.workspaceLayout} ${!showSidebar ? styles.workspaceLayoutSingle : ''}`}>
+        {showSidebar && (
+          <aside className={styles.sidebar} aria-label="Фильтры проектов">
+            <div className={styles.sidebarHeader}>
+              <span>Параметры</span>
 
-        <article className={styles.statCard}>
-          <span className={styles.statValue}>{stats.activeProjects}</span>
-          <span className={styles.statLabel}>
-            {getRussianPluralForm(stats.activeProjects, RUSSIAN_PLURAL_FORMS.PROJECT)} в работе
-          </span>
-        </article>
+              {hasActiveControls && (
+                <button
+                  type="button"
+                  className={styles.resetButton}
+                  onClick={resetControls}
+                >
+                  <RotateCcw size={14} strokeWidth={2} aria-hidden="true" />
+                  Сбросить
+                </button>
+              )}
+            </div>
 
-        <article className={styles.statCard}>
-          <span className={styles.statValue}>{stats.completedProjects}</span>
-          <span className={styles.statLabel}>
-            {getRussianPluralForm(stats.completedProjects, [
-              'завершённый проект',
-              'завершённых проекта',
-              'завершённых проектов',
-            ])}
-          </span>
-        </article>
+            <div className={styles.sidebarBody}>
+              <section className={styles.controlsSection}>
+                <h2 className={styles.controlsTitle}>Фильтры</h2>
 
-        <article
-          className={`${styles.statCard} ${
-            stats.overdueProjects > 0 ? styles.warningCard : ''
-          }`}
-        >
-          <span className={styles.statValue}>{stats.overdueProjects}</span>
-          <span className={styles.statLabel}>
-            {getRussianPluralForm(stats.overdueProjects, [
-              'проект просрочен',
-              'проекта просрочены',
-              'проектов просрочено',
-            ])}
-          </span>
-        </article>
+                {renderSelect({
+                  label: 'Статус',
+                  value: filters.status || '',
+                  onChange: (value) => setFilters((prev) => ({ ...prev, status: value })),
+                  options: PROJECT_STATUS_OPTIONS,
+                })}
+              </section>
 
-        <article className={styles.statCard}>
-          <span className={styles.statValue}>{stats.linkedGroups}</span>
-          <span className={styles.statLabel}>
-            {getRussianPluralForm(stats.linkedGroups, RUSSIAN_PLURAL_FORMS.GROUP)} связано
-          </span>
-        </article>
-      </section>
+              <section className={styles.controlsSection}>
+                <h2 className={styles.controlsTitle}>Вид</h2>
 
-      {(projects.length > 0 || hasActiveFilters) && (
-        <FilterSort
-          filters={filterOptions}
-          sortOptions={sortOptions}
-          selectedFilters={filters}
-          selectedSort={sort}
-          onFilterChange={setFilters}
-          onSortChange={setSort}
-          className={styles.filterSort}
-        />
-      )}
-
-      <div className={styles.projectsInfo}>
-        <span className={styles.projectsCount}>
-          Найдено: {formatRussianCount(
-            filteredAndSortedProjects.length,
-            RUSSIAN_PLURAL_FORMS.PROJECT
-          )}
-        </span>
-
-        {filters.status && (
-          <span className={styles.activeFilter}>
-            Статус: {selectedStatusLabel}
-          </span>
+                {renderSelect({
+                  label: 'Сортировка',
+                  value: sort,
+                  onChange: setSort,
+                  options: SORT_OPTIONS,
+                  placeholder: 'По умолчанию',
+                })}
+              </section>
+            </div>
+          </aside>
         )}
-      </div>
 
-      {filteredAndSortedProjects.length === 0 ? (
-        <div className={styles.emptyState}>
-          <div className={styles.emptyIcon}>
-            <FolderKanban size={42} strokeWidth={1.8} aria-hidden="true" />
+        <main className={styles.projectsPanel}>
+          <div className={styles.listHeader}>
+            <span className={styles.listCount}>
+              Найдено: {formatRussianCount(
+                filteredAndSortedProjects.length,
+                RUSSIAN_PLURAL_FORMS.PROJECT
+              )}
+            </span>
+
+            {selectedStatusLabel && (
+              <span className={styles.activeFilter}>
+                Статус: {selectedStatusLabel}
+              </span>
+            )}
           </div>
 
-          {hasActiveFilters ? (
-            <>
-              <h2>Проекты не найдены</h2>
-              <p>Попробуйте изменить параметры фильтрации.</p>
+          {filteredAndSortedProjects.length === 0 ? (
+            <div className={styles.emptyState}>
+              <div className={styles.emptyIcon}>
+                <FolderKanban size={42} strokeWidth={1.8} aria-hidden="true" />
+              </div>
 
-              <Button
-                onClick={() => setFilters({})}
-                variant="primary"
-                size="medium"
-              >
-                <RotateCcw size={16} strokeWidth={2} aria-hidden="true" />
-                Сбросить фильтры
-              </Button>
-            </>
+              {hasActiveFilters ? (
+                <>
+                  <h2>Проекты не найдены</h2>
+                  <p>Попробуйте изменить параметры фильтрации.</p>
+
+                  <Button
+                    onClick={resetControls}
+                    variant="primary"
+                    size="medium"
+                  >
+                    <RotateCcw size={16} strokeWidth={2} aria-hidden="true" />
+                    Сбросить параметры
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <h2>У вас пока нет проектов</h2>
+                  <p>Создайте первый проект, укажите сроки и свяжите его с рабочими группами.</p>
+
+                  <Button to="/projects/create" variant="primary" size="medium">
+                    <Plus size={16} strokeWidth={2} aria-hidden="true" />
+                    Создать проект
+                  </Button>
+                </>
+              )}
+            </div>
           ) : (
-            <>
-              <h2>У вас пока нет проектов</h2>
-              <p>
-                Создайте первый проект, укажите сроки и свяжите его с рабочими группами.
-              </p>
-
-              <Button to="/projects/create" variant="primary" size="medium">
-                <Plus size={16} strokeWidth={2} aria-hidden="true" />
-                Создать проект
-              </Button>
-            </>
+            <div className={styles.projectsGrid}>
+              {filteredAndSortedProjects.map((project) => (
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  userRole={getUserRoleInProject(project)}
+                  showDetailsButton
+                  showDeleteButton={isUserAdminInProject(project)}
+                  onDelete={() => handleDeleteProject(project.id)}
+                />
+              ))}
+            </div>
           )}
-        </div>
-      ) : (
-        <div className={styles.projectsGrid}>
-          {filteredAndSortedProjects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              userRole={getUserRoleInProject(project)}
-              showDetailsButton
-              showDeleteButton={isUserAdminInProject(project)}
-              onDelete={() => handleDeleteProject(project.id)}
-            />
-          ))}
-        </div>
-      )}
+        </main>
+      </div>
     </div>
   );
 };
