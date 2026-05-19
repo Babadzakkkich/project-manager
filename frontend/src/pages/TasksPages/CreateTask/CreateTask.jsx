@@ -44,10 +44,19 @@ import {
   RUSSIAN_CASE_FORMS,
   RUSSIAN_PLURAL_FORMS,
 } from '../../../utils/helpers';
+import {
+  FIELD_LIMITS,
+  validateOptionalTextField,
+  validateTaskTag,
+  validateTaskTags,
+  validateTextField,
+} from '../../../utils/validation';
 import styles from './CreateTask.module.css';
 
-const DESCRIPTION_LIMIT = 1000;
-const TITLE_LIMIT = 200;
+const DESCRIPTION_LIMIT = FIELD_LIMITS.TASK_DESCRIPTION;
+const TITLE_LIMIT = FIELD_LIMITS.TASK_TITLE;
+const TAG_LIMIT = FIELD_LIMITS.TASK_TAG;
+const TAGS_LIMIT = FIELD_LIMITS.TASK_TAGS;
 
 const ASSIGNEE_FORMS = RUSSIAN_CASE_FORMS.ASSIGNEE.NOMINATIVE;
 const USER_GENITIVE_FORMS = RUSSIAN_CASE_FORMS.USER.GENITIVE;
@@ -412,6 +421,8 @@ export const CreateTask = () => {
   };
 
   const handleTagToggle = (tag) => {
+    clearFieldError('tags');
+
     setFormData((prev) => {
       const currentTags = prev.tags || [];
 
@@ -422,6 +433,15 @@ export const CreateTask = () => {
         };
       }
 
+      if (currentTags.length >= TAGS_LIMIT) {
+        setErrors((prevErrors) => ({
+          ...prevErrors,
+          tags: `Можно добавить не больше ${TAGS_LIMIT} тегов`,
+          submit: '',
+        }));
+        return prev;
+      }
+
       return {
         ...prev,
         tags: [...currentTags, tag],
@@ -430,17 +450,23 @@ export const CreateTask = () => {
   };
 
   const handleAddCustomTag = () => {
-    const preparedTag = customTag.trim();
+    const { tag, error } = validateTaskTag(customTag, formData.tags);
 
-    if (!preparedTag || formData.tags.includes(preparedTag)) {
+    if (!tag) {
+      return;
+    }
+
+    if (error) {
+      setErrors((prev) => ({ ...prev, tags: error, submit: '' }));
       return;
     }
 
     setFormData((prev) => ({
       ...prev,
-      tags: [...prev.tags, preparedTag],
+      tags: [...prev.tags, tag],
     }));
 
+    clearFieldError('tags');
     setCustomTag('');
   };
 
@@ -449,22 +475,38 @@ export const CreateTask = () => {
       ...prev,
       tags: prev.tags.filter((tag) => tag !== tagToRemove),
     }));
+
+    clearFieldError('tags');
   };
 
   const validateForm = () => {
     const newErrors = {};
     const title = formData.title.trim();
 
-    if (!title) {
-      newErrors.title = 'Название задачи обязательно';
-    } else if (title.length < 2) {
-      newErrors.title = 'Название должно содержать минимум 2 символа';
-    } else if (title.length > TITLE_LIMIT) {
-      newErrors.title = `Название не должно превышать ${TITLE_LIMIT} символов`;
+    const titleError = validateTextField(title, {
+      label: 'Название задачи',
+      min: 2,
+      max: TITLE_LIMIT,
+    });
+
+    if (titleError) {
+      newErrors.title = titleError;
     }
 
-    if (formData.description.length > DESCRIPTION_LIMIT) {
-      newErrors.description = `Описание не должно превышать ${DESCRIPTION_LIMIT} символов`;
+    const descriptionError = validateOptionalTextField(formData.description, {
+      label: 'Описание задачи',
+      max: DESCRIPTION_LIMIT,
+      requireMeaningful: false,
+    });
+
+    if (descriptionError) {
+      newErrors.description = descriptionError;
+    }
+
+    const tagsError = validateTaskTags(formData.tags);
+
+    if (tagsError) {
+      newErrors.tags = tagsError;
     }
 
     if (!formData.start_date) {
@@ -546,7 +588,6 @@ export const CreateTask = () => {
       console.error('Error creating task:', error);
 
       const errorMessage = handleApiError(error);
-      showError(errorMessage);
       setErrors({ submit: errorMessage });
     } finally {
       setLoading(false);
@@ -675,6 +716,7 @@ export const CreateTask = () => {
                 disabled={loading}
                 autoComplete="off"
                 maxLength={TITLE_LIMIT}
+                helperText={`От 2 до ${TITLE_LIMIT} символов`}
                 required
               />
 
@@ -830,7 +872,12 @@ export const CreateTask = () => {
                   <Input
                     placeholder="Добавить свой тег..."
                     value={customTag}
-                    onChange={(e) => setCustomTag(e.target.value)}
+                    onChange={(e) => {
+                      setCustomTag(e.target.value);
+                      clearFieldError('tags');
+                    }}
+                    maxLength={TAG_LIMIT}
+                    helperText={`До ${TAG_LIMIT} символов`}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -846,11 +893,17 @@ export const CreateTask = () => {
                     variant="secondary"
                     size="small"
                     onClick={handleAddCustomTag}
-                    disabled={!customTag.trim() || loading}
+                    disabled={!customTag.trim() || formData.tags.length >= TAGS_LIMIT || loading}
                   >
                     Добавить
                   </Button>
                 </div>
+
+                {errors.tags && (
+                  <div className={styles.groupError} role="alert">
+                    {errors.tags}
+                  </div>
+                )}
 
                 {formData.tags.length > 0 && (
                   <div className={styles.selectedTags}>

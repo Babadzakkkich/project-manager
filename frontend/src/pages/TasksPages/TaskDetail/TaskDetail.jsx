@@ -51,9 +51,18 @@ import {
 import { showGlobalSuccess } from '../../../utils/globalToast';
 import styles from './TaskDetail.module.css';
 import { TaskActivityPanel } from '../TaskActivityPanel/TaskActivityPanel';
+import {
+  FIELD_LIMITS,
+  validateOptionalTextField,
+  validateTaskTag,
+  validateTaskTags,
+  validateTextField,
+} from '../../../utils/validation';
 
-const TITLE_LIMIT = 200;
-const DESCRIPTION_LIMIT = 1000;
+const TITLE_LIMIT = FIELD_LIMITS.TASK_TITLE;
+const DESCRIPTION_LIMIT = FIELD_LIMITS.TASK_DESCRIPTION;
+const TAG_LIMIT = FIELD_LIMITS.TASK_TAG;
+const TAGS_LIMIT = FIELD_LIMITS.TASK_TAGS;
 const ASSIGNEE_FORMS = RUSSIAN_CASE_FORMS.ASSIGNEE.NOMINATIVE;
 
 const getAddedAssigneesMessage = (count) => {
@@ -303,16 +312,30 @@ export const TaskDetail = () => {
     const newErrors = {};
     const title = editForm.title.trim();
 
-    if (!title) {
-      newErrors.title = 'Название задачи обязательно';
-    } else if (title.length < 2) {
-      newErrors.title = 'Название должно содержать минимум 2 символа';
-    } else if (title.length > TITLE_LIMIT) {
-      newErrors.title = `Название не должно превышать ${TITLE_LIMIT} символов`;
+    const titleError = validateTextField(title, {
+      label: 'Название задачи',
+      min: 2,
+      max: TITLE_LIMIT,
+    });
+
+    if (titleError) {
+      newErrors.title = titleError;
     }
 
-    if (editForm.description.length > DESCRIPTION_LIMIT) {
-      newErrors.description = `Описание не должно превышать ${DESCRIPTION_LIMIT} символов`;
+    const descriptionError = validateOptionalTextField(editForm.description, {
+      label: 'Описание задачи',
+      max: DESCRIPTION_LIMIT,
+      requireMeaningful: false,
+    });
+
+    if (descriptionError) {
+      newErrors.description = descriptionError;
+    }
+
+    const tagsError = validateTaskTags(editForm.tags);
+
+    if (tagsError) {
+      newErrors.tags = tagsError;
     }
 
     if (!editForm.start_date) {
@@ -366,7 +389,6 @@ export const TaskDetail = () => {
 
       const errorMessage = handleApiError(err);
       setEditErrors({ submit: errorMessage });
-      showError(`Не удалось обновить задачу: ${errorMessage}`);
     } finally {
       setIsUpdatingTask(false);
     }
@@ -492,11 +514,24 @@ export const TaskDetail = () => {
       const currentTags = prev.tags || [];
 
       if (currentTags.includes(tag)) {
+        clearEditError('tags');
+
         return {
           ...prev,
           tags: currentTags.filter((item) => item !== tag),
         };
       }
+
+      if (currentTags.length >= TAGS_LIMIT) {
+        setEditErrors((prevErrors) => ({
+          ...prevErrors,
+          tags: `Можно добавить не больше ${TAGS_LIMIT} тегов`,
+          submit: '',
+        }));
+        return prev;
+      }
+
+      clearEditError('tags');
 
       return {
         ...prev,
@@ -506,17 +541,23 @@ export const TaskDetail = () => {
   };
 
   const handleAddCustomTag = () => {
-    const preparedTag = customTag.trim();
+    const { tag, error } = validateTaskTag(customTag, editForm.tags);
 
-    if (!preparedTag || editForm.tags.includes(preparedTag)) {
+    if (!tag) {
+      return;
+    }
+
+    if (error) {
+      setEditErrors((prev) => ({ ...prev, tags: error, submit: '' }));
       return;
     }
 
     setEditForm((prev) => ({
       ...prev,
-      tags: [...prev.tags, preparedTag],
+      tags: [...prev.tags, tag],
     }));
 
+    clearEditError('tags');
     setCustomTag('');
   };
 
@@ -525,6 +566,8 @@ export const TaskDetail = () => {
       ...prev,
       tags: prev.tags.filter((tag) => tag !== tagToRemove),
     }));
+
+    clearEditError('tags');
   };
 
   if (loading) {
@@ -710,7 +753,12 @@ export const TaskDetail = () => {
                   <Input
                     placeholder="Добавить свой тег..."
                     value={customTag}
-                    onChange={(e) => setCustomTag(e.target.value)}
+                    onChange={(e) => {
+                      setCustomTag(e.target.value);
+                      clearEditError('tags');
+                    }}
+                    maxLength={TAG_LIMIT}
+                    helperText={`До ${TAG_LIMIT} символов`}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -725,11 +773,17 @@ export const TaskDetail = () => {
                     variant="secondary"
                     size="small"
                     onClick={handleAddCustomTag}
-                    disabled={!customTag.trim() || isUpdatingTask}
+                    disabled={!customTag.trim() || editForm.tags.length >= TAGS_LIMIT || isUpdatingTask}
                   >
                     Добавить
                   </Button>
                 </div>
+
+                {editErrors.tags && (
+                  <div className={styles.tagsError} role="alert">
+                    {editErrors.tags}
+                  </div>
+                )}
 
                 {editForm.tags.length > 0 && (
                   <div className={styles.selectedTags}>

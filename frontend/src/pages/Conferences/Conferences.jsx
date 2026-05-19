@@ -31,7 +31,17 @@ import {
   formatRussianCount,
   handleApiError,
 } from '../../utils/helpers';
+import {
+  FIELD_LIMITS,
+  clampNumber,
+  validateTextField,
+} from '../../utils/validation';
 import styles from './Conferences.module.css';
+
+const CONFERENCE_TITLE_LIMIT = FIELD_LIMITS.CONFERENCE_TITLE;
+const INVITE_QUERY_LIMIT = FIELD_LIMITS.CONFERENCE_INVITE_QUERY;
+const MIN_CONFERENCE_PARTICIPANTS = 2;
+const MAX_CONFERENCE_PARTICIPANTS = 30;
 
 const PARTICIPANT_FORMS = ['участник', 'участника', 'участников'];
 const ROOM_FORMS = ['созвон', 'созвона', 'созвонов'];
@@ -214,6 +224,7 @@ export const Conferences = () => {
     room_type: CONFERENCE_ROOM_TYPES.INSTANT,
     max_participants: 30,
   });
+  const [createErrors, setCreateErrors] = useState({});
 
   const [invitableUsers, setInvitableUsers] = useState([]);
   const [inviteQuery, setInviteQuery] = useState('');
@@ -372,13 +383,59 @@ export const Conferences = () => {
     loadRooms({ manual: true });
   };
 
+  const clearCreateError = (fieldName) => {
+    if (!createErrors[fieldName] && !createErrors.submit) return;
+
+    setCreateErrors((prev) => {
+      const next = { ...prev };
+      delete next[fieldName];
+      delete next.submit;
+      return next;
+    });
+  };
+
+  const handleCreateFormChange = (fieldName, value) => {
+    setCreateForm((prev) => ({
+      ...prev,
+      [fieldName]: value,
+    }));
+
+    clearCreateError(fieldName);
+  };
+
   const handleCreateInstant = async (event) => {
     event?.preventDefault();
 
     const title = createForm.title.trim();
 
-    if (!title) {
-      showError('Введите название созвона');
+    const titleError = validateTextField(title, {
+      label: 'Название созвона',
+      min: 2,
+      max: CONFERENCE_TITLE_LIMIT,
+    });
+    const newErrors = {};
+
+    if (titleError) {
+      newErrors.title = titleError;
+    }
+
+    const maxParticipants = clampNumber(
+      createForm.max_participants,
+      MIN_CONFERENCE_PARTICIPANTS,
+      MAX_CONFERENCE_PARTICIPANTS,
+      MAX_CONFERENCE_PARTICIPANTS
+    );
+
+    if (!String(createForm.max_participants).trim()) {
+      newErrors.max_participants = 'Укажите максимальное количество участников';
+    } else if (Number(createForm.max_participants) < MIN_CONFERENCE_PARTICIPANTS) {
+      newErrors.max_participants = `Минимум ${MIN_CONFERENCE_PARTICIPANTS} участника`;
+    } else if (Number(createForm.max_participants) > MAX_CONFERENCE_PARTICIPANTS) {
+      newErrors.max_participants = `Максимум ${MAX_CONFERENCE_PARTICIPANTS} участников`;
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setCreateErrors(newErrors);
       return;
     }
 
@@ -388,7 +445,7 @@ export const Conferences = () => {
       const room = await conferencesAPI.createRoom({
         title,
         room_type: CONFERENCE_ROOM_TYPES.INSTANT,
-        max_participants: Number(createForm.max_participants) || 30,
+        max_participants: maxParticipants,
         invited_user_ids: selectedInvitedUsers.map((user) => user.id),
       });
 
@@ -401,12 +458,13 @@ export const Conferences = () => {
       setInviteQuery('');
       setInvitableUsers([]);
       setSelectedInvitedUsers([]);
+      setCreateErrors({});
 
       showSuccess('Созвон создан');
       navigate(`/conferences/${room.id}`);
     } catch (err) {
       console.error('Error creating conference:', err);
-      showError(`Не удалось создать созвон: ${handleApiError(err)}`);
+      setCreateErrors({ submit: `Не удалось создать созвон: ${handleApiError(err)}` });
     } finally {
       setCreateLoading(false);
     }
@@ -439,6 +497,7 @@ export const Conferences = () => {
     setInviteQuery('');
     setInvitableUsers([]);
     setSelectedInvitedUsers([]);
+    setCreateErrors({});
   };
 
   const handleOverlayClick = (event) => {
@@ -772,17 +831,24 @@ export const Conferences = () => {
                   id="conference-title"
                   type="text"
                   value={createForm.title}
-                  onChange={(event) =>
-                    setCreateForm((prev) => ({
-                      ...prev,
-                      title: event.target.value,
-                    }))
-                  }
+                  onChange={(event) => handleCreateFormChange('title', event.target.value)}
                   placeholder="Например: Быстрое обсуждение задач"
-                  className={styles.input}
+                  className={`${styles.input} ${createErrors.title ? styles.inputError : ''}`}
+                  aria-invalid={Boolean(createErrors.title)}
                   disabled={createLoading}
+                  maxLength={CONFERENCE_TITLE_LIMIT}
                   autoFocus
                 />
+
+                {createErrors.title ? (
+                  <span className={styles.fieldError} role="alert">
+                    {createErrors.title}
+                  </span>
+                ) : (
+                  <span className={styles.fieldHelper}>
+                    От 2 до {CONFERENCE_TITLE_LIMIT} символов
+                  </span>
+                )}
               </div>
 
               <div className={styles.formGroup}>
@@ -793,18 +859,24 @@ export const Conferences = () => {
                 <input
                   id="conference-max-participants"
                   type="number"
-                  min="2"
-                  max="30"
+                  min={MIN_CONFERENCE_PARTICIPANTS}
+                  max={MAX_CONFERENCE_PARTICIPANTS}
                   value={createForm.max_participants}
-                  onChange={(event) =>
-                    setCreateForm((prev) => ({
-                      ...prev,
-                      max_participants: event.target.value,
-                    }))
-                  }
-                  className={styles.input}
+                  onChange={(event) => handleCreateFormChange('max_participants', event.target.value)}
+                  className={`${styles.input} ${createErrors.max_participants ? styles.inputError : ''}`}
+                  aria-invalid={Boolean(createErrors.max_participants)}
                   disabled={createLoading}
                 />
+
+                {createErrors.max_participants ? (
+                  <span className={styles.fieldError} role="alert">
+                    {createErrors.max_participants}
+                  </span>
+                ) : (
+                  <span className={styles.fieldHelper}>
+                    От {MIN_CONFERENCE_PARTICIPANTS} до {MAX_CONFERENCE_PARTICIPANTS} участников
+                  </span>
+                )}
               </div>
 
               <div className={styles.inviteSection}>
@@ -845,6 +917,7 @@ export const Conferences = () => {
                     value={inviteQuery}
                     onChange={(event) => setInviteQuery(event.target.value)}
                     placeholder="Поиск по имени, логину или email"
+                    maxLength={INVITE_QUERY_LIMIT}
                     disabled={createLoading}
                   />
                 </div>
@@ -895,6 +968,12 @@ export const Conferences = () => {
                 <AlertTriangle size={15} strokeWidth={2} aria-hidden="true" />
                 Мгновенный созвон не привязывается к проекту, группе или задаче.
               </div>
+
+              {createErrors.submit && (
+                <div className={styles.submitError} role="alert">
+                  {createErrors.submit}
+                </div>
+              )}
 
               <div className={styles.modalActions}>
                 <Button

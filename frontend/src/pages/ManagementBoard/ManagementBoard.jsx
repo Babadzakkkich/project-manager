@@ -221,27 +221,22 @@ export const ManagementBoard = () => {
   };
 
   const handleQuickTaskCreate = async (taskData) => {
-    try {
-      const { assignee_ids, ...baseTaskData } = taskData;
+    const { assignee_ids, ...baseTaskData } = taskData;
 
-      if (Array.isArray(assignee_ids) && assignee_ids.length > 0) {
-        await tasksAPI.createForUsers({
-          ...baseTaskData,
-          assignee_ids,
-        });
+    if (Array.isArray(assignee_ids) && assignee_ids.length > 0) {
+      await tasksAPI.createForUsers({
+        ...baseTaskData,
+        assignee_ids,
+      });
 
-        showSuccess(getTaskCreatedForAssigneesMessage(assignee_ids.length));
-      } else {
-        await tasksAPI.quickCreateTask(baseTaskData);
-        showSuccess('Задача создана');
-      }
-
-      setShowQuickTaskForm(false);
-      await loadBoardTasks();
-    } catch (err) {
-      const errorMessage = handleApiError(err);
-      showError(`Не удалось создать задачу: ${errorMessage}`);
+      showSuccess(getTaskCreatedForAssigneesMessage(assignee_ids.length));
+    } else {
+      await tasksAPI.quickCreateTask(baseTaskData);
+      showSuccess('Задача создана');
     }
+
+    setShowQuickTaskForm(false);
+    await loadBoardTasks();
   };
 
   useEffect(() => {

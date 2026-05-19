@@ -27,7 +27,19 @@ import {
   handleApiError,
   RUSSIAN_CASE_FORMS,
 } from '../../../../utils/helpers';
+import {
+  FIELD_LIMITS,
+  validateOptionalTextField,
+  validateTaskTag,
+  validateTaskTags,
+  validateTextField,
+} from '../../../../utils/validation';
 import styles from './QuickTaskForm.module.css';
+
+const TASK_TITLE_LIMIT = FIELD_LIMITS.TASK_TITLE;
+const TASK_DESCRIPTION_LIMIT = FIELD_LIMITS.TASK_DESCRIPTION;
+const TAG_LIMIT = FIELD_LIMITS.TASK_TAG;
+const TAGS_LIMIT = FIELD_LIMITS.TASK_TAGS;
 
 const ASSIGNEE_FORMS = RUSSIAN_CASE_FORMS.ASSIGNEE.NOMINATIVE;
 const USER_GENITIVE_FORMS = RUSSIAN_CASE_FORMS.USER.GENITIVE;
@@ -55,6 +67,7 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
 
   const [loading, setLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const [availableUsers, setAvailableUsers] = useState([]);
   const [assigneeIds, setAssigneeIds] = useState([]);
@@ -129,31 +142,69 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
     };
   }, [loading, onClose]);
 
+  const clearFieldError = (fieldName) => {
+    if (!errors[fieldName] && !errors.submit) return;
+
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[fieldName];
+      delete next.submit;
+      return next;
+    });
+  };
+
   const handleChange = (field, value) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
     }));
+
+    clearFieldError(field);
+
+    if ((field === 'start_date' || field === 'deadline') && errors.deadline) {
+      clearFieldError('deadline');
+    }
   };
 
   const handleAddTag = () => {
-    const preparedTag = newTag.trim();
+    const { tag, error } = validateTaskTag(newTag, tags);
 
-    if (preparedTag && !tags.includes(preparedTag)) {
-      setTags((prev) => [...prev, preparedTag]);
-      setNewTag('');
-      setShowTagInput(false);
+    if (!tag) {
+      return;
     }
+
+    if (error) {
+      setErrors((prev) => ({ ...prev, tags: error, submit: '' }));
+      return;
+    }
+
+    setTags((prev) => [...prev, tag]);
+    setNewTag('');
+    setShowTagInput(false);
+    clearFieldError('tags');
   };
 
   const handleRemoveTag = (tagToRemove) => {
     setTags((prev) => prev.filter((tag) => tag !== tagToRemove));
+    clearFieldError('tags');
   };
 
   const handleAddDefaultTag = (tag) => {
-    if (!tags.includes(tag)) {
-      setTags((prev) => [...prev, tag]);
+    if (tags.includes(tag)) {
+      return;
     }
+
+    if (tags.length >= TAGS_LIMIT) {
+      setErrors((prev) => ({
+        ...prev,
+        tags: `Можно добавить не больше ${TAGS_LIMIT} тегов`,
+        submit: '',
+      }));
+      return;
+    }
+
+    setTags((prev) => [...prev, tag]);
+    clearFieldError('tags');
   };
 
   const handleAssigneeToggle = (userId) => {
@@ -164,15 +215,19 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
 
       return [...prev, userId];
     });
+
+    clearFieldError('assignees');
   };
 
   const handleSelectAllUsers = () => {
     if (assigneeIds.length === availableUsers.length) {
       setAssigneeIds([]);
+      clearFieldError('assignees');
       return;
     }
 
     setAssigneeIds(availableUsers.map((userItem) => userItem.id));
+    clearFieldError('assignees');
   };
 
   const handleOverlayClick = (event) => {
@@ -182,37 +237,54 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
   };
 
   const validateForm = () => {
-    if (!formData.title.trim()) {
-      showError('Введите название задачи');
-      return false;
+    const newErrors = {};
+
+    const titleError = validateTextField(formData.title, {
+      label: 'Название задачи',
+      min: 2,
+      max: TASK_TITLE_LIMIT,
+    });
+
+    if (titleError) {
+      newErrors.title = titleError;
+    }
+
+    const descriptionError = validateOptionalTextField(formData.description, {
+      label: 'Описание задачи',
+      max: TASK_DESCRIPTION_LIMIT,
+      requireMeaningful: false,
+    });
+
+    if (descriptionError) {
+      newErrors.description = descriptionError;
+    }
+
+    const tagsError = validateTaskTags(tags);
+
+    if (tagsError) {
+      newErrors.tags = tagsError;
     }
 
     if (!formData.start_date) {
-      showError('Укажите дату начала задачи');
-      return false;
+      newErrors.start_date = 'Укажите дату начала задачи';
     }
 
     if (!formData.deadline) {
-      showError('Укажите срок выполнения задачи');
-      return false;
-    }
-
-    if (formData.deadline < formData.start_date) {
-      showError('Срок выполнения не может быть раньше даты начала');
-      return false;
+      newErrors.deadline = 'Укажите срок выполнения задачи';
+    } else if (formData.start_date && formData.deadline < formData.start_date) {
+      newErrors.deadline = 'Срок выполнения не может быть раньше даты начала';
     }
 
     if (!project?.id || !group?.id) {
-      showError('Не выбран проект или группа');
-      return false;
+      newErrors.submit = 'Не выбран проект или группа';
     }
 
     if (isAdminMode && assigneeIds.length === 0) {
-      showError('Выберите хотя бы одного исполнителя');
-      return false;
+      newErrors.assignees = 'Выберите хотя бы одного исполнителя';
     }
 
-    return true;
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const buildTaskData = () => {
@@ -250,7 +322,7 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
       await onSubmit(buildTaskData());
     } catch (err) {
       const errorMessage = handleApiError(err);
-      showError(`Не удалось создать задачу: ${errorMessage}`);
+      setErrors({ submit: `Не удалось создать задачу: ${errorMessage}` });
     } finally {
       setLoading(false);
     }
@@ -319,6 +391,9 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
               placeholder="Введите название задачи..."
               required
               autoFocus
+              maxLength={TASK_TITLE_LIMIT}
+              helperText={`От 2 до ${TASK_TITLE_LIMIT} символов`}
+              error={errors.title}
               disabled={loading}
             />
           </div>
@@ -330,10 +405,23 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
               value={formData.description}
               onChange={(event) => handleChange('description', event.target.value)}
               placeholder="Описание задачи"
-              className={styles.textarea}
+              className={`${styles.textarea} ${errors.description ? styles.textareaError : ''}`}
               rows={3}
+              maxLength={TASK_DESCRIPTION_LIMIT}
               disabled={loading}
             />
+
+            <div className={styles.fieldFooter}>
+              {errors.description ? (
+                <span className={styles.errorMessage}>{errors.description}</span>
+              ) : (
+                <span className={styles.helperText}>Необязательное поле</span>
+              )}
+
+              <span className={styles.charCount}>
+                {formData.description.length}/{TASK_DESCRIPTION_LIMIT}
+              </span>
+            </div>
           </div>
 
           <div className={styles.row}>
@@ -384,6 +472,7 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
                 onChange={(event) => handleChange('start_date', event.target.value)}
                 min={today}
                 required
+                error={errors.start_date}
                 disabled={loading}
               />
             </div>
@@ -399,6 +488,7 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
                 onChange={(event) => handleChange('deadline', event.target.value)}
                 min={formData.start_date || today}
                 required
+                error={errors.deadline}
                 disabled={loading}
               />
             </div>
@@ -428,8 +518,14 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
                   <Input
                     type="text"
                     value={newTag}
-                    onChange={(event) => setNewTag(event.target.value)}
                     placeholder="Введите название тега..."
+                    maxLength={TAG_LIMIT}
+                    helperText={`До ${TAG_LIMIT} символов`}
+                    error={errors.tags}
+                    onChange={(event) => {
+                      setNewTag(event.target.value);
+                      clearFieldError('tags');
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
                         event.preventDefault();
@@ -444,7 +540,7 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
                     variant="primary"
                     size="small"
                     onClick={handleAddTag}
-                    disabled={!newTag.trim() || loading}
+                    disabled={!newTag.trim() || tags.length >= TAGS_LIMIT || loading}
                   >
                     Добавить
                   </Button>
@@ -460,13 +556,19 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
                         type="button"
                         className={styles.defaultTag}
                         onClick={() => handleAddDefaultTag(tag)}
-                        disabled={tags.includes(tag) || loading}
+                        disabled={tags.includes(tag) || tags.length >= TAGS_LIMIT || loading}
                       >
                         #{tag}
                       </button>
                     ))}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {errors.tags && !showTagInput && (
+              <div className={styles.inlineError} role="alert">
+                {errors.tags}
               </div>
             )}
 
@@ -513,6 +615,12 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
                   </Button>
                 )}
               </div>
+
+              {errors.assignees && (
+                <div className={styles.inlineError} role="alert">
+                  {errors.assignees}
+                </div>
+              )}
 
               {usersLoading ? (
                 <div className={styles.usersLoading}>
@@ -591,6 +699,12 @@ export const QuickTaskForm = ({ project, group, onSubmit, onClose }) => {
             <div className={styles.userInfoCard}>
               <p>Задача будет назначена вам как создателю.</p>
               <p>Только администраторы группы могут назначать задачи другим пользователям.</p>
+            </div>
+          )}
+
+          {errors.submit && (
+            <div className={styles.submitError} role="alert">
+              {errors.submit}
             </div>
           )}
 

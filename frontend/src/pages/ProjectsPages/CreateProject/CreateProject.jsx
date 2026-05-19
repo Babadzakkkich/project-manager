@@ -24,9 +24,15 @@ import {
   handleApiError,
   RUSSIAN_PLURAL_FORMS,
 } from '../../../utils/helpers';
+import {
+  FIELD_LIMITS,
+  validateOptionalTextField,
+  validateTextField,
+} from '../../../utils/validation';
 import styles from './CreateProject.module.css';
 
-const DESCRIPTION_LIMIT = 700;
+const TITLE_LIMIT = FIELD_LIMITS.PROJECT_TITLE;
+const DESCRIPTION_LIMIT = FIELD_LIMITS.PROJECT_DESCRIPTION;
 
 const getTodayInputValue = () => new Date().toISOString().split('T')[0];
 
@@ -175,14 +181,24 @@ export const CreateProject = () => {
 
     const title = formData.title.trim();
 
-    if (!title) {
-      newErrors.title = 'Название проекта обязательно';
-    } else if (title.length < 2) {
-      newErrors.title = 'Название должно содержать минимум 2 символа';
+    const titleError = validateTextField(title, {
+      label: 'Название проекта',
+      min: 2,
+      max: TITLE_LIMIT,
+    });
+
+    if (titleError) {
+      newErrors.title = titleError;
     }
 
-    if (formData.description.length > DESCRIPTION_LIMIT) {
-      newErrors.description = `Описание не должно превышать ${DESCRIPTION_LIMIT} символов`;
+    const descriptionError = validateOptionalTextField(formData.description, {
+      label: 'Описание проекта',
+      max: DESCRIPTION_LIMIT,
+      requireMeaningful: false,
+    });
+
+    if (descriptionError) {
+      newErrors.description = descriptionError;
     }
 
     if (!formData.start_date) {
@@ -237,7 +253,6 @@ export const CreateProject = () => {
       console.error('Error creating project:', error);
       const errorMessage = handleApiError(error);
 
-      showError(errorMessage);
       setErrors({ submit: errorMessage });
     } finally {
       setLoading(false);
@@ -343,6 +358,8 @@ export const CreateProject = () => {
                 placeholder="Например: Разработка клиентского портала"
                 disabled={loading}
                 autoComplete="off"
+                maxLength={TITLE_LIMIT}
+                helperText={`От 2 до ${TITLE_LIMIT} символов`}
                 required
               />
 

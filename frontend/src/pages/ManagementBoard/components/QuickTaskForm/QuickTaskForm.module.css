@@ -265,6 +265,51 @@
   justify-content: space-between;
   gap: var(--space-3);
 }
+.textareaError,
+.selectError {
+  border-color: var(--color-danger);
+  background: #fffafa;
+}
+
+.textareaError:focus,
+.selectError:focus {
+  box-shadow: var(--focus-ring-danger);
+}
+
+.fieldFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.helperText,
+.charCount {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--line-normal);
+}
+
+.errorMessage,
+.inlineError {
+  color: var(--color-danger);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-normal);
+}
+
+.submitError {
+  margin: var(--space-4) var(--space-5) 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-normal);
+}
+
 
 .tagInputSection {
   display: flex;

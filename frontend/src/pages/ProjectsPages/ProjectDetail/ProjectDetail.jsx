@@ -34,9 +34,15 @@ import {
 } from '../../../utils/helpers';
 import { getProjectStatusTranslation } from '../../../utils/projectStatus';
 import { showGlobalSuccess } from '../../../utils/globalToast';
+import {
+  FIELD_LIMITS,
+  validateOptionalTextField,
+  validateTextField,
+} from '../../../utils/validation';
 import styles from './ProjectDetail.module.css';
 
-const DESCRIPTION_LIMIT = 700;
+const TITLE_LIMIT = FIELD_LIMITS.PROJECT_TITLE;
+const DESCRIPTION_LIMIT = FIELD_LIMITS.PROJECT_DESCRIPTION;
 
 const getDateMs = (value) => {
   if (!value) return 0;
@@ -78,6 +84,7 @@ export const ProjectDetail = () => {
 
   const [addingGroup, setAddingGroup] = useState(false);
   const [newGroupId, setNewGroupId] = useState('');
+  const [newGroupError, setNewGroupError] = useState('');
   const [availableGroups, setAvailableGroups] = useState([]);
 
   const [userRole, setUserRole] = useState('');
@@ -230,14 +237,24 @@ export const ProjectDetail = () => {
   const validateEditForm = () => {
     const newErrors = {};
 
-    if (!editForm.title.trim()) {
-      newErrors.title = 'Название проекта обязательно';
-    } else if (editForm.title.trim().length < 2) {
-      newErrors.title = 'Название должно содержать минимум 2 символа';
+    const titleError = validateTextField(editForm.title, {
+      label: 'Название проекта',
+      min: 2,
+      max: TITLE_LIMIT,
+    });
+
+    if (titleError) {
+      newErrors.title = titleError;
     }
 
-    if (editForm.description.length > DESCRIPTION_LIMIT) {
-      newErrors.description = `Описание не должно превышать ${DESCRIPTION_LIMIT} символов`;
+    const descriptionError = validateOptionalTextField(editForm.description, {
+      label: 'Описание проекта',
+      max: DESCRIPTION_LIMIT,
+      requireMeaningful: false,
+    });
+
+    if (descriptionError) {
+      newErrors.description = descriptionError;
     }
 
     if (!editForm.start_date) {
@@ -306,7 +323,6 @@ export const ProjectDetail = () => {
       const errorMessage = handleApiError(err);
 
       setEditErrors({ submit: errorMessage });
-      showError(`Не удалось обновить проект: ${errorMessage}`);
     } finally {
       setIsUpdatingProject(false);
     }
@@ -333,7 +349,7 @@ export const ProjectDetail = () => {
     e.preventDefault();
 
     if (!newGroupId) {
-      showError('Выберите группу');
+      setNewGroupError('Выберите группу');
       return;
     }
 
@@ -345,6 +361,7 @@ export const ProjectDetail = () => {
       });
 
       setNewGroupId('');
+      setNewGroupError('');
       setAddingGroup(false);
 
       await loadProject();
@@ -353,7 +370,7 @@ export const ProjectDetail = () => {
       showSuccess('Группа успешно добавлена в проект');
     } catch (err) {
       console.error('Error adding group:', err);
-      showError(`Не удалось добавить группу: ${handleApiError(err)}`);
+      setNewGroupError(`Не удалось добавить группу: ${handleApiError(err)}`);
     } finally {
       setIsAddingGroup(false);
     }
@@ -495,6 +512,8 @@ export const ProjectDetail = () => {
                 onChange={(e) => handleEditFieldChange('title', e.target.value)}
                 error={editErrors.title}
                 placeholder="Название проекта"
+                maxLength={TITLE_LIMIT}
+                helperText={`От 2 до ${TITLE_LIMIT} символов`}
                 required
               />
 
@@ -710,8 +729,11 @@ export const ProjectDetail = () => {
                 <select
                   id="new-group"
                   value={newGroupId}
-                  onChange={(e) => setNewGroupId(e.target.value)}
-                  className={styles.select}
+                  onChange={(e) => {
+                    setNewGroupId(e.target.value);
+                    setNewGroupError('');
+                  }}
+                  className={`${styles.select} ${newGroupError ? styles.selectError : ''}`}
                   required
                   disabled={isAddingGroup}
                 >
@@ -722,6 +744,12 @@ export const ProjectDetail = () => {
                     </option>
                   ))}
                 </select>
+
+                {newGroupError && (
+                  <span className={styles.errorMessage} role="alert">
+                    {newGroupError}
+                  </span>
+                )}
               </div>
 
               {groupsToAdd.length === 0 && (

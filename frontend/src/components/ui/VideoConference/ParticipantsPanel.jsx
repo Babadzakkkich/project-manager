@@ -12,7 +12,10 @@ import {
   X,
 } from 'lucide-react';
 
+import { FIELD_LIMITS } from '../../../utils/validation';
 import styles from './ParticipantsPanel.module.css';
+
+const KICK_REASON_LIMIT = FIELD_LIMITS.CONFERENCE_KICK_REASON;
 
 const getParticipantName = (participant) => {
   return participant?.name || participant?.identity || 'Участник';
@@ -289,11 +292,16 @@ export const ParticipantsPanel = ({
             <span>Причина удаления</span>
             <textarea
               value={kickReason}
-              onChange={(event) => setKickReason(event.target.value.slice(0, 300))}
+              onChange={(event) => setKickReason(event.target.value)}
               className={styles.kickReasonInput}
               placeholder="Например: нарушение правил созвона"
               rows={2}
+              maxLength={KICK_REASON_LIMIT}
             />
+
+            <span className={styles.reasonCounter}>
+              {kickReason.length}/{KICK_REASON_LIMIT}
+            </span>
           </label>
         </div>
       )}

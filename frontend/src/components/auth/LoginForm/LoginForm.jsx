@@ -4,7 +4,11 @@ import { LogIn } from 'lucide-react';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { Input } from '../../ui/Input';
 import { Button } from '../../ui/Button';
+import { FIELD_LIMITS, normalizeTextInput, validatePasswordField } from '../../../utils/validation';
 import styles from './LoginForm.module.css';
+
+const LOGIN_LIMIT = FIELD_LIMITS.USER_LOGIN;
+const PASSWORD_LIMIT = FIELD_LIMITS.USER_PASSWORD;
 
 export const LoginForm = ({ onSwitchToRegister }) => {
   const [formData, setFormData] = useState({
@@ -38,12 +42,14 @@ export const LoginForm = ({ onSwitchToRegister }) => {
 
     if (!formData.login.trim()) {
       newErrors.login = 'Логин обязателен';
+    } else if (formData.login.length > LOGIN_LIMIT) {
+      newErrors.login = `Логин не должен превышать ${LOGIN_LIMIT} символов`;
     }
 
-    if (!formData.password) {
-      newErrors.password = 'Пароль обязателен';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Пароль должен содержать минимум 6 символов';
+    const passwordError = validatePasswordField(formData.password);
+
+    if (passwordError) {
+      newErrors.password = passwordError;
     }
 
     setErrors(newErrors);
@@ -56,7 +62,10 @@ export const LoginForm = ({ onSwitchToRegister }) => {
     if (!validateForm()) return;
 
     setLoading(true);
-    const result = await login(formData);
+    const result = await login({
+      ...formData,
+      login: normalizeTextInput(formData.login),
+    });
     setLoading(false);
 
     if (!result.success) {
@@ -87,6 +96,7 @@ export const LoginForm = ({ onSwitchToRegister }) => {
           placeholder="Введите логин"
           disabled={loading}
           autoComplete="username"
+          maxLength={LOGIN_LIMIT}
         />
 
         <Input
@@ -99,6 +109,7 @@ export const LoginForm = ({ onSwitchToRegister }) => {
           placeholder="Введите пароль"
           disabled={loading}
           autoComplete="current-password"
+          maxLength={PASSWORD_LIMIT}
         />
 
         {errors.submit && (

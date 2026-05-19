@@ -33,7 +33,17 @@ import {
 } from '../../../utils/helpers';
 import { CONFERENCE_ROOM_TYPES } from '../../../utils/constants';
 import { showGlobalSuccess } from '../../../utils/globalToast';
+import {
+  FIELD_LIMITS,
+  validateEmailField,
+  validateOptionalTextField,
+  validateTextField,
+} from '../../../utils/validation';
 import styles from './GroupDetail.module.css';
+
+const GROUP_NAME_LIMIT = FIELD_LIMITS.GROUP_NAME;
+const GROUP_DESCRIPTION_LIMIT = FIELD_LIMITS.GROUP_DESCRIPTION;
+const EMAIL_LIMIT = FIELD_LIMITS.USER_EMAIL;
 
 const getUserName = (user) => {
   return user?.name || user?.login || user?.email || 'Пользователь';
@@ -53,11 +63,13 @@ export const GroupDetail = () => {
 
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', description: '' });
+  const [editErrors, setEditErrors] = useState({});
 
   const [userRole, setUserRole] = useState('');
 
   const [invitingUser, setInvitingUser] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteEmailError, setInviteEmailError] = useState('');
   const [inviteRole, setInviteRole] = useState('member');
   const [inviting, setInviting] = useState(false);
 
@@ -144,8 +156,29 @@ export const GroupDetail = () => {
   const handleUpdateGroup = async (e) => {
     e.preventDefault();
 
-    if (!editForm.name.trim()) {
-      showError('Название группы обязательно');
+    const newErrors = {};
+    const nameError = validateTextField(editForm.name, {
+      label: 'Название группы',
+      min: 2,
+      max: GROUP_NAME_LIMIT,
+    });
+    const descriptionError = validateOptionalTextField(editForm.description, {
+      label: 'Описание группы',
+      max: GROUP_DESCRIPTION_LIMIT,
+      requireMeaningful: false,
+    });
+
+    if (nameError) {
+      newErrors.name = nameError;
+    }
+
+    if (descriptionError) {
+      newErrors.description = descriptionError;
+    }
+
+    setEditErrors(newErrors);
+
+    if (Object.keys(newErrors).length > 0) {
       return;
     }
 
@@ -157,18 +190,22 @@ export const GroupDetail = () => {
 
       await loadGroup();
       setEditing(false);
+      setEditErrors({});
       showSuccess('Группа успешно обновлена');
     } catch (err) {
       console.error('Error updating group:', err);
-      showError(`Не удалось обновить группу: ${handleApiError(err)}`);
+      setEditErrors({ submit: `Не удалось обновить группу: ${handleApiError(err)}` });
     }
   };
 
   const handleInviteUser = async (e) => {
     e.preventDefault();
 
-    if (!inviteEmail.trim()) {
-      showError('Введите email пользователя');
+    const emailError = validateEmailField(inviteEmail);
+
+    setInviteEmailError(emailError);
+
+    if (emailError) {
       return;
     }
 
@@ -182,11 +219,12 @@ export const GroupDetail = () => {
 
       showSuccess(`Приглашение отправлено на ${inviteEmail}`);
       setInviteEmail('');
+      setInviteEmailError('');
       setInviteRole('member');
       setInvitingUser(false);
     } catch (err) {
       console.error('Error inviting user:', err);
-      showError(`Не удалось отправить приглашение: ${handleApiError(err)}`);
+      setInviteEmailError(`Не удалось отправить приглашение: ${handleApiError(err)}`);
     } finally {
       setInviting(false);
     }
@@ -320,8 +358,14 @@ export const GroupDetail = () => {
               <Input
                 label="Название группы"
                 value={editForm.name}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                onChange={(e) => {
+                  setEditForm((prev) => ({ ...prev, name: e.target.value }));
+                  setEditErrors((prev) => ({ ...prev, name: '', submit: '' }));
+                }}
+                error={editErrors.name}
                 placeholder="Название группы"
+                maxLength={GROUP_NAME_LIMIT}
+                helperText={`От 2 до ${GROUP_NAME_LIMIT} символов`}
                 required
               />
 
@@ -333,13 +377,34 @@ export const GroupDetail = () => {
                 <textarea
                   id="group-description"
                   value={editForm.description}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
+                  onChange={(e) => {
+                    setEditForm((prev) => ({ ...prev, description: e.target.value }));
+                    setEditErrors((prev) => ({ ...prev, description: '', submit: '' }));
+                  }}
                   placeholder="Описание группы"
-                  className={styles.textarea}
+                  className={`${styles.textarea} ${editErrors.description ? styles.textareaError : ''}`}
                   rows={4}
-                  maxLength={500}
+                  maxLength={GROUP_DESCRIPTION_LIMIT}
                 />
+
+                <div className={styles.textareaFooter}>
+                  {editErrors.description ? (
+                    <span className={styles.errorMessage}>{editErrors.description}</span>
+                  ) : (
+                    <span className={styles.helperText}>Необязательное поле</span>
+                  )}
+
+                  <span className={styles.charCount}>
+                    {editForm.description.length}/{GROUP_DESCRIPTION_LIMIT}
+                  </span>
+                </div>
               </div>
+
+              {editErrors.submit && (
+                <div className={styles.submitError} role="alert">
+                  {editErrors.submit}
+                </div>
+              )}
 
               <div className={styles.editActions}>
                 <Button type="submit" variant="primary">
@@ -355,6 +420,7 @@ export const GroupDetail = () => {
                       name: group.name,
                       description: group.description || '',
                     });
+                    setEditErrors({});
                   }}
                 >
                   Отмена
@@ -456,8 +522,13 @@ export const GroupDetail = () => {
                   label="Email пользователя"
                   type="email"
                   value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
+                  onChange={(e) => {
+                    setInviteEmail(e.target.value);
+                    setInviteEmailError('');
+                  }}
+                  error={inviteEmailError}
                   placeholder="user@example.com"
+                  maxLength={EMAIL_LIMIT}
                   required
                   disabled={inviting}
                 />

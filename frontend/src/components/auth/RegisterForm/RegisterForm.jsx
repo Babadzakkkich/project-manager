@@ -4,7 +4,20 @@ import { CheckCircle2, UserPlus } from 'lucide-react';
 import { usersAPI } from '../../../services/api/users';
 import { Input } from '../../ui/Input';
 import { Button } from '../../ui/Button';
+import {
+  FIELD_LIMITS,
+  normalizeTextInput,
+  validateEmailField,
+  validateLoginField,
+  validatePasswordField,
+  validateTextField,
+} from '../../../utils/validation';
 import styles from './RegisterForm.module.css';
+
+const NAME_LIMIT = FIELD_LIMITS.USER_NAME;
+const EMAIL_LIMIT = FIELD_LIMITS.USER_EMAIL;
+const LOGIN_LIMIT = FIELD_LIMITS.USER_LOGIN;
+const PASSWORD_LIMIT = FIELD_LIMITS.USER_PASSWORD;
 
 export const RegisterForm = ({ onSwitchToLogin }) => {
   const [formData, setFormData] = useState({
@@ -38,28 +51,32 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.login.trim()) {
-      newErrors.login = 'Логин обязателен';
-    } else if (formData.login.length < 3) {
-      newErrors.login = 'Логин должен содержать минимум 3 символа';
+    const loginError = validateLoginField(formData.login);
+
+    if (loginError) {
+      newErrors.login = loginError;
     }
 
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email обязателен';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Введите корректный email';
+    const emailError = validateEmailField(formData.email);
+
+    if (emailError) {
+      newErrors.email = emailError;
     }
 
-    if (!formData.name.trim()) {
-      newErrors.name = 'Имя обязательно';
-    } else if (formData.name.length < 2) {
-      newErrors.name = 'Имя должно содержать минимум 2 символа';
+    const nameError = validateTextField(formData.name, {
+      label: 'Имя',
+      min: 2,
+      max: NAME_LIMIT,
+    });
+
+    if (nameError) {
+      newErrors.name = nameError;
     }
 
-    if (!formData.password) {
-      newErrors.password = 'Пароль обязателен';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Пароль должен содержать минимум 6 символов';
+    const passwordError = validatePasswordField(formData.password);
+
+    if (passwordError) {
+      newErrors.password = passwordError;
     }
 
     if (!formData.confirmPassword) {
@@ -81,9 +98,9 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
 
     try {
       await usersAPI.register({
-        login: formData.login,
-        email: formData.email,
-        name: formData.name,
+        login: normalizeTextInput(formData.login),
+        email: normalizeTextInput(formData.email),
+        name: normalizeTextInput(formData.name),
         password: formData.password,
       });
 
@@ -147,6 +164,8 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
           placeholder="Придумайте логин"
           disabled={loading}
           autoComplete="username"
+          maxLength={LOGIN_LIMIT}
+          helperText={`3–${LOGIN_LIMIT} символов, латиница и цифры`}
         />
 
         <Input
@@ -159,6 +178,7 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
           placeholder="Введите email"
           disabled={loading}
           autoComplete="email"
+          maxLength={EMAIL_LIMIT}
         />
 
         <Input
@@ -171,6 +191,8 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
           placeholder="Введите имя"
           disabled={loading}
           autoComplete="name"
+          maxLength={NAME_LIMIT}
+          helperText={`От 2 до ${NAME_LIMIT} символов`}
         />
 
         <Input
@@ -183,6 +205,7 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
           placeholder="Придумайте пароль"
           disabled={loading}
           autoComplete="new-password"
+          maxLength={PASSWORD_LIMIT}
         />
 
         <Input
@@ -195,6 +218,7 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
           placeholder="Повторите пароль"
           disabled={loading}
           autoComplete="new-password"
+          maxLength={PASSWORD_LIMIT}
         />
 
         {errors.submit && (

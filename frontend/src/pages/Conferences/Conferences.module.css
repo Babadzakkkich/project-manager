@@ -566,6 +566,41 @@
   cursor: not-allowed;
   opacity: 0.75;
 }
+.inputError {
+  border-color: var(--color-danger);
+  background: #fffafa;
+}
+
+.inputError:focus {
+  box-shadow: var(--focus-ring-danger);
+}
+
+.fieldHelper,
+.fieldError {
+  font-size: var(--text-xs);
+  line-height: var(--line-normal);
+}
+
+.fieldHelper {
+  color: var(--color-text-muted);
+}
+
+.fieldError {
+  color: var(--color-danger);
+  font-weight: var(--font-semibold);
+}
+
+.submitError {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-normal);
+}
+
 
 .modalHint {
   display: flex;

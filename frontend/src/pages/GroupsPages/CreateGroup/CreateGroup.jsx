@@ -20,9 +20,16 @@ import {
   RUSSIAN_CASE_FORMS,
   RUSSIAN_PLURAL_FORMS,
 } from '../../../utils/helpers';
+import {
+  FIELD_LIMITS,
+  validateOptionalTextField,
+  validateTextField,
+} from '../../../utils/validation';
 import styles from './CreateGroup.module.css';
 
 const MAX_GROUPS = 5;
+const GROUP_NAME_LIMIT = FIELD_LIMITS.GROUP_NAME;
+const GROUP_DESCRIPTION_LIMIT = FIELD_LIMITS.GROUP_DESCRIPTION;
 const GROUP_ACCUSATIVE_FORMS = RUSSIAN_CASE_FORMS.GROUP.ACCUSATIVE;
 const GROUP_GENITIVE_FORMS = RUSSIAN_CASE_FORMS.GROUP.GENITIVE;
 
@@ -48,7 +55,6 @@ export const CreateGroup = () => {
   const {
     notification,
     showSuccess,
-    showError,
     hideNotification,
   } = useNotification();
 
@@ -96,18 +102,24 @@ export const CreateGroup = () => {
     const newErrors = {};
 
     groups.forEach((group, index) => {
-      const name = group.name.trim();
+      const nameError = validateTextField(group.name, {
+        label: 'Название группы',
+        min: 2,
+        max: GROUP_NAME_LIMIT,
+      });
 
-      if (!name) {
-        newErrors[`group_${index}_name`] = 'Название группы обязательно';
-      } else if (name.length < 2) {
-        newErrors[`group_${index}_name`] = 'Название должно содержать минимум 2 символа';
-      } else if (name.length > 100) {
-        newErrors[`group_${index}_name`] = 'Название не должно превышать 100 символов';
+      if (nameError) {
+        newErrors[`group_${index}_name`] = nameError;
       }
 
-      if (group.description && group.description.length > 500) {
-        newErrors[`group_${index}_description`] = 'Описание не должно превышать 500 символов';
+      const descriptionError = validateOptionalTextField(group.description, {
+        label: 'Описание группы',
+        max: GROUP_DESCRIPTION_LIMIT,
+        requireMeaningful: false,
+      });
+
+      if (descriptionError) {
+        newErrors[`group_${index}_description`] = descriptionError;
       }
     });
 
@@ -149,7 +161,6 @@ export const CreateGroup = () => {
         const errorMessage = creationErrors.join('; ');
 
         if (created.length === 0) {
-          showError(errorMessage);
           setErrors({ submit: errorMessage });
         } else {
           showSuccess(formatCreatedGroupsMessage(created.length, groups.length));
@@ -170,7 +181,6 @@ export const CreateGroup = () => {
     } catch (error) {
       console.error('Error creating groups:', error);
       const errorMessage = handleApiError(error);
-      showError(errorMessage);
       setErrors({ submit: errorMessage });
     } finally {
       setLoading(false);
@@ -269,7 +279,8 @@ export const CreateGroup = () => {
                   placeholder="Например: Команда разработки"
                   disabled={loading}
                   autoComplete="off"
-                  maxLength={100}
+                  maxLength={GROUP_NAME_LIMIT}
+                  helperText={`От 2 до ${GROUP_NAME_LIMIT} символов`}
                   required
                 />
 
@@ -287,7 +298,7 @@ export const CreateGroup = () => {
                     disabled={loading}
                     className={`${styles.textarea} ${errors[`group_${index}_description`] ? styles.textareaError : ''}`}
                     rows={4}
-                    maxLength={500}
+                    maxLength={GROUP_DESCRIPTION_LIMIT}
                   />
 
                   <div className={styles.textareaFooter}>
@@ -302,7 +313,7 @@ export const CreateGroup = () => {
                     )}
 
                     <span className={styles.charCount}>
-                      {group.description?.length || 0}/500
+                      {group.description?.length || 0}/{GROUP_DESCRIPTION_LIMIT}
                     </span>
                   </div>
                 </div>
