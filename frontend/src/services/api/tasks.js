@@ -139,6 +139,16 @@ export const tasksAPI = {
     const response = await apiClient.delete(`${API_ENDPOINTS.TASKS}/${taskId}/comments/${commentId}`);
     return response.data;
   },
+
+  markCommentRead: async (taskId, commentId) => {
+    const response = await apiClient.post(`${API_ENDPOINTS.TASKS}/${taskId}/comments/${commentId}/read`);
+    return response.data;
+  },
+
+  markAllCommentsRead: async (taskId) => {
+    const response = await apiClient.post(`${API_ENDPOINTS.TASKS}/${taskId}/comments/read`);
+    return response.data;
+  },
   quickCreateTask: async (taskData) => {
     const response = await apiClient.post(
       `${API_ENDPOINTS.TASKS}/quick_create`,

@@ -13,7 +13,10 @@ from shared.dependencies import (
     ensure_global_admin_by_id,
     is_global_admin_user,
 )
-from core.database.models import Task, Project, User, Group, GroupMember, TaskHistory, TaskComment, TaskStatus, TaskPriority
+from core.database.models import (
+    Task, Project, User, Group, GroupMember, TaskHistory, TaskComment,
+    TaskStatus, TaskPriority, task_comment_reads
+)
 from core.logger import logger
 from .schemas import AddRemoveUsersToTask, TaskCreate, TaskReadWithRelations, TaskUpdate, TaskRead, TaskBulkUpdate, TaskCommentCreate, TaskCommentUpdate
 from .exceptions import (
@@ -128,6 +131,62 @@ class TaskService:
             raise TaskCommentNotFoundError(comment_id)
 
         return comment
+
+    async def _apply_comment_read_state(
+        self,
+        comments: List[TaskComment],
+        current_user: User,
+    ) -> List[TaskComment]:
+        """Добавить к комментариям флаги прочтения для текущего пользователя."""
+        if not comments:
+            return comments
+
+        comment_ids = [comment.id for comment in comments]
+        read_stmt = (
+            select(task_comment_reads.c.comment_id, task_comment_reads.c.read_at)
+            .where(task_comment_reads.c.user_id == current_user.id)
+            .where(task_comment_reads.c.comment_id.in_(comment_ids))
+        )
+        read_result = await self.session.execute(read_stmt)
+        read_map = {row.comment_id: row.read_at for row in read_result.all()}
+
+        for comment in comments:
+            is_read = (
+                comment.author_id == current_user.id
+                or comment.is_deleted
+                or comment.id in read_map
+            )
+            setattr(comment, "is_read", is_read)
+            setattr(comment, "read_at", read_map.get(comment.id))
+
+        return comments
+
+    async def _mark_comment_read_row(self, comment_id: int, user_id: int) -> bool:
+        """Создать запись о прочтении, если её ещё нет."""
+        existing_stmt = (
+            select(task_comment_reads.c.comment_id)
+            .where(task_comment_reads.c.comment_id == comment_id)
+            .where(task_comment_reads.c.user_id == user_id)
+        )
+        existing = await self.session.execute(existing_stmt)
+        if existing.first():
+            return False
+
+        await self.session.execute(
+            task_comment_reads.insert().values(
+                comment_id=comment_id,
+                user_id=user_id,
+            )
+        )
+        return True
+
+    async def _reset_comment_read_state_for_others(self, comment_id: int, author_id: int) -> None:
+        """После редактирования комментарий снова считается непрочитанным для остальных."""
+        await self.session.execute(
+            delete(task_comment_reads)
+            .where(task_comment_reads.c.comment_id == comment_id)
+            .where(task_comment_reads.c.user_id != author_id)
+        )
 
     def _add_history(
         self,
@@ -987,7 +1046,8 @@ class TaskService:
             .order_by(TaskComment.created_at.asc())
         )
         result = await self.session.execute(stmt)
-        return result.scalars().unique().all()
+        comments = result.scalars().unique().all()
+        return await self._apply_comment_read_state(comments, current_user)
 
     async def create_task_comment(
         self,
@@ -1019,6 +1079,7 @@ class TaskService:
         )
         self.session.add(comment)
         await self.session.flush()
+        await self._mark_comment_read_row(comment.id, current_user.id)
 
         self._add_history(
             task_id=task_id,
@@ -1076,6 +1137,8 @@ class TaskService:
         comment.content = content
         comment.is_edited = True
         comment.mentioned_users = mentioned_users
+        await self._reset_comment_read_state_for_others(comment_id, current_user.id)
+        await self._mark_comment_read_row(comment_id, current_user.id)
 
         self._add_history(
             task_id=task_id,
@@ -1131,6 +1194,54 @@ class TaskService:
         await self.session.commit()
         return {"detail": "Комментарий удалён"}
 
+    async def mark_task_comment_read(
+        self,
+        task_id: int,
+        comment_id: int,
+        current_user: User,
+    ) -> dict:
+        """Отметить один комментарий как прочитанный."""
+        await self._ensure_task_view_access(task_id, current_user)
+        comment = await self._get_task_comment(task_id, comment_id)
+
+        if comment.author_id == current_user.id or comment.is_deleted:
+            return {"detail": "Комментарий уже считается прочитанным", "marked_count": 0}
+
+        created = await self._mark_comment_read_row(comment_id, current_user.id)
+        if created:
+            await self.session.commit()
+
+        return {
+            "detail": "Комментарий отмечен как прочитанный",
+            "marked_count": 1 if created else 0,
+        }
+
+    async def mark_task_comments_read(self, task_id: int, current_user: User) -> dict:
+        """Отметить все доступные комментарии задачи как прочитанные."""
+        await self._ensure_task_view_access(task_id, current_user)
+
+        stmt = (
+            select(TaskComment)
+            .where(TaskComment.task_id == task_id)
+            .where(TaskComment.author_id != current_user.id)
+            .where(TaskComment.is_deleted.is_(False))
+        )
+        result = await self.session.execute(stmt)
+        comments = result.scalars().unique().all()
+
+        marked_count = 0
+        for comment in comments:
+            if await self._mark_comment_read_row(comment.id, current_user.id):
+                marked_count += 1
+
+        if marked_count:
+            await self.session.commit()
+
+        return {
+            "detail": "Комментарии отмечены как прочитанные",
+            "marked_count": marked_count,
+        }
+
     async def get_task_timeline(self, task_id: int, current_user: User) -> List[Dict[str, Any]]:
         """Получить единую ленту комментариев и системной истории задачи."""
         await self._ensure_task_view_access(task_id, current_user)
@@ -1154,7 +1265,10 @@ class TaskService:
 
         timeline: List[Dict[str, Any]] = []
 
-        for comment in comments_result.scalars().unique().all():
+        comments = comments_result.scalars().unique().all()
+        await self._apply_comment_read_state(comments, current_user)
+
+        for comment in comments:
             timeline.append({
                 "type": "comment",
                 "id": comment.id,

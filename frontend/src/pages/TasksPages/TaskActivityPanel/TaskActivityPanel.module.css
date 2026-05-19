@@ -1,4 +1,9 @@
 .section {
+  --unread-accent: #22c55e;
+  --unread-accent-dark: #16a34a;
+  --unread-accent-soft: #dcfce7;
+  --unread-accent-border: #86efac;
+
   min-width: 0;
   background: var(--color-surface, #ffffff);
   border: 1px solid var(--color-border, #e5e7eb);
@@ -44,6 +49,52 @@
   color: var(--color-text-muted, #6b7280);
   font-size: var(--text-xs, 12px);
   font-weight: var(--font-bold, 700);
+}
+
+.unreadToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3, 12px);
+  margin-bottom: var(--space-3, 12px);
+  padding: 10px 12px;
+  border: 1px solid var(--unread-accent-border);
+  border-radius: var(--radius-xl, 16px);
+  background: var(--unread-accent-soft);
+  color: var(--unread-accent-dark);
+  font-size: var(--text-sm, 14px);
+  font-weight: var(--font-bold, 700);
+}
+
+.unreadToolbar button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--unread-accent-border);
+  border-radius: var(--radius-pill, 999px);
+  background: var(--color-surface, #ffffff);
+  color: var(--unread-accent-dark);
+  font: inherit;
+  font-size: var(--text-xs, 12px);
+  font-weight: var(--font-extrabold, 800);
+  cursor: pointer;
+  transition:
+    background var(--transition-base, 0.2s ease),
+    border-color var(--transition-base, 0.2s ease),
+    color var(--transition-base, 0.2s ease);
+}
+
+.unreadToolbar button:hover:not(:disabled) {
+  border-color: var(--unread-accent);
+  color: var(--unread-accent-dark);
+}
+
+.unreadToolbar button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .feedTabs {
@@ -242,6 +293,34 @@
   border-left: 1px solid var(--color-border, #e5e7eb);
 }
 
+.unreadComment {
+  position: relative;
+  border-color: var(--unread-accent-border);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--unread-accent) 18%, var(--color-surface, #ffffff)) 0%,
+      var(--color-surface, #ffffff) 72%
+    );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--unread-accent) 38%, transparent),
+    0 10px 24px color-mix(in srgb, var(--unread-accent) 16%, transparent);
+}
+
+.unreadComment::after {
+  content: '';
+  position: absolute;
+  top: 48px;
+  right: 18px;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--unread-accent);
+  box-shadow:
+    0 0 0 3px var(--color-surface, #ffffff),
+    0 0 0 5px color-mix(in srgb, var(--unread-accent) 22%, transparent);
+}
+
 .replyItem {
   margin-left: 0;
 }
@@ -303,6 +382,7 @@
 
 .youBadge,
 .replyBadge,
+.unreadBadge,
 .activityLabel {
   min-height: 22px;
   display: inline-flex;
@@ -317,6 +397,12 @@
 .youBadge {
   background: var(--color-brand-100, #ecfdf3);
   color: var(--color-brand-800, #047857);
+}
+
+.unreadBadge {
+  border: 1px solid var(--unread-accent-border);
+  background: var(--unread-accent-soft);
+  color: var(--unread-accent-dark);
 }
 
 .replyBadge,
@@ -373,6 +459,104 @@
   line-height: var(--line-relaxed, 1.65);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.activityValueRow {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.activityArrow {
+  color: var(--color-text-muted, #6b7280);
+  font-weight: var(--font-bold, 700);
+}
+
+.activityValuePlain,
+.activityValueBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--radius-pill, 999px);
+  font-size: var(--text-xs, 12px);
+  font-weight: var(--font-bold, 700);
+  line-height: 1;
+}
+
+.activityValuePlain {
+  background: var(--color-surface, #ffffff);
+  color: var(--color-text-muted, #6b7280);
+}
+
+.statusBacklog,
+.statusDefault {
+  background: var(--status-backlog-bg);
+  color: var(--status-backlog-text);
+  border-color: var(--status-backlog-border);
+}
+
+.statusTodo {
+  background: var(--status-todo-bg);
+  color: var(--status-todo-text);
+  border-color: var(--status-todo-border);
+}
+
+.statusInProgress {
+  background: var(--status-progress-bg);
+  color: var(--status-progress-text);
+  border-color: var(--status-progress-border);
+}
+
+.statusReview {
+  background: var(--status-review-bg);
+  color: var(--status-review-text);
+  border-color: var(--status-review-border);
+}
+
+.statusDone {
+  background: var(--status-done-bg);
+  color: var(--status-done-text);
+  border-color: var(--status-done-border);
+}
+
+.statusCancelled {
+  background: var(--status-cancelled-bg);
+  color: var(--status-cancelled-text);
+  border-color: var(--status-cancelled-border);
+}
+
+.statusPlanned {
+  background: var(--status-planned-bg);
+  color: var(--status-planned-text);
+  border-color: var(--status-planned-border);
+}
+
+.priorityLow,
+.priorityDefault {
+  background: var(--priority-low-bg);
+  color: var(--priority-low-text);
+  border-color: var(--priority-low-border);
+}
+
+.priorityMedium {
+  background: var(--priority-medium-bg);
+  color: var(--priority-medium-text);
+  border-color: var(--priority-medium-border);
+}
+
+.priorityHigh {
+  background: var(--priority-high-bg);
+  color: var(--priority-high-text);
+  border-color: var(--priority-high-border);
+}
+
+.priorityUrgent {
+  background: var(--priority-urgent-bg);
+  color: var(--priority-urgent-text);
+  border-color: var(--priority-urgent-border);
 }
 
 .mentionText {
@@ -463,6 +647,7 @@
 
   .sectionHeader,
   .commentFormFooter,
+  .unreadToolbar,
   .itemHeader {
     flex-direction: column;
     align-items: stretch;
@@ -492,6 +677,11 @@
   .activityIcon {
     width: 32px;
     height: 32px;
+  }
+
+  .unreadComment::after {
+    top: 44px;
+    right: 14px;
   }
 
   .replyNotice {

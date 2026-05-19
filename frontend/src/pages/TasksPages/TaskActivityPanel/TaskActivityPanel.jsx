@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  CheckCheck,
   Clock3,
   History,
   MessageSquare,
@@ -63,15 +64,25 @@ const truncateText = (value, limit = QUOTE_LIMIT) => {
   return `${text.slice(0, limit).trim()}…`;
 };
 
+const normalizeValue = (value) => {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^taskstatus\./, '')
+    .replace(/^taskpriority\./, '');
+};
+
 const getValueLabel = (action, value) => {
   if (!value) return '—';
 
+  const preparedValue = normalizeValue(value);
+
   if (action?.includes('status')) {
-    return getTaskStatusTranslation(value);
+    return getTaskStatusTranslation(preparedValue);
   }
 
   if (action?.includes('priority')) {
-    return getTaskPriorityTranslation(value);
+    return getTaskPriorityTranslation(preparedValue);
   }
 
   if (action?.includes('deadline') || action?.includes('start_date')) {
@@ -79,6 +90,56 @@ const getValueLabel = (action, value) => {
   }
 
   return String(value);
+};
+
+const getStatusClass = (value) => {
+  const statusClasses = {
+    backlog: styles.statusBacklog,
+    todo: styles.statusTodo,
+    in_progress: styles.statusInProgress,
+    review: styles.statusReview,
+    done: styles.statusDone,
+    completed: styles.statusDone,
+    cancelled: styles.statusCancelled,
+    planned: styles.statusPlanned,
+  };
+
+  return statusClasses[normalizeValue(value)] || styles.statusDefault;
+};
+
+const getPriorityClass = (value) => {
+  const priorityClasses = {
+    low: styles.priorityLow,
+    medium: styles.priorityMedium,
+    high: styles.priorityHigh,
+    urgent: styles.priorityUrgent,
+  };
+
+  return priorityClasses[normalizeValue(value)] || styles.priorityDefault;
+};
+
+const renderActivityValue = (action, value) => {
+  if (!value) {
+    return <span className={styles.activityValuePlain}>—</span>;
+  }
+
+  if (action?.includes('status')) {
+    return (
+      <span className={`${styles.activityValueBadge} ${getStatusClass(value)}`}>
+        {getValueLabel(action, value)}
+      </span>
+    );
+  }
+
+  if (action?.includes('priority')) {
+    return (
+      <span className={`${styles.activityValueBadge} ${getPriorityClass(value)}`}>
+        {getValueLabel(action, value)}
+      </span>
+    );
+  }
+
+  return <span className={styles.activityValuePlain}>{getValueLabel(action, value)}</span>;
 };
 
 const renderCommentText = (text) => {
@@ -141,6 +202,10 @@ export const TaskActivityPanel = ({
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
+  const commentNodesRef = useRef(new Map());
+  const readInFlightRef = useRef(new Set());
+  const readTimersRef = useRef(new Map());
 
   const mentionableUsers = useMemo(() => {
     return (groupUsers || [])
@@ -153,6 +218,12 @@ export const TaskActivityPanel = ({
       .filter((item) => item.type === 'comment' && item.comment)
       .map((item) => item.comment);
   }, [timeline]);
+
+  const unreadComments = useMemo(() => {
+    return comments.filter((comment) => !comment.is_deleted && !comment.is_read);
+  }, [comments]);
+
+  const unreadCommentCount = unreadComments.length;
 
   const activities = useMemo(() => {
     return timeline.filter((item) => item.type === 'activity');
@@ -282,6 +353,125 @@ export const TaskActivityPanel = ({
     }
   };
 
+  const setCommentNode = useCallback((commentId, node) => {
+    if (!commentId) return;
+
+    if (node) {
+      commentNodesRef.current.set(commentId, node);
+      return;
+    }
+
+    commentNodesRef.current.delete(commentId);
+  }, []);
+
+  const markCommentReadOnView = useCallback(async (commentId) => {
+    if (!taskId || !commentId || readInFlightRef.current.has(commentId)) return;
+
+    readInFlightRef.current.add(commentId);
+    setTimeline((prevTimeline) => prevTimeline.map((item) => {
+      if (item.type !== 'comment' || item.comment?.id !== commentId) {
+        return item;
+      }
+
+      return {
+        ...item,
+        comment: {
+          ...item.comment,
+          is_read: true,
+        },
+      };
+    }));
+
+    try {
+      await tasksAPI.markCommentRead(taskId, commentId);
+    } catch (err) {
+      console.error('Error marking comment as read on view:', err);
+    } finally {
+      readInFlightRef.current.delete(commentId);
+    }
+  }, [taskId]);
+
+  useEffect(() => {
+    if (activeFeed !== 'comments' || typeof window === 'undefined' || !('IntersectionObserver' in window)) {
+      return undefined;
+    }
+
+    const unreadVisibleComments = comments.filter((comment) => (
+      comment
+      && !comment.is_deleted
+      && !comment.is_read
+    ));
+
+    if (unreadVisibleComments.length === 0) {
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const commentId = Number(entry.target.dataset.commentId);
+        if (!commentId) return;
+
+        const isVisibleEnough = entry.isIntersecting && entry.intersectionRatio >= 0.6;
+
+        if (!isVisibleEnough) {
+          const timerId = readTimersRef.current.get(commentId);
+          if (timerId) {
+            window.clearTimeout(timerId);
+            readTimersRef.current.delete(commentId);
+          }
+          return;
+        }
+
+        if (readTimersRef.current.has(commentId) || readInFlightRef.current.has(commentId)) {
+          return;
+        }
+
+        const timerId = window.setTimeout(() => {
+          readTimersRef.current.delete(commentId);
+          markCommentReadOnView(commentId);
+        }, 650);
+
+        readTimersRef.current.set(commentId, timerId);
+      });
+    }, {
+      root: null,
+      rootMargin: '0px 0px -12% 0px',
+      threshold: [0.35, 0.6, 0.85],
+    });
+
+    unreadVisibleComments.forEach((comment) => {
+      const node = commentNodesRef.current.get(comment.id);
+      if (node) {
+        observer.observe(node);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+      readTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      readTimersRef.current.clear();
+    };
+  }, [activeFeed, comments, markCommentReadOnView]);
+
+  const handleMarkAllCommentsRead = async () => {
+    if (markingAllRead || unreadCommentCount === 0) return;
+
+    try {
+      setMarkingAllRead(true);
+      const result = await tasksAPI.markAllCommentsRead(taskId);
+      await loadTimeline();
+      const markedCount = Number(result?.marked_count || 0);
+      if (markedCount > 0) {
+        onSuccess?.('Комментарии отмечены как прочитанные');
+      }
+    } catch (err) {
+      console.error('Error marking comments as read:', err);
+      onError?.(`Не удалось отметить комментарии прочитанными: ${handleApiError(err)}`);
+    } finally {
+      setMarkingAllRead(false);
+    }
+  };
+
   const renderActivityDetails = (item) => {
     const details = parseDetails(item.details);
 
@@ -291,8 +481,10 @@ export const TaskActivityPanel = ({
 
     if (item.old_value || item.new_value) {
       return (
-        <span>
-          {getValueLabel(item.action, item.old_value)} → {getValueLabel(item.action, item.new_value)}
+        <span className={styles.activityValueRow}>
+          {renderActivityValue(item.action, item.old_value)}
+          <span className={styles.activityArrow}>→</span>
+          {renderActivityValue(item.action, item.new_value)}
         </span>
       );
     }
@@ -330,7 +522,9 @@ export const TaskActivityPanel = ({
     return (
       <article
         key={`comment-${comment.id}`}
-        className={`${styles.timelineItem} ${styles.commentItem} ${isReply ? styles.replyItem : ''}`}
+        ref={(node) => setCommentNode(comment.id, node)}
+        data-comment-id={comment.id}
+        className={`${styles.timelineItem} ${styles.commentItem} ${isReply ? styles.replyItem : ''} ${!comment.is_read ? styles.unreadComment : ''}`}
       >
         <div className={styles.avatar}>{getUserInitial(comment.author)}</div>
 
@@ -343,6 +537,9 @@ export const TaskActivityPanel = ({
               )}
               {isReply && (
                 <span className={styles.replyBadge}>Ответ</span>
+              )}
+              {!comment.is_deleted && !comment.is_read && (
+                <span className={styles.unreadBadge}>Новое</span>
               )}
             </div>
 
@@ -500,7 +697,7 @@ export const TaskActivityPanel = ({
           onClick={() => setActiveFeed('comments')}
         >
           Комментарии
-          <span>{comments.length}</span>
+          <span>{unreadCommentCount > 0 ? `${unreadCommentCount}/${comments.length}` : comments.length}</span>
         </button>
 
         <button
@@ -515,6 +712,20 @@ export const TaskActivityPanel = ({
 
       {activeFeed === 'comments' ? (
         <>
+          {unreadCommentCount > 0 && (
+            <div className={styles.unreadToolbar}>
+              <span>Непрочитано: {unreadCommentCount}. Комментарии отмечаются прочитанными при просмотре.</span>
+              <button
+                type="button"
+                onClick={handleMarkAllCommentsRead}
+                disabled={markingAllRead}
+              >
+                <CheckCheck size={14} strokeWidth={2.2} aria-hidden="true" />
+                {markingAllRead ? 'Отмечаем...' : 'Отметить все'}
+              </button>
+            </div>
+          )}
+
           {replyTo && (
             <div className={styles.replyNotice}>
               <div className={styles.replyNoticeMain}>

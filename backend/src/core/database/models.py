@@ -118,6 +118,20 @@ task_comment_mentions = Table(
 )
 
 
+task_comment_reads = Table(
+    "task_comment_reads",
+    Base.metadata,
+    Column("comment_id", Integer, ForeignKey("task_comments.id", ondelete="CASCADE"), primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column(
+        "read_at",
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    ),
+)
+
+
 # ==================== СУЩЕСТВУЮЩИЕ МОДЕЛИ ====================
 
 class GroupInvitation(Base):

@@ -101,6 +101,8 @@ class TaskCommentRead(BaseModel):
     content: str
     is_edited: bool
     is_deleted: bool
+    is_read: bool = True
+    read_at: Optional[datetime] = None
     created_at: datetime
     updated_at: Optional[datetime]
     author: BaseUserInfo

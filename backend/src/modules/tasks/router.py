@@ -169,6 +169,41 @@ async def delete_task_comment(
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
 
+# Отметить все комментарии задачи как прочитанные
+@router.post("/{task_id}/comments/read", status_code=status.HTTP_200_OK)
+async def mark_task_comments_read(
+    task_id: int,
+    service_factory: ServiceFactory = Depends(get_service_factory),
+    current_user: User = Depends(get_current_user),
+):
+    logger.info(f"POST /tasks/{task_id}/comments/read by user {current_user.id}")
+    task_service = service_factory.get('task')
+
+    try:
+        return await task_service.mark_task_comments_read(task_id, current_user)
+    except (TaskNotFoundError, TaskAccessDeniedError) as e:
+        logger.error(f"Error marking task comments as read: {e.detail}")
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+
+# Отметить один комментарий как прочитанный
+@router.post("/{task_id}/comments/{comment_id}/read", status_code=status.HTTP_200_OK)
+async def mark_task_comment_read(
+    task_id: int,
+    comment_id: int,
+    service_factory: ServiceFactory = Depends(get_service_factory),
+    current_user: User = Depends(get_current_user),
+):
+    logger.info(f"POST /tasks/{task_id}/comments/{comment_id}/read by user {current_user.id}")
+    task_service = service_factory.get('task')
+
+    try:
+        return await task_service.mark_task_comment_read(task_id, comment_id, current_user)
+    except (TaskNotFoundError, TaskCommentNotFoundError, TaskAccessDeniedError) as e:
+        logger.error(f"Error marking task comment as read: {e.detail}")
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
+
+
 # Получить информацию о задаче (только для участников группы задачи)
 @router.get("/{task_id}", response_model=TaskReadWithRelations)
 async def get_task(
