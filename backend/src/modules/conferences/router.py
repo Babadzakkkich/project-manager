@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Response, status, Query, Body
 from typing import List, Optional
 
 from core.database.models import User
@@ -7,6 +7,7 @@ from modules.auth.dependencies import get_current_user
 from shared.dependencies import get_service_factory
 from core.config import settings
 from core.logger import logger
+from modules.conferences.service import ConferenceJoinDeniedError
 
 from .schemas import (
     ConferenceMessageResponse,
@@ -19,6 +20,8 @@ from .schemas import (
     LeaveConferenceRequest,
     LeaveConferenceImpactResponse,
     InvitableUserResponse,
+    KickConferenceParticipantRequest,
+    KickConferenceParticipantResponse,
 )
 
 router = APIRouter()
@@ -44,6 +47,14 @@ async def build_room_details(conference_service, current_user: User, room) -> Co
 
     room_dict.participants_count = get_active_participants_count(room)
     room_dict.is_moderator = await conference_service._is_room_moderator(current_user.id, room)
+
+    kick_info = conference_service.get_current_user_kick_info_from_room(room, current_user.id)
+    room_dict.current_user_can_join = kick_info["current_user_can_join"]
+    room_dict.is_current_user_kicked = kick_info["is_current_user_kicked"]
+    room_dict.current_user_kicked_at = kick_info["current_user_kicked_at"]
+    room_dict.current_user_kicked_until = kick_info["current_user_kicked_until"]
+    room_dict.current_user_kick_reason = kick_info["current_user_kick_reason"]
+
     return room_dict
 
 
@@ -192,7 +203,25 @@ async def join_conference_room(
     logger.info(f"User {current_user.id} joining room {room_id}")
 
     conference_service = service_factory.get('conference')
-    room, token = await conference_service.join_room(room_id, current_user.id)
+
+    try:
+        room, token = await conference_service.join_room(room_id, current_user.id)
+    except ConferenceJoinDeniedError as exc:
+        detail = {
+            "code": exc.code,
+            "message": exc.message,
+        }
+
+        if exc.kicked_until:
+            detail["kicked_until"] = exc.kicked_until.isoformat()
+
+        if exc.kick_reason:
+            detail["kick_reason"] = exc.kick_reason
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=detail,
+        ) from exc
 
     if not room or not token:
         raise HTTPException(
@@ -246,6 +275,66 @@ async def leave_conference_room(
         )
 
     return {"detail": "Вы вышли из комнаты"}
+
+
+
+@router.post("/rooms/{room_id}/leave-beacon", include_in_schema=False)
+async def leave_conference_room_beacon(
+    room_id: int,
+    service_factory: ServiceFactory = Depends(get_service_factory),
+    current_user: User = Depends(get_current_user),
+):
+    """Фоновый выход при закрытии вкладки/перезагрузке страницы."""
+    conference_service = service_factory.get('conference')
+
+    await conference_service.leave_room(
+        room_id,
+        current_user.id,
+        auto_end_if_last=True,
+    )
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/rooms/{room_id}/participants/{participant_user_id}/kick",
+    response_model=KickConferenceParticipantResponse,
+)
+async def kick_conference_participant(
+    room_id: int,
+    participant_user_id: int,
+    kick_data: KickConferenceParticipantRequest = Body(default_factory=KickConferenceParticipantRequest),
+    service_factory: ServiceFactory = Depends(get_service_factory),
+    current_user: User = Depends(get_current_user),
+):
+    """Временное удаление участника из созвона модератором."""
+    logger.info(
+        f"User {current_user.id} kicks participant {participant_user_id} from room {room_id} "
+        f"for {kick_data.duration_minutes} minutes"
+    )
+
+    conference_service = service_factory.get('conference')
+    participant = await conference_service.kick_participant(
+        room_id=room_id,
+        moderator_id=current_user.id,
+        target_user_id=participant_user_id,
+        duration_minutes=kick_data.duration_minutes,
+        reason=kick_data.reason,
+    )
+
+    if not participant:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Удалять можно только обычных активных участников созвона",
+        )
+
+    return KickConferenceParticipantResponse(
+        room_id=room_id,
+        user_id=participant_user_id,
+        kicked_until=participant.kicked_until,
+        reason=participant.kick_reason,
+        detail="Участник временно удалён из созвона",
+    )
 
 
 @router.delete("/rooms/{room_id}")

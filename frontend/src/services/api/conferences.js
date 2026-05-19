@@ -66,6 +66,18 @@ export const conferencesAPI = {
     return response.data;
   },
 
+  kickParticipant: async (roomId, participantUserId, data = {}) => {
+    const response = await apiClient.post(
+      `/conferences/rooms/${roomId}/participants/${participantUserId}/kick`,
+      {
+        duration_minutes: data.duration_minutes ?? 15,
+        reason: data.reason ?? null,
+      }
+    );
+
+    return response.data;
+  },
+
   endConference: async (roomId) => {
     const response = await apiClient.delete(`/conferences/rooms/${roomId}`);
     return response.data;

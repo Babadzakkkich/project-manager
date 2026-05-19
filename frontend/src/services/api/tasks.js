@@ -114,6 +114,31 @@ export const tasksAPI = {
     return response.data;
   },
 
+
+  getTimeline: async (taskId) => {
+    const response = await apiClient.get(`${API_ENDPOINTS.TASKS}/${taskId}/timeline`);
+    return response.data;
+  },
+
+  getComments: async (taskId) => {
+    const response = await apiClient.get(`${API_ENDPOINTS.TASKS}/${taskId}/comments`);
+    return response.data;
+  },
+
+  createComment: async (taskId, commentData) => {
+    const response = await apiClient.post(`${API_ENDPOINTS.TASKS}/${taskId}/comments`, commentData);
+    return response.data;
+  },
+
+  updateComment: async (taskId, commentId, commentData) => {
+    const response = await apiClient.patch(`${API_ENDPOINTS.TASKS}/${taskId}/comments/${commentId}`, commentData);
+    return response.data;
+  },
+
+  deleteComment: async (taskId, commentId) => {
+    const response = await apiClient.delete(`${API_ENDPOINTS.TASKS}/${taskId}/comments/${commentId}`);
+    return response.data;
+  },
   quickCreateTask: async (taskData) => {
     const response = await apiClient.post(
       `${API_ENDPOINTS.TASKS}/quick_create`,

@@ -13,6 +13,15 @@ class TaskNotFoundError(TaskException):
             detail = "Задача не найдена"
         super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
 
+class TaskCommentNotFoundError(TaskException):
+    def __init__(self, comment_id: Optional[int] = None):
+        if comment_id:
+            detail = f"Комментарий с ID {comment_id} не найден"
+        else:
+            detail = "Комментарий не найден"
+        super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+
+
 class TaskCreationError(TaskException):
     def __init__(self, detail: str = "Ошибка создания задачи"):
         super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)

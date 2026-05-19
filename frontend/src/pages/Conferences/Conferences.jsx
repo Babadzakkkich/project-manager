@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   BarChart3,
@@ -137,12 +137,65 @@ const formatDuration = (seconds) => {
   return `${secondsLeft} с`;
 };
 
+const formatKickDateTime = (value) => {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+};
+
+const getActiveKickInfo = (room) => {
+  const kickedUntil = room?.current_user_kicked_until;
+  const kickedUntilTime = kickedUntil ? new Date(kickedUntil).getTime() : 0;
+  const isKicked = Boolean(
+    room?.is_current_user_kicked &&
+    kickedUntilTime &&
+    !Number.isNaN(kickedUntilTime) &&
+    kickedUntilTime > Date.now()
+  );
+
+  return {
+    isKicked,
+    kickedUntil,
+    kickedUntilLabel: formatKickDateTime(kickedUntil),
+    reason: room?.current_user_kick_reason?.trim() || '',
+  };
+};
+
+const getKickFeedbackMessage = ({ message, kickedUntil, reason } = {}) => {
+  const kickedUntilLabel = formatKickDateTime(kickedUntil);
+  const parts = [message || 'Вход в созвон временно заблокирован'];
+
+  if (kickedUntilLabel) {
+    parts.push(`Доступ будет открыт ${kickedUntilLabel}.`);
+  }
+
+  if (reason) {
+    parts.push(`Причина: ${reason}.`);
+  }
+
+  return parts.join(' ');
+};
+
 const formatUserLabel = (user) => {
   return user?.name || user?.login || user?.email || 'Пользователь';
 };
 
 export const Conferences = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { showError, showSuccess } = useNotification();
 
@@ -253,6 +306,23 @@ export const Conferences = () => {
   }, [loadRooms]);
 
   useEffect(() => {
+    const kickFeedback = location.state?.conferenceKickFeedback;
+
+    if (!kickFeedback) {
+      return;
+    }
+
+    showError(getKickFeedbackMessage({
+      message: kickFeedback.message,
+      kickedUntil: kickFeedback.kickedUntil,
+      reason: kickFeedback.reason,
+    }));
+
+    navigate(location.pathname, { replace: true, state: {} });
+    loadRooms();
+  }, [location.pathname, location.state, loadRooms, navigate, showError]);
+
+  useEffect(() => {
     if (!showCreateModal) return undefined;
 
     const timeoutId = setTimeout(() => {
@@ -342,8 +412,19 @@ export const Conferences = () => {
     }
   };
 
-  const handleJoinRoom = (roomId) => {
-    navigate(`/conferences/${roomId}`);
+  const handleJoinRoom = (room) => {
+    const kickInfo = getActiveKickInfo(room);
+
+    if (kickInfo.isKicked) {
+      showError(getKickFeedbackMessage({
+        message: 'Вы временно удалены из этого созвона.',
+        kickedUntil: kickInfo.kickedUntil,
+        reason: kickInfo.reason,
+      }));
+      return;
+    }
+
+    navigate(`/conferences/${room.id}`);
   };
 
   const handleCloseCreateModal = () => {
@@ -530,13 +611,15 @@ export const Conferences = () => {
             const context = getRoomContext(room);
             const RoomTypeIcon = roomType.Icon;
             const ContextIcon = context?.Icon;
+            const kickInfo = getActiveKickInfo(room);
+            const roomIsBlocked = room.is_active && kickInfo.isKicked;
 
             return (
               <article
                 key={room.id}
                 className={`${styles.roomCard} ${
                   room.is_active ? styles.activeRoom : styles.endedRoom
-                }`}
+                } ${roomIsBlocked ? styles.blockedRoom : ''}`}
               >
                 <div className={styles.roomMain}>
                   <div className={styles.roomIcon}>
@@ -551,16 +634,22 @@ export const Conferences = () => {
 
                       <span
                         className={`${styles.statusBadge} ${
-                          room.is_active ? styles.statusActive : styles.statusEnded
+                          roomIsBlocked
+                            ? styles.statusBlocked
+                            : room.is_active
+                              ? styles.statusActive
+                              : styles.statusEnded
                         }`}
                       >
-                        {room.is_active ? (
+                        {roomIsBlocked ? (
+                          <AlertTriangle size={13} strokeWidth={2.2} aria-hidden="true" />
+                        ) : room.is_active ? (
                           <Radio size={13} strokeWidth={2.2} aria-hidden="true" />
                         ) : (
                           <CheckCircle2 size={13} strokeWidth={2.2} aria-hidden="true" />
                         )}
 
-                        {room.is_active ? 'Идёт' : 'Завершён'}
+                        {roomIsBlocked ? 'Вход ограничен' : room.is_active ? 'Идёт' : 'Завершён'}
                       </span>
                     </div>
 
@@ -590,19 +679,38 @@ export const Conferences = () => {
                         <span>{context.label}: {context.value}</span>
                       </div>
                     )}
+
+                    {roomIsBlocked && (
+                      <div className={styles.roomKickNotice}>
+                        <span>
+                          Вход будет доступен {kickInfo.kickedUntilLabel || 'после окончания блокировки'}
+                          {kickInfo.reason ? `. Причина: ${kickInfo.reason}` : '. Причина не указана.'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className={styles.roomActions}>
                   {room.is_active ? (
                     <Button
-                      variant="primary"
+                      variant={roomIsBlocked ? 'secondary' : 'primary'}
                       size="medium"
-                      onClick={() => handleJoinRoom(room.id)}
+                      onClick={() => handleJoinRoom(room)}
                       className={styles.joinButton}
+                      disabled={roomIsBlocked}
+                      title={roomIsBlocked ? getKickFeedbackMessage({
+                        message: 'Вы временно удалены из этого созвона.',
+                        kickedUntil: kickInfo.kickedUntil,
+                        reason: kickInfo.reason,
+                      }) : undefined}
                     >
-                      <PhoneCall size={16} strokeWidth={2} aria-hidden="true" />
-                      Войти
+                      {roomIsBlocked ? (
+                        <AlertTriangle size={16} strokeWidth={2} aria-hidden="true" />
+                      ) : (
+                        <PhoneCall size={16} strokeWidth={2} aria-hidden="true" />
+                      )}
+                      {roomIsBlocked ? 'Недоступно' : 'Войти'}
                     </Button>
                   ) : (
                     <Button

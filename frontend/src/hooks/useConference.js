@@ -50,6 +50,30 @@ const sortMessagesByTime = (messages) => {
   });
 };
 
+const getErrorDetail = (err) => err?.response?.data?.detail;
+
+const getConferenceErrorMessage = (err, fallbackMessage) => {
+  const detail = getErrorDetail(err);
+
+  if (typeof detail === 'string') {
+    return detail;
+  }
+
+  if (detail?.message) {
+    return detail.message;
+  }
+
+  return err?.message || fallbackMessage;
+};
+
+const dispatchConferenceKickEvent = (detail = {}) => {
+  window.dispatchEvent(
+    new CustomEvent('conference:kicked', {
+      detail,
+    })
+  );
+};
+
 export const useConference = (roomId) => {
   const { user } = useAuthContext();
   const { showError, showSuccess } = useNotification();
@@ -128,32 +152,38 @@ export const useConference = (roomId) => {
     }
   }, [roomId, user?.id]);
   
-  const disconnect = useCallback(async () => {
-    if (roomRef.current) {
-      roomRef.current.disconnect();
-      roomRef.current = null;
-      connectingRef.current = false;
-      hasConnectedRef.current = false;
+  const disconnect = useCallback(async (options = {}) => {
+    const { notifyServer = true } = options;
+    const currentRoom = roomRef.current;
 
-      setRoom(null);
-      setParticipants([]);
-      setLocalParticipant(null);
-      setMessages([]);
-      setConnectionState(ConnectionState.Disconnected);
-      setIsAudioEnabled(false);
-      setIsVideoEnabled(false);
-      setIsScreenSharing(false);
+    if (currentRoom) {
+      currentRoom.disconnect();
+    }
 
-      audioEnabledRef.current = false;
-      videoEnabledRef.current = false;
-      
-      try {
-        if (roomId) {
-          await conferencesAPI.leaveRoom(roomId);
-        }
-      } catch (err) {
-        console.error('Error leaving room:', err);
-      }
+    roomRef.current = null;
+    connectingRef.current = false;
+    hasConnectedRef.current = false;
+
+    setRoom(null);
+    setParticipants([]);
+    setLocalParticipant(null);
+    setMessages([]);
+    setConnectionState(ConnectionState.Disconnected);
+    setIsAudioEnabled(false);
+    setIsVideoEnabled(false);
+    setIsScreenSharing(false);
+
+    audioEnabledRef.current = false;
+    videoEnabledRef.current = false;
+
+    if (!notifyServer || !roomId) {
+      return;
+    }
+
+    try {
+      await conferencesAPI.leaveRoom(roomId);
+    } catch (err) {
+      console.error('Error leaving room:', err);
     }
   }, [roomId]);
   
@@ -178,11 +208,20 @@ export const useConference = (roomId) => {
       }
     } else if (data.action === 'kick') {
       if (data.targetId === user?.id?.toString()) {
-        showError('Вы были удалены из созвона');
-        disconnect();
+        const reason = data.reason || '';
+        const message = data.message || 'Вы были временно удалены из созвона';
+
+        showError(reason ? `${message}. Причина: ${reason}` : message);
+        disconnect({ notifyServer: false });
+        dispatchConferenceKickEvent({
+          roomId,
+          message,
+          kickedUntil: data.kickedUntil,
+          reason,
+        });
       }
     }
-  }, [user?.id, showError, disconnect]);
+  }, [user?.id, roomId, showError, disconnect]);
   
   const handleDataMessage = useCallback((data, participant) => {
     if (!participant) {
@@ -398,7 +437,21 @@ export const useConference = (roomId) => {
       await loadInitialMessages();
     } catch (err) {
       console.error('Failed to connect to conference:', err);
-      setError(err.message || 'Не удалось подключиться к созвону');
+
+      const detail = getErrorDetail(err);
+      setError(getConferenceErrorMessage(err, 'Не удалось подключиться к созвону'));
+
+      if (detail?.code === 'conference_kicked') {
+        showError(detail.message || 'Вход в созвон временно заблокирован');
+        dispatchConferenceKickEvent({
+          roomId,
+          message: detail.message,
+          kickedUntil: detail.kicked_until,
+          reason: detail.kick_reason,
+          blockedJoin: true,
+        });
+      }
+
       setIsConnecting(false);
       connectingRef.current = false;
       hasConnectedRef.current = false;
@@ -408,7 +461,8 @@ export const useConference = (roomId) => {
     roomId,
     subscribeToRoomEvents,
     updateParticipants,
-    loadInitialMessages
+    loadInitialMessages,
+    showError
   ]);
   
   const toggleAudio = useCallback(async () => {
@@ -598,16 +652,29 @@ export const useConference = (roomId) => {
     }
   }, [isModerator]);
   
-  const kickParticipant = useCallback(async (participantId) => {
+  const kickParticipant = useCallback(async (participantId, options = {}) => {
     if (!roomRef.current || !isModerator) return;
-    
+
     const participant = roomRef.current.remoteParticipants.get(participantId);
 
-    if (participant) {
+    if (!participant) {
+      return;
+    }
+
+    try {
+      const result = await conferencesAPI.kickParticipant(roomId, participantId, {
+        duration_minutes: options.durationMinutes ?? options.duration_minutes ?? 15,
+        reason: options.reason ?? null,
+      });
+
+      const reason = result.reason || options.reason || '';
       const data = {
         type: 'moderator_action',
         action: 'kick',
-        targetId: participantId
+        targetId: participantId,
+        kickedUntil: result.kicked_until,
+        reason,
+        message: 'Вы были временно удалены из созвона',
       };
       
       const encoder = new TextEncoder();
@@ -617,8 +684,14 @@ export const useConference = (roomId) => {
         DataPacket_Kind.RELIABLE,
         [participant]
       );
+
+      showSuccess('Участник временно удалён из созвона');
+      updateParticipants(roomRef.current);
+    } catch (err) {
+      console.error('Failed to kick participant:', err);
+      showError(getConferenceErrorMessage(err, 'Не удалось удалить участника из созвона'));
     }
-  }, [isModerator]);
+  }, [roomId, isModerator, showSuccess, showError, updateParticipants]);
   
   const endConference = useCallback(async () => {
     if (!roomRef.current || !isModerator) return;

@@ -152,10 +152,13 @@
 .collapsed {
   width: var(--sidebar-collapsed-width);
   padding: var(--space-4) var(--space-3);
+  align-items: center;
 }
 
 .collapsed .header {
+  width: 100%;
   flex-direction: column;
+  align-items: center;
   justify-content: flex-start;
   gap: var(--space-3);
   min-height: auto;
@@ -174,13 +177,41 @@
 }
 
 .collapsed .toggleButton {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  margin: 0 auto;
+}
+
+.collapsed .nav {
+  width: 100%;
+  align-items: center;
 }
 
 .collapsed .navLink {
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
   justify-content: center;
-  padding: var(--space-3);
+  gap: 0;
+  padding: 0;
+  margin: 0 auto;
+  border-radius: var(--radius-lg);
+}
+
+.collapsed .navLink:hover {
+  transform: none;
+}
+
+.collapsed .navLink.active {
+  background: transparent;
+  box-shadow: none;
+}
+
+.collapsed .navLink.active .navIcon {
+  width: 42px;
+  height: 42px;
+  box-shadow: inset 0 0 0 1px rgba(56, 176, 0, 0.22);
 }
 
 .collapsed .navText {
@@ -192,17 +223,20 @@
 }
 
 .collapsed .navLink.active::before {
-  left: -12px;
+  left: -20px;
 }
 
 @media (max-width: 1024px) {
   .sidebar {
     width: var(--sidebar-collapsed-width);
     padding: var(--space-4) var(--space-3);
+    align-items: center;
   }
 
   .header {
+    width: 100%;
     flex-direction: column;
+    align-items: center;
     justify-content: flex-start;
     gap: var(--space-3);
     min-height: auto;
@@ -224,9 +258,35 @@
     display: none;
   }
 
+  .nav {
+    width: 100%;
+    align-items: center;
+  }
+
   .navLink {
+    width: 48px;
+    height: 48px;
+    min-height: 48px;
     justify-content: center;
-    padding: var(--space-3);
+    gap: 0;
+    padding: 0;
+    margin: 0 auto;
+    border-radius: var(--radius-lg);
+  }
+
+  .navLink:hover {
+    transform: none;
+  }
+
+  .navLink.active {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .navLink.active .navIcon {
+    width: 42px;
+    height: 42px;
+    box-shadow: inset 0 0 0 1px rgba(56, 176, 0, 0.22);
   }
 
   .navText {
@@ -234,6 +294,6 @@
   }
 
   .navLink.active::before {
-    left: -12px;
+    left: -20px;
   }
 }

@@ -50,6 +50,7 @@ import {
 } from '../../../utils/taskStatus';
 import { showGlobalSuccess } from '../../../utils/globalToast';
 import styles from './TaskDetail.module.css';
+import { TaskActivityPanel } from '../TaskActivityPanel/TaskActivityPanel';
 
 const TITLE_LIMIT = 200;
 const DESCRIPTION_LIMIT = 1000;
@@ -131,6 +132,7 @@ export const TaskDetail = () => {
   const [availableUsers, setAvailableUsers] = useState([]);
 
   const [userRole, setUserRole] = useState('');
+  const [activeTab, setActiveTab] = useState('details');
   const [showUsersModal, setShowUsersModal] = useState(false);
   const [customTag, setCustomTag] = useState('');
 
@@ -842,7 +844,7 @@ export const TaskDetail = () => {
 
             <Button
               variant="secondary"
-              onClick={() => setEditing(true)}
+              onClick={() => { setActiveTab('details'); setEditing(true); }}
             >
               <Pencil size={16} strokeWidth={2} aria-hidden="true" />
               Редактировать
@@ -863,6 +865,26 @@ export const TaskDetail = () => {
         )}
       </section>
 
+      <nav className={styles.pageTabs} aria-label="Разделы задачи">
+        <button
+          type="button"
+          className={`${styles.pageTab} ${activeTab === 'details' ? styles.pageTabActive : ''}`}
+          onClick={() => setActiveTab('details')}
+        >
+          Основная информация
+        </button>
+
+        <button
+          type="button"
+          className={`${styles.pageTab} ${activeTab === 'activity' ? styles.pageTabActive : ''}`}
+          onClick={() => setActiveTab('activity')}
+        >
+          Активность
+        </button>
+      </nav>
+
+      {activeTab === 'details' ? (
+        <>
       <section className={styles.statsGrid} aria-label="Сводка задачи">
         <article className={styles.statCard}>
           <span className={styles.statValue}>{task.assignees?.length || 0}</span>
@@ -1141,6 +1163,20 @@ export const TaskDetail = () => {
           )}
         </section>
       </div>
+
+        </>
+      ) : (
+        <div className={styles.activityTabPanel}>
+          <TaskActivityPanel
+            taskId={task.id}
+            groupUsers={task.group?.users || []}
+            currentUser={user}
+            canManageAllComments={canManageUsers}
+            onError={showError}
+            onSuccess={showSuccess}
+          />
+        </div>
+      )}
 
       <ItemsModal
         items={task.assignees || []}

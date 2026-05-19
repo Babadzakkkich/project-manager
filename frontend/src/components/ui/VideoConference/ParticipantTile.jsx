@@ -5,22 +5,16 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { createPortal } from 'react-dom';
 import { Track } from 'livekit-client';
 import {
   Mic,
   MicOff,
-  MoreVertical,
   ScreenShare,
-  UserX,
   VideoOff,
-  VolumeX,
 } from 'lucide-react';
 
 import styles from './ParticipantTile.module.css';
 
-const MENU_WIDTH = 240;
-const MENU_HEIGHT = 150;
 
 const getParticipantName = (participant) => {
   return participant?.name || participant?.identity || 'Участник';
@@ -33,22 +27,13 @@ const getParticipantInitial = (participant) => {
 export const ParticipantTile = ({
   participant,
   isLocal,
-  isModerator,
   isActiveSpeaker,
-  onMute,
-  onKick,
 }) => {
   const videoRef = useRef(null);
   const audioRef = useRef(null);
-  const menuRef = useRef(null);
-  const menuButtonRef = useRef(null);
-
   const speakingOffTimerRef = useRef(null);
   const audioLevelRafRef = useRef(null);
   const audioLevelContextRef = useRef(null);
-
-  const [showMenu, setShowMenu] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 });
 
   const [cameraTrack, setCameraTrack] = useState(null);
   const [screenTrack, setScreenTrack] = useState(null);
@@ -66,8 +51,6 @@ export const ParticipantTile = ({
   const cameraEnabled = Boolean(cameraTrack);
   const audioEnabled = Boolean(audioTrack);
   const isScreenShare = Boolean(screenTrack) || participant.isScreenShareEnabled;
-  const canModerate = isModerator && !isLocal;
-
   const clearSpeakingOffTimer = useCallback(() => {
     if (speakingOffTimerRef.current) {
       clearTimeout(speakingOffTimerRef.current);
@@ -398,108 +381,6 @@ export const ParticipantTile = ({
     };
   }, [audioTrack, isLocal]);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        !showMenu ||
-        menuRef.current?.contains(event.target) ||
-        menuButtonRef.current?.contains(event.target)
-      ) {
-        return;
-      }
-
-      setShowMenu(false);
-    };
-
-    const handleViewportChange = () => {
-      setShowMenu(false);
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    window.addEventListener('resize', handleViewportChange);
-    window.addEventListener('scroll', handleViewportChange, true);
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('resize', handleViewportChange);
-      window.removeEventListener('scroll', handleViewportChange, true);
-    };
-  }, [showMenu]);
-
-  const handleMenuToggle = (event) => {
-    event.stopPropagation();
-
-    const rect = event.currentTarget.getBoundingClientRect();
-
-    const left = Math.min(
-      Math.max(12, rect.right - MENU_WIDTH),
-      window.innerWidth - MENU_WIDTH - 12
-    );
-
-    let top = rect.bottom + 8;
-
-    if (top + MENU_HEIGHT > window.innerHeight - 12) {
-      top = Math.max(12, rect.top - MENU_HEIGHT - 8);
-    }
-
-    setMenuPosition({ left, top });
-    setShowMenu((value) => !value);
-  };
-
-  const handleMute = (event) => {
-    event.stopPropagation();
-
-    if (!canModerate) return;
-
-    onMute?.(participant.identity);
-    setShowMenu(false);
-  };
-
-  const handleKick = (event) => {
-    event.stopPropagation();
-
-    if (!canModerate) return;
-
-    onKick?.(participant.identity);
-    setShowMenu(false);
-  };
-
-  const menu = showMenu && canModerate
-    ? createPortal(
-      <div
-        className={styles.menu}
-        ref={menuRef}
-        style={{
-          left: `${menuPosition.left}px`,
-          top: `${menuPosition.top}px`,
-        }}
-      >
-        <div className={styles.menuHeader}>
-          <span>{name}</span>
-          <small>Управление участником</small>
-        </div>
-
-        <button
-          className={styles.menuItem}
-          onClick={handleMute}
-          type="button"
-        >
-          <VolumeX size={16} strokeWidth={2} aria-hidden="true" />
-          Отключить микрофон
-        </button>
-
-        <button
-          className={`${styles.menuItem} ${styles.danger}`}
-          onClick={handleKick}
-          type="button"
-        >
-          <UserX size={16} strokeWidth={2} aria-hidden="true" />
-          Удалить из созвона
-        </button>
-      </div>,
-      document.body
-    )
-    : null;
 
   return (
     <>
@@ -549,20 +430,6 @@ export const ParticipantTile = ({
           )}
         </div>
 
-        {canModerate && (
-          <div className={styles.actions}>
-            <button
-              ref={menuButtonRef}
-              type="button"
-              className={`${styles.menuButton} ${showMenu ? styles.menuButtonActive : ''}`}
-              onClick={handleMenuToggle}
-              aria-label={`Действия с участником ${name}`}
-              aria-expanded={showMenu}
-            >
-              <MoreVertical size={18} strokeWidth={2.2} aria-hidden="true" />
-            </button>
-          </div>
-        )}
 
         <div className={styles.bottomOverlay}>
           <div className={styles.identity}>
@@ -616,7 +483,6 @@ export const ParticipantTile = ({
         </div>
       </div>
 
-      {menu}
     </>
   );
 };

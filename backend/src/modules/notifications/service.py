@@ -724,6 +724,55 @@ class NotificationTriggerService:
             }
         )
     
+
+
+    async def on_task_comment_added(
+        self,
+        task: Task,
+        comment_author: User,
+        mentioned_user_ids: Optional[Set[int]] = None,
+    ):
+        """Новый комментарий к задаче."""
+        mentioned_user_ids = mentioned_user_ids or set()
+        user_ids = await self._get_task_participant_ids(task.id, exclude_user_id=comment_author.id)
+        user_ids.difference_update(mentioned_user_ids)
+
+        await self._broadcast_notification(
+            user_ids=user_ids,
+            notification_type=NotificationType.TASK_UPDATED,
+            title="Новый комментарий к задаче",
+            content=f"{comment_author.login} оставил(а) комментарий к задаче '{task.title}'",
+            priority=NotificationPriority.MEDIUM,
+            data={
+                "task_id": task.id,
+                "task_title": task.title,
+                "event": "task_comment_added",
+            },
+        )
+
+    async def on_task_comment_mentions(
+        self,
+        task: Task,
+        comment_author: User,
+        mentioned_user_ids: Set[int],
+    ):
+        """Пользователи упомянуты в комментарии к задаче."""
+        mentioned_user_ids = set(mentioned_user_ids or [])
+        mentioned_user_ids.discard(comment_author.id)
+
+        await self._broadcast_notification(
+            user_ids=mentioned_user_ids,
+            notification_type=NotificationType.TASK_UPDATED,
+            title="Вас упомянули в задаче",
+            content=f"{comment_author.login} упомянул(а) вас в комментарии к задаче '{task.title}'",
+            priority=NotificationPriority.HIGH,
+            data={
+                "task_id": task.id,
+                "task_title": task.title,
+                "event": "task_comment_mention",
+            },
+        )
+
     async def on_users_assigned_to_task(
         self,
         task: Task,
