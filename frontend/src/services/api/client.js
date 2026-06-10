@@ -9,7 +9,6 @@ const apiClient = axios.create({
   withCredentials: true,
 });
 
-// Переменная для отслеживания состояния обновления
 let isRefreshing = false;
 let failedQueue = [];
 
@@ -24,18 +23,20 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-// Функция для перенаправления на страницу входа
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/privacy'];
+
+const isPublicRoute = (pathname) => (
+  PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
+);
+
 const redirectToLogin = () => {
   window.dispatchEvent(new CustomEvent('auth:unauthorized'));
-  
-  if (!window.location.pathname.includes('/login') && 
-      !window.location.pathname.includes('/register') &&
-      !window.location.pathname !== '/') {
+
+  if (!isPublicRoute(window.location.pathname)) {
     window.location.href = '/login';
   }
 };
 
-// Response interceptor с автоматическим обновлением
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -46,20 +47,16 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Если ошибка 401 и это не запрос на обновление
     if (error.response?.status === 401 && !originalRequest._retry) {
-      // Проверяем, не является ли это запросом на проверку auth
       const isCheckEndpoint = originalRequest.url?.includes('/auth/check');
       const isRefreshEndpoint = originalRequest.url?.includes('/auth/refresh');
       
       if (isRefreshEndpoint || isCheckEndpoint) {
-        // Если refresh не сработал или check вернул 401, перенаправляем на логин
         redirectToLogin();
         return Promise.reject(error);
       }
 
       if (isRefreshing) {
-        // Если уже идет обновление, добавляем в очередь
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
@@ -73,13 +70,10 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Пытаемся обновить токены
         await apiClient.post('/auth/refresh');
         
-        // Обрабатываем очередь запросов
         processQueue(null);
         
-        // Повторяем оригинальный запрос
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
@@ -90,7 +84,6 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // Обработка других ошибок
     if (error.response?.status === 403) {
       console.error('Access forbidden:', error);
     }

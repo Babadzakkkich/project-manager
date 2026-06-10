@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { CheckCircle2, UserPlus } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { CheckCircle2 } from 'lucide-react';
 
 import { usersAPI } from '../../../services/api/users';
 import { Input } from '../../ui/Input';
@@ -26,17 +27,18 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
     name: '',
     password: '',
     confirmPassword: '',
+    personalDataAccepted: false,
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, type, checked, value } = e.target;
 
     setFormData(prev => ({
       ...prev,
-      [name]: value,
+      [name]: type === 'checkbox' ? checked : value,
     }));
 
     if (errors[name] || errors.submit) {
@@ -85,6 +87,10 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
       newErrors.confirmPassword = 'Пароли не совпадают';
     }
 
+    if (!formData.personalDataAccepted) {
+      newErrors.personalDataAccepted = 'Необходимо дать согласие на обработку персональных данных';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -102,12 +108,17 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
         email: normalizeTextInput(formData.email),
         name: normalizeTextInput(formData.name),
         password: formData.password,
+        personal_data_accepted: formData.personalDataAccepted,
       });
 
       setSuccess(true);
       setErrors({});
     } catch (error) {
-      const errorMessage = error.response?.data?.detail || 'Ошибка регистрации';
+      const detail = error.response?.data?.detail;
+      const errorMessage = Array.isArray(detail)
+        ? detail.map(item => item?.msg || item).join('\n')
+        : detail || 'Ошибка регистрации';
+
       setErrors({ submit: errorMessage });
     } finally {
       setLoading(false);
@@ -220,6 +231,34 @@ export const RegisterForm = ({ onSwitchToLogin }) => {
           autoComplete="new-password"
           maxLength={PASSWORD_LIMIT}
         />
+
+
+        <div className={styles.consentBlock}>
+          <label className={styles.consentLabel}>
+            <input
+              className={styles.consentCheckbox}
+              type="checkbox"
+              name="personalDataAccepted"
+              checked={formData.personalDataAccepted}
+              onChange={handleChange}
+              disabled={loading}
+            />
+
+            <span>
+              Я даю согласие на обработку персональных данных и ознакомлен(а) с{' '}
+              <Link to="/privacy" className={styles.consentLink} target="_blank" rel="noopener noreferrer">
+                политикой обработки персональных данных
+              </Link>
+              .
+            </span>
+          </label>
+
+          {errors.personalDataAccepted && (
+            <div className={styles.fieldError} role="alert">
+              {errors.personalDataAccepted}
+            </div>
+          )}
+        </div>
 
         {errors.submit && (
           <div className={styles.submitError} role="alert">

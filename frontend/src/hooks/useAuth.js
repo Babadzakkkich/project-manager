@@ -49,19 +49,20 @@ export const useAuth = () => {
 
       const authStatus = await authAPI.checkAuth();
 
-      if (authStatus.authenticated && authStatus.user) {
+      if (!authStatus.authenticated) {
+        if (mountedRef.current) {
+          setUser(null);
+        }
+        return;
+      }
+
+      if (authStatus.user) {
         setNormalizedUser(authStatus.user);
         return;
       }
 
-      try {
-        const userProfile = await usersAPI.getProfile();
-        setNormalizedUser(userProfile);
-      } catch {
-        if (mountedRef.current) {
-          setUser(null);
-        }
-      }
+      const userProfile = await usersAPI.getProfile();
+      setNormalizedUser(userProfile);
     } catch (error) {
       console.warn('Auth check failed:', error);
       if (mountedRef.current) {

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from datetime import datetime
 from typing import Optional, List
 
@@ -11,6 +11,14 @@ class UserCreate(BaseModel):
     email: EmailStr = Field(...)
     password: str = Field(..., min_length=6)
     name: str = Field(..., min_length=2, max_length=100)
+    personal_data_accepted: bool = Field(...)
+
+    @field_validator('personal_data_accepted')
+    @classmethod
+    def validate_personal_data_accepted(cls, value: bool) -> bool:
+        if value is not True:
+            raise ValueError('Необходимо дать согласие на обработку персональных данных')
+        return value
 
 class UserRead(BaseModel):
     id: int

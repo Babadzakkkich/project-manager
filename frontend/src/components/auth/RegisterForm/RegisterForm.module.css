@@ -55,6 +55,53 @@
   margin-top: var(--space-2);
 }
 
+.consentBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.consentLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  color: var(--color-text-soft);
+  font-size: var(--text-sm);
+  line-height: var(--line-normal);
+  cursor: pointer;
+}
+
+.consentCheckbox {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  margin-top: 2px;
+  accent-color: var(--color-brand-700);
+  cursor: pointer;
+}
+
+.consentCheckbox:disabled {
+  cursor: not-allowed;
+}
+
+.consentLink {
+  color: var(--color-brand-800);
+  font-weight: var(--font-bold);
+  text-decoration: none;
+}
+
+.consentLink:hover {
+  color: var(--color-brand-700);
+  text-decoration: underline;
+}
+
+.fieldError {
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-normal);
+}
+
 .submitError {
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--color-danger-border);

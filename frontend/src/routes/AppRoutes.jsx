@@ -18,6 +18,7 @@ import { ManagementBoard } from '../pages/ManagementBoard/ManagementBoard';
 import { Notifications } from '../pages/Notifications/Notifications';
 import { Invitations } from '../pages/Invitations/Invitations';
 import { Conferences } from '../pages/Conferences/Conferences';
+import { PrivacyPolicy } from '../pages/PrivacyPolicy';
 import { ConferenceRoom } from '../components/ui/VideoConference/ConferenceRoom';
 import { AdminDashboard } from '../pages/AdminPages/AdminDashboard';
 import { AdminUsers } from '../pages/AdminPages/AdminUsers';
@@ -132,6 +133,10 @@ export const AppRoutes = () => {
             <Login />
           </PublicRoute>
         } 
+      />
+      <Route
+        path="/privacy"
+        element={<PrivacyPolicy />}
       />
       <Route 
         path="/profile" 
