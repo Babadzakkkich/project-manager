@@ -36,8 +36,6 @@ DEFAULT_KICK_DURATION_MINUTES = 15
 
 
 class ConferenceJoinDeniedError(Exception):
-    """Ошибка подключения к созвону с кодом причины для фронтенда."""
-
     def __init__(
         self,
         message: str,
@@ -64,8 +62,6 @@ def _ensure_aware_utc(value: Optional[datetime]) -> Optional[datetime]:
 
 
 class ConferenceService:
-    """Сервис для работы с видеоконференциями."""
-
     def __init__(self, session: AsyncSession, service_factory: Optional['ServiceFactory'] = None):
         self.session = session
         self.logger = logger
@@ -74,13 +70,11 @@ class ConferenceService:
 
     @property
     def notification_trigger(self) -> Optional['NotificationTriggerService']:
-        """Ленивая загрузка NotificationTriggerService через фабрику."""
         if self._notification_trigger is None and self.service_factory:
             self._notification_trigger = self.service_factory.get('notification_trigger')
         return self._notification_trigger
 
     async def can_create_conference(self, user_id: int, room_type: str, entity_id: Optional[int]) -> bool:
-        """Проверка права на создание созвона."""
         if room_type == ConferenceRoomType.GROUP.value:
             if not entity_id:
                 return False
@@ -102,7 +96,6 @@ class ConferenceService:
         return False
 
     async def can_join_conference(self, user_id: int, room: ConferenceRoom) -> bool:
-        """Проверка права на вход или просмотр доступной комнаты."""
         if not room:
             return False
 
@@ -172,7 +165,6 @@ class ConferenceService:
         room: ConferenceRoom,
         user_id: int,
     ) -> dict:
-        """Данные активного временного удаления для отображения в списке созвонов."""
         active_kick = self._get_active_kick_from_loaded_room(room, user_id)
 
         if not active_kick:
@@ -193,7 +185,6 @@ class ConferenceService:
         }
 
     async def _is_project_admin(self, user_id: int, project_id: int) -> bool:
-        """Проверка, является ли пользователь админом хотя бы одной группы проекта."""
         stmt = select(Project).options(selectinload(Project.groups)).where(Project.id == project_id)
         result = await self.session.execute(stmt)
         project = result.scalar_one_or_none()
@@ -211,7 +202,6 @@ class ConferenceService:
         return False
 
     async def _is_task_assignee_or_group_admin(self, user_id: int, task_id: int) -> bool:
-        """Проверка, может ли пользователь управлять задачным созвоном."""
         stmt = select(Task).options(selectinload(Task.assignees)).where(Task.id == task_id)
         result = await self.session.execute(stmt)
         task = result.scalar_one_or_none()
@@ -232,7 +222,6 @@ class ConferenceService:
         return False
 
     async def _can_access_task(self, user_id: int, task_id: int) -> bool:
-        """Проверка доступа пользователя к задаче."""
         stmt = select(Task).options(selectinload(Task.assignees)).where(Task.id == task_id)
         result = await self.session.execute(stmt)
         task = result.scalar_one_or_none()
@@ -249,7 +238,6 @@ class ConferenceService:
         return False
 
     async def _is_room_moderator(self, user_id: int, room: ConferenceRoom) -> bool:
-        """Проверка, является ли пользователь модератором комнаты."""
         if not room:
             return False
 
@@ -282,7 +270,6 @@ class ConferenceService:
         invited_user_ids: Optional[List[int]] = None,
         max_participants: int = 30,
     ) -> ConferenceRoom:
-        """Создание новой комнаты созвона"""
         self.logger.info(
             f"Creating conference room '{title}' of type '{room_type}' by user {created_by}"
         )
@@ -349,7 +336,6 @@ class ConferenceService:
             raise
 
     async def get_room_by_id(self, room_id: int) -> Optional[ConferenceRoom]:
-        """Получение комнаты по ID."""
         stmt = select(ConferenceRoom).options(
             selectinload(ConferenceRoom.creator),
             selectinload(ConferenceRoom.group),
@@ -365,7 +351,6 @@ class ConferenceService:
         return result.scalar_one_or_none()
 
     async def get_room_by_name(self, room_name: str) -> Optional[ConferenceRoom]:
-        """Получение комнаты по имени."""
         stmt = select(ConferenceRoom).options(
             selectinload(ConferenceRoom.creator),
             selectinload(ConferenceRoom.invited_users),
@@ -391,13 +376,6 @@ class ConferenceService:
         return list({row[0] for row in result.all()})
 
     async def get_available_rooms_for_user(self, user_id: int, status: str = "active") -> List[ConferenceRoom]:
-        """Получение доступных пользователю созвонов.
-
-        status:
-        - active: только активные;
-        - ended: только завершённые;
-        - all: все доступные.
-        """
         user_group_ids = await self._get_user_group_ids(user_id)
         user_project_ids = await self._get_user_project_ids(user_group_ids)
 
@@ -444,12 +422,6 @@ class ConferenceService:
         return filtered_rooms
 
     async def join_room(self, room_id: int, user_id: int) -> tuple[Optional[ConferenceRoom], Optional[str]]:
-        """Вход пользователя в комнату.
-
-        Повторный вход не создаёт новую строку участника, потому что в таблице
-        действует уникальность по паре room_id/user_id. Если пользователь уже
-        был в комнате и вышел, его запись реактивируется.
-        """
         room = await self.get_room_by_id(room_id)
         if not room or not room.is_active:
             self.logger.warning(f"Room {room_id} not found or inactive")
@@ -519,7 +491,6 @@ class ConferenceService:
         return room, token
 
     async def save_message(self, room_id: int, user_id: int, message_text: str) -> Optional[ConferenceMessage]:
-        """Сохранение сообщения в комнате."""
         room = await self.get_room_by_id(room_id)
         if not room or not room.is_active:
             return None
@@ -547,7 +518,6 @@ class ConferenceService:
         limit: int = 50,
         before_id: Optional[int] = None,
     ) -> List[ConferenceMessage]:
-        """Получение истории сообщений комнаты."""
         room = await self.get_room_by_id(room_id)
         if not room or not await self.can_join_conference(user_id, room):
             return []
@@ -566,7 +536,6 @@ class ConferenceService:
         return list(reversed(messages))
 
     async def get_leave_impact(self, room_id: int, user_id: int) -> dict:
-        """Проверка, приведёт ли выход пользователя к автозавершению комнаты."""
         room = await self.get_room_by_id(room_id)
 
         if not room:
@@ -590,11 +559,6 @@ class ConferenceService:
         }
 
     async def leave_room(self, room_id: int, user_id: int, auto_end_if_last: bool = False) -> bool:
-        """Выход пользователя из комнаты.
-
-        Если выходит последний активный участник и auto_end_if_last=True,
-        комната автоматически завершается и по ней собирается статистика.
-        """
         room = await self.get_room_by_id(room_id)
         if not room:
             return False
@@ -605,9 +569,6 @@ class ConferenceService:
         )
 
         if not participant:
-            # Выход должен быть идемпотентным: после кика или повторного клика
-            # пользователь уже может быть помечен как вышедший, но фронтенд всё
-            # равно должен спокойно вернуться к списку созвонов.
             return True
 
         active_count_before_leave = len([item for item in room.participants if item.left_at is None])
@@ -638,7 +599,6 @@ class ConferenceService:
         duration_minutes: int = DEFAULT_KICK_DURATION_MINUTES,
         reason: Optional[str] = None,
     ) -> Optional[ConferenceParticipant]:
-        """Временное удаление участника из активного созвона."""
         room = await self.get_room_by_id(room_id)
         if not room or not room.is_active:
             return None
@@ -690,7 +650,6 @@ class ConferenceService:
         return participant
 
     async def end_conference(self, room_id: int, user_id: int) -> bool:
-        """Завершение созвона, только для модератора."""
         room = await self.get_room_by_id(room_id)
         if not room:
             return False
@@ -717,12 +676,10 @@ class ConferenceService:
         return True
 
     async def _delete_livekit_room_async(self, room_name: str):
-        """Асинхронное удаление комнаты в LiveKit."""
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, livekit_token.delete_room, room_name)
 
     async def _collect_room_stats(self, room: ConferenceRoom):
-        """Сбор статистики по комнате."""
         if not room.started_at:
             return
 
@@ -762,7 +719,6 @@ class ConferenceService:
         self.session.add(stats)
 
     async def _notify_conference_started(self, room: ConferenceRoom, created_by: int):
-        """Отправка уведомлений о созданном созвоне."""
         if not self.notification_trigger:
             return
 
@@ -841,28 +797,21 @@ class ConferenceService:
         return result.scalars().unique().all()
 
     async def get_rooms_by_project(self, project_id: int, user_id: int, status: str = "active") -> List[ConferenceRoom]:
-        """Получение созвонов проекта."""
         if not await check_user_in_project(self.session, user_id, project_id):
             return []
         return await self._get_rooms_by_scope(user_id, status, ConferenceRoom.project_id == project_id)
 
     async def get_rooms_by_group(self, group_id: int, user_id: int, status: str = "active") -> List[ConferenceRoom]:
-        """Получение созвонов группы."""
         if not await check_user_in_group(self.session, user_id, group_id):
             return []
         return await self._get_rooms_by_scope(user_id, status, ConferenceRoom.group_id == group_id)
 
     async def get_rooms_by_task(self, task_id: int, user_id: int, status: str = "active") -> List[ConferenceRoom]:
-        """Получение созвонов задачи."""
         if not await self._can_access_task(user_id, task_id):
             return []
         return await self._get_rooms_by_scope(user_id, status, ConferenceRoom.task_id == task_id)
 
     async def get_room_stats(self, room_id: int, user_id: int) -> Optional[ConferenceStats]:
-        """Получение статистики комнаты.
-
-        Статистика доступна модератору, создателю и участникам, у которых есть доступ к комнате.
-        """
         room = await self.get_room_by_id(room_id)
         if not room:
             return None
@@ -888,20 +837,11 @@ class ConferenceService:
         query: Optional[str] = None,
         limit: int = 30,
     ) -> List[User]:
-        """Получение пользователей, которых можно пригласить в мгновенный созвон.
-
-        В первой версии доступны пользователи из общих групп. Создатель исключается.
-        Запрос построен без DISTINCT ON, чтобы PostgreSQL не требовал совпадения
-        DISTINCT-полей с началом ORDER BY.
-        """
         user_group_ids = await self._get_user_group_ids(user_id)
 
         if not user_group_ids:
             return []
-
-        # Пользователя может объединять с текущим пользователем несколько групп.
-        # Чтобы не получать дубли через JOIN + DISTINCT ON, сначала выбираем
-        # уникальные ID подходящих пользователей, а затем загружаем самих User.
+        
         user_ids_subquery = (
             select(GroupMember.user_id)
             .where(

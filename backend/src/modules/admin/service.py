@@ -62,8 +62,6 @@ if TYPE_CHECKING:
 
 
 class AdminService:
-    """Сервис глобального администрирования системы."""
-
     def __init__(self, session: AsyncSession, service_factory: Optional["ServiceFactory"] = None):
         self.session = session
         self.service_factory = service_factory

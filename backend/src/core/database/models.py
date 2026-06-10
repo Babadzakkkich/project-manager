@@ -86,8 +86,6 @@ class ConferenceRoomType(enum.Enum):
     TASK = "task"
     INSTANT = "instant"
 
-
-# Ассоциативные таблицы
 task_user_association = Table(
     "task_user_association",
     Base.metadata,
@@ -132,10 +130,7 @@ task_comment_reads = Table(
 )
 
 
-# ==================== СУЩЕСТВУЮЩИЕ МОДЕЛИ ====================
-
 class GroupInvitation(Base):
-    """Модель приглашения в группу"""
     __tablename__ = "group_invitations"
     
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -157,7 +152,6 @@ class GroupInvitation(Base):
         onupdate=func.now()
     )
     
-    # Связи
     group: Mapped["Group"] = relationship("Group", back_populates="invitations")
     invited_by: Mapped["User"] = relationship("User", foreign_keys=[invited_by_id], back_populates="sent_invitations")
 
@@ -233,7 +227,6 @@ class User(Base):
         cascade="all, delete-orphan"
     )
     
-    # Конференции
     created_conferences: Mapped[List["ConferenceRoom"]] = relationship(
         "ConferenceRoom", back_populates="creator"
     )
@@ -275,7 +268,6 @@ class Group(Base):
         "GroupInvitation", back_populates="group", cascade="all, delete-orphan"
     )
     
-    # Конференции
     conferences: Mapped[List["ConferenceRoom"]] = relationship(
         "ConferenceRoom", back_populates="group"
     )
@@ -325,7 +317,6 @@ class Project(Base):
         cascade="all, delete-orphan"
     )
     
-    # Конференции
     conferences: Mapped[List["ConferenceRoom"]] = relationship(
         "ConferenceRoom", back_populates="project"
     )
@@ -373,7 +364,6 @@ class Task(Base):
     
     tags: Mapped[List[str]] = mapped_column(JSON, default=list, nullable=True)
     
-    # Конференции
     conferences: Mapped[List["ConferenceRoom"]] = relationship(
         "ConferenceRoom", back_populates="task"
     )
@@ -441,7 +431,6 @@ class TaskComment(Base):
 
 
 class AdminAuditLog(Base):
-    """Журнал действий глобальных администраторов системы."""
     __tablename__ = "admin_audit_logs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -478,9 +467,6 @@ class RefreshToken(Base):
     
     user: Mapped["User"] = relationship("User")
 
-
-# ==================== НОВЫЕ МОДЕЛИ КОНФЕРЕНЦИЙ ====================
-
 class ConferenceRoom(Base):
     __tablename__ = "conference_rooms"
     
@@ -503,7 +489,6 @@ class ConferenceRoom(Base):
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
-    # Связи
     project: Mapped[Optional["Project"]] = relationship("Project", back_populates="conferences")
     group: Mapped[Optional["Group"]] = relationship("Group", back_populates="conferences")
     task: Mapped[Optional["Task"]] = relationship("Task", back_populates="conferences")

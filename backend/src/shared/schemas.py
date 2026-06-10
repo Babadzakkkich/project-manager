@@ -4,7 +4,6 @@ from typing import List, Optional
 
 from core.database.models import TaskPriority, TaskStatus
 
-# Базовые схемы для групп
 class BaseGroupInfo(BaseModel):
     id: int
     name: str
@@ -13,7 +12,6 @@ class BaseGroupInfo(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
-# Базовые схемы для проектов
 class BaseProjectInfo(BaseModel):
     id: int
     title: str
@@ -22,7 +20,6 @@ class BaseProjectInfo(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
-# Базовые схемы для задач
 class BaseTaskInfo(BaseModel):
     id: int
     title: str
@@ -32,7 +29,6 @@ class BaseTaskInfo(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
-# Базовые схемы для пользователей
 class BaseUserInfo(BaseModel):
     id: int
     login: str

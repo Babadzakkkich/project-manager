@@ -12,16 +12,7 @@ from .schemas import BaseMessage
 
 
 class RabbitMQClient:
-    """
-    Чистый клиент для работы с RabbitMQ.
-    Не содержит бизнес-логики, только базовые операции.
-    """
-    
     def __init__(self, url: str):
-        """
-        Args:
-            url: URL подключения к RabbitMQ (например, amqp://guest:guest@localhost:5672/)
-        """
         self._url = url
         self._connection: Optional[AbstractRobustConnection] = None
         self._channel: Optional[AbstractRobustChannel] = None
@@ -32,7 +23,6 @@ class RabbitMQClient:
         self._reconnect_delay = 1
         self._max_reconnect_delay = 30
         
-        # Метрики
         self.metrics = {
             "messages_published": 0,
             "messages_consumed": 0,
@@ -51,7 +41,6 @@ class RabbitMQClient:
         return self._channel
     
     async def connect(self) -> bool:
-        """Установка соединения с RabbitMQ"""
         if self.is_connected:
             logger.info("Already connected to RabbitMQ")
             return True
@@ -86,7 +75,6 @@ class RabbitMQClient:
             raise ConnectionError(f"Failed to connect to RabbitMQ after {self._reconnect_attempts} attempts")
     
     async def disconnect(self):
-        """Закрытие соединения"""
         self._retry_connect = False
         self._connected = False
         
@@ -113,18 +101,6 @@ class RabbitMQClient:
         durable: bool = True,
         auto_delete: bool = False
     ) -> AbstractRobustExchange:
-        """
-        Объявить exchange.
-        
-        Args:
-            name: Имя exchange
-            type: Тип exchange (direct, fanout, topic, headers)
-            durable: Сохранять ли exchange при перезапуске
-            auto_delete: Удалять ли exchange когда нет потребителей
-            
-        Returns:
-            Объект exchange
-        """
         if not self.is_connected:
             raise ConnectionError("Not connected to RabbitMQ")
         
@@ -150,19 +126,6 @@ class RabbitMQClient:
         auto_delete: bool = False,
         arguments: Optional[Dict[str, Any]] = None
     ) -> AbstractRobustQueue:
-        """
-        Объявить очередь.
-        
-        Args:
-            name: Имя очереди
-            durable: Сохранять ли очередь при перезапуске
-            exclusive: Эксклюзивная ли очередь (только для текущего соединения)
-            auto_delete: Удалять ли очередь когда нет потребителей
-            arguments: Дополнительные аргументы (x-dead-letter-exchange и т.д.)
-            
-        Returns:
-            Объект очереди
-        """
         if not self.is_connected:
             raise ConnectionError("Not connected to RabbitMQ")
         
@@ -182,17 +145,6 @@ class RabbitMQClient:
             raise QueueError(f"Failed to declare queue {name}: {e}")
     
     async def delete_queue(self, name: str, if_unused: bool = False, if_empty: bool = False) -> bool:
-        """
-        Удалить очередь.
-        
-        Args:
-            name: Имя очереди
-            if_unused: Удалить только если нет потребителей
-            if_empty: Удалить только если очередь пуста
-            
-        Returns:
-            True если удалено, False если не найдена
-        """
         if not self.is_connected:
             raise ConnectionError("Not connected to RabbitMQ")
         
@@ -206,12 +158,6 @@ class RabbitMQClient:
             return False
     
     async def get_queue_info(self, name: str) -> Optional[Dict[str, Any]]:
-        """
-        Получить информацию об очереди (пассивное объявление).
-        
-        Returns:
-            Словарь с информацией об очереди или None если не найдена
-        """
         if not self.is_connected:
             return None
         
@@ -234,26 +180,11 @@ class RabbitMQClient:
         delivery_mode: aio_pika.DeliveryMode = aio_pika.DeliveryMode.PERSISTENT,
         expiration: Optional[int] = None
     ) -> bool:
-        """
-        Публикация сообщения.
-        
-        Args:
-            exchange: Exchange (имя или объект)
-            routing_key: Ключ маршрутизации
-            message: Сообщение (Pydantic модель)
-            priority: Приоритет сообщения (0-10)
-            delivery_mode: Режим доставки (PERSISTENT или TRANSIENT)
-            expiration: Время жизни сообщения в миллисекундах
-            
-        Returns:
-            True если успешно, False иначе
-        """
         if not self.is_connected:
             logger.warning("RabbitMQ not connected, cannot publish message")
             return False
         
         try:
-            # Получаем exchange объект если передано имя
             if isinstance(exchange, str):
                 exchange_obj = await self._channel.get_exchange(exchange)
                 if not exchange_obj:
@@ -261,10 +192,8 @@ class RabbitMQClient:
             else:
                 exchange_obj = exchange
             
-            # Сериализуем сообщение
             message_body = json.dumps(message.dict(), default=str).encode()
             
-            # Создаем сообщение
             amqp_message = Message(
                 body=message_body,
                 delivery_mode=delivery_mode,
@@ -282,7 +211,6 @@ class RabbitMQClient:
             if expiration:
                 amqp_message.expiration = str(expiration)
             
-            # Публикуем
             await exchange_obj.publish(amqp_message, routing_key=routing_key)
             
             self.metrics["messages_published"] += 1
@@ -300,19 +228,10 @@ class RabbitMQClient:
         callback: Callable[[aio_pika.IncomingMessage], Any],
         prefetch_count: int = 10
     ):
-        """
-        Начать потребление сообщений из очереди.
-        
-        Args:
-            queue: Очередь (имя или объект)
-            callback: Функция обработки сообщения
-            prefetch_count: Количество сообщений, которые можно получить за раз
-        """
         if not self.is_connected:
             raise ConnectionError("Not connected to RabbitMQ")
         
         try:
-            # Получаем очередь
             if isinstance(queue, str):
                 queue_obj = await self._channel.declare_queue(queue, passive=True)
                 if not queue_obj:
@@ -320,10 +239,8 @@ class RabbitMQClient:
             else:
                 queue_obj = queue
             
-            # Устанавливаем prefetch
             await self._channel.set_qos(prefetch_count=prefetch_count)
             
-            # Запускаем потребление
             await queue_obj.consume(callback)
             
             logger.info(f"Started consuming from queue: {queue_obj.name}")
@@ -333,7 +250,6 @@ class RabbitMQClient:
             raise ConsumerError(f"Failed to start consumer: {e}")
     
     async def ack_message(self, message: aio_pika.IncomingMessage):
-        """Подтвердить обработку сообщения"""
         try:
             await message.ack()
             self.metrics["messages_consumed"] += 1
@@ -342,7 +258,6 @@ class RabbitMQClient:
             logger.error(f"Failed to ack message: {e}")
     
     async def nack_message(self, message: aio_pika.IncomingMessage, requeue: bool = False):
-        """Отклонить сообщение (опционально вернуть в очередь)"""
         try:
             await message.nack(requeue=requeue)
             logger.debug(f"Message {message.message_id} nacked, requeue={requeue}")
@@ -350,7 +265,6 @@ class RabbitMQClient:
             logger.error(f"Failed to nack message: {e}")
     
     def get_metrics(self) -> Dict[str, Any]:
-        """Получить метрики"""
         return {
             **self.metrics,
             "is_connected": self.is_connected,

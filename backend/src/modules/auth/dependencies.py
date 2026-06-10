@@ -14,9 +14,6 @@ async def get_current_user(
     request: Request,
     session: AsyncSession = Depends(db_session.session_getter),
 ) -> Optional[dict]:
-    """
-    Получение текущего пользователя по токену из cookie
-    """
     token = request.cookies.get("access_token")
     
     if not token:
@@ -62,10 +59,6 @@ async def get_current_user_ws(
     websocket: WebSocket,
     session: AsyncSession = Depends(db_session.session_getter)
 ) -> Optional[User]:
-    """
-    Получение текущего пользователя из cookies для WebSocket
-    """
-    # Получаем cookies из заголовка WebSocket
     cookies = {}
     cookie_header = websocket.headers.get("cookie", "")
     
@@ -105,9 +98,6 @@ async def get_optional_current_user(
     request: Request,
     session: AsyncSession = Depends(db_session.session_getter),
 ) -> Optional[dict]:
-    """
-    Получение текущего пользователя по токену из cookie (опционально)
-    """
     token = request.cookies.get("access_token")
     
     if not token:
@@ -118,7 +108,7 @@ async def get_optional_current_user(
             token, 
             settings.security.secret_key, 
             algorithms=[settings.security.algorithm],
-            options={"verify_exp": False}  # Не проверяем expiration для опционального
+            options={"verify_exp": False}
         )
         
         if payload.get("type") != "access":

@@ -28,7 +28,6 @@ router = APIRouter()
 
 
 def get_active_participants_count(room) -> int:
-    """Количество участников, которые находятся в созвоне сейчас."""
     if not room.participants:
         return 0
 
@@ -64,7 +63,6 @@ async def create_conference_room(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user),
 ):
-    """Создание новой комнаты для созвона."""
     logger.info(f"Creating conference room '{room_data.title}' by user {current_user.id}")
 
     conference_service = service_factory.get('conference')
@@ -114,7 +112,6 @@ async def get_invitable_users(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user),
 ):
-    """Получить пользователей, которых можно пригласить в мгновенный созвон."""
     conference_service = service_factory.get('conference')
     return await conference_service.get_invitable_users_for_user(current_user.id, query=query, limit=limit)
 
@@ -125,7 +122,6 @@ async def get_available_rooms(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user),
 ):
-    """Получение списка доступных созвонов."""
     logger.info(f"Getting {status_filter} rooms for user {current_user.id}")
 
     conference_service = service_factory.get('conference')
@@ -140,7 +136,6 @@ async def get_project_conferences(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user),
 ):
-    """Получение созвонов проекта."""
     logger.info(f"Getting project {project_id} conferences for user {current_user.id}")
     conference_service = service_factory.get('conference')
     return await conference_service.get_rooms_by_project(project_id, current_user.id, status=status_filter)
@@ -153,7 +148,6 @@ async def get_group_conferences(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user),
 ):
-    """Получение созвонов группы."""
     logger.info(f"Getting group {group_id} conferences for user {current_user.id}")
     conference_service = service_factory.get('conference')
     return await conference_service.get_rooms_by_group(group_id, current_user.id, status=status_filter)
@@ -178,7 +172,6 @@ async def get_room_details(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user),
 ):
-    """Получение детальной информации о комнате."""
     logger.info(f"Getting room {room_id} details for user {current_user.id}")
 
     conference_service = service_factory.get('conference')
@@ -199,7 +192,6 @@ async def join_conference_room(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user),
 ):
-    """Подключение к комнате созвона."""
     logger.info(f"User {current_user.id} joining room {room_id}")
 
     conference_service = service_factory.get('conference')
@@ -245,7 +237,6 @@ async def get_leave_impact(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user),
 ):
-    """Проверить, завершится ли комната после выхода текущего пользователя."""
     conference_service = service_factory.get('conference')
     impact = await conference_service.get_leave_impact(room_id, current_user.id)
     return LeaveConferenceImpactResponse(**impact)
@@ -258,7 +249,6 @@ async def leave_conference_room(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user),
 ):
-    """Выход из комнаты созвона."""
     logger.info(f"User {current_user.id} leaving room {room_id}")
 
     conference_service = service_factory.get('conference')
@@ -307,7 +297,6 @@ async def kick_conference_participant(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user),
 ):
-    """Временное удаление участника из созвона модератором."""
     logger.info(
         f"User {current_user.id} kicks participant {participant_user_id} from room {room_id} "
         f"for {kick_data.duration_minutes} minutes"
@@ -343,7 +332,6 @@ async def end_conference(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user),
 ):
-    """Завершение конференции, только для модератора."""
     logger.info(f"User {current_user.id} ending room {room_id}")
 
     conference_service = service_factory.get('conference')
@@ -398,7 +386,6 @@ async def get_room_messages(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user),
 ):
-    """Получение истории сообщений комнаты."""
     logger.info(f"Getting messages for room {room_id}, user {current_user.id}")
 
     conference_service = service_factory.get('conference')
@@ -422,7 +409,6 @@ async def get_conference_stats(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user),
 ):
-    """Получение статистики созвона."""
     logger.info(f"Getting stats for room {room_id} by user {current_user.id}")
 
     conference_service = service_factory.get('conference')

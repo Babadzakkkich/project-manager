@@ -9,7 +9,6 @@ from core.config import settings
 
 
 class DatabaseSession:
-    """Синглтон для управления соединениями с БД"""
     _instance = None
     
     def __new__(cls):
@@ -40,20 +39,16 @@ class DatabaseSession:
         self._initialized = True
     
     async def dispose(self) -> None:
-        """Закрытие соединения"""
         await self.engine.dispose()
     
     async def session_getter(self) -> AsyncGenerator[AsyncSession, None]:
-        """Генератор сессий для запросов"""
         async with self.session_factory() as session:
             yield session
     
     def get_consumer_session(self) -> AsyncSession:
-        """Получение сессии для consumer (без автоочистки)"""
         return self.session_factory()
     
     def get_session_sync(self) -> async_sessionmaker[AsyncSession]:
-        """Получение фабрики сессий для синхронного использования"""
         return self.session_factory
 
 

@@ -71,7 +71,6 @@ class RabbitMQConfig(BaseModel):
     password: str = Field("guest", env="APP_CONFIG__RABBITMQ__PASSWORD")
     vhost: str = Field("/", env="APP_CONFIG__RABBITMQ__VHOST")
     
-    # Настройки очередей
     notifications_queue: str = Field("notifications", env="APP_CONFIG__RABBITMQ__NOTIFICATIONS_QUEUE")
     notifications_exchange: str = Field("notifications", env="APP_CONFIG__RABBITMQ__NOTIFICATIONS_EXCHANGE")
     dlq_queue: str = Field("notifications_dlq", env="APP_CONFIG__RABBITMQ__DLQ_QUEUE")

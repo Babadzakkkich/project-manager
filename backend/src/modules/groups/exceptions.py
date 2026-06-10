@@ -74,7 +74,6 @@ class InvalidRoleError(GroupException):
         super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
     
 class InvitationError(GroupException):
-    """Базовое исключение для ошибок приглашений"""
     pass
 
 class InvalidInvitationError(InvitationError):

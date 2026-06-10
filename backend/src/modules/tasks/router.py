@@ -12,7 +12,6 @@ from modules.auth.dependencies import get_current_user
 from core.database.session import db_session
 from core.services import ServiceFactory
 from core.logger import logger
-from .service import TaskService
 from .schemas import (
     AddRemoveUsersToTask, TaskCreate, TaskCreateExtended, TaskRead, 
     TaskUpdate, TaskReadWithRelations, TaskBulkUpdate, BoardViewRequest,
@@ -212,12 +211,6 @@ async def get_task(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(db_session.session_getter)
 ):
-    """
-    Получить информацию о задаче.
-
-    Обычный пользователь должен состоять в группе задачи.
-    Глобальный администратор может просматривать любую задачу без членства.
-    """
     logger.info(f"GET /tasks/{task_id} requested by user {current_user.id}")
 
     try:
@@ -497,12 +490,6 @@ async def get_task_history(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(db_session.session_getter)
 ):
-    """
-    Получить историю изменений задачи.
-
-    Обычный пользователь должен состоять в группе задачи.
-    Глобальный администратор может просматривать историю любой задачи.
-    """
     logger.info(f"GET /tasks/{task_id}/history by user {current_user.id}")
     task_service = service_factory.get('task')
 

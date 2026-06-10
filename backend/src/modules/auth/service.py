@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from core.services import ServiceFactory
 
 class AuthService:
-    """Сервис для аутентификации"""
     
     def __init__(self, session: AsyncSession, service_factory: Optional['ServiceFactory'] = None):
         self.session = session
@@ -22,7 +21,6 @@ class AuthService:
         self.user_service = UserService(session, service_factory)
     
     async def authenticate_user(self, login: str, password: str):
-        """Аутентификация пользователя"""
         self.logger.debug(f"Authenticating user: {login}")
         
         user = await self.user_service.get_user_by_login(login)
@@ -42,10 +40,6 @@ class AuthService:
         return user
     
     async def login_user(self, login: str, password: str) -> Dict[str, str]:
-        """
-        Вход пользователя в систему.
-        Возвращает словарь с access и refresh токенами.
-        """
         self.logger.info(f"Login attempt for user: {login}")
         
         user = await self.authenticate_user(login, password)

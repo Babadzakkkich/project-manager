@@ -43,9 +43,7 @@ if TYPE_CHECKING:
     from modules.notifications.service import NotificationTriggerService
 
 
-class ProjectService:
-    """Сервис для работы с проектами"""
-    
+class ProjectService:    
     def __init__(self, session: AsyncSession, service_factory: Optional['ServiceFactory'] = None):
         self.session = session
         self.logger = logger
@@ -55,7 +53,6 @@ class ProjectService:
     
     @property
     def group_service(self) -> Optional['GroupService']:
-        """Ленивая загрузка GroupService через фабрику"""
         if self._group_service is None and self.service_factory:
             from modules.groups.service import GroupService
             self._group_service = self.service_factory.get_or_create('group', GroupService)
@@ -63,13 +60,11 @@ class ProjectService:
     
     @property
     def notification_trigger(self) -> Optional['NotificationTriggerService']:
-        """Ленивая загрузка NotificationTriggerService через фабрику"""
         if self._notification_trigger is None and self.service_factory:
             self._notification_trigger = self.service_factory.get('notification_trigger')
         return self._notification_trigger
     
     async def get_all_projects(self, current_user_id: int) -> List[ProjectRead]:
-        """Получение всех проектов (только для глобального администратора)"""
         self.logger.info(f"Fetching all projects by global admin {current_user_id}")
         await ensure_global_admin_by_id(self.session, current_user_id)
         stmt = select(Project).order_by(Project.id)
@@ -79,7 +74,6 @@ class ProjectService:
         return projects
     
     async def get_user_projects(self, user_id: int) -> List[ProjectReadWithRelations]:
-        """Получение проектов пользователя"""
         self.logger.debug(f"Fetching projects for user {user_id}")
         stmt = (
             select(Project)
@@ -154,7 +148,6 @@ class ProjectService:
         return projects_with_relations
     
     async def get_project_by_id(self, project_id: int) -> ProjectReadWithRelations:
-        """Получение проекта по ID"""
         self.logger.debug(f"Fetching project by ID: {project_id}")
         stmt = (
             select(Project)
@@ -227,11 +220,9 @@ class ProjectService:
         return ProjectReadWithRelations(**project_data)
     
     async def create_project(self, project_data: ProjectCreate, current_user: User) -> ProjectReadWithRelations:
-        """Создание нового проекта"""
         self.logger.info(f"Creating new project '{project_data.title}' by user {current_user.id}")
         
         try:
-            # Проверяем существование групп
             groups_stmt = select(Group).where(Group.id.in_(project_data.group_ids))
             result_groups = await self.session.execute(groups_stmt)
             groups = result_groups.scalars().all()
@@ -242,7 +233,6 @@ class ProjectService:
                 self.logger.warning(f"Groups not found: {missing_ids}")
                 raise GroupsNotFoundError(list(missing_ids))
 
-            # Проверяем права на управление группами
             for group in groups:
                 await ensure_user_is_admin(self.session, current_user.id, group.id)
 
@@ -253,7 +243,6 @@ class ProjectService:
             
             self.logger.info(f"Project created successfully with ID: {new_project.id}")
             
-            # Отправляем уведомления участникам всех групп
             if self.notification_trigger:
                 await self.notification_trigger.on_project_created(
                     project=new_project,
@@ -269,11 +258,9 @@ class ProjectService:
             raise ProjectCreationError(f"Не удалось создать проект: {str(e)}")
     
     async def update_project(self, db_project: Project, project_update: ProjectUpdate, current_user: User) -> ProjectReadWithRelations:
-        """Обновление проекта"""
         self.logger.info(f"Updating project {db_project.id} by user {current_user.id}")
         
         try:
-            # Проверяем права на все группы проекта
             for group in db_project.groups:
                 await ensure_user_is_admin(self.session, current_user.id, group.id)
             
@@ -304,7 +291,6 @@ class ProjectService:
             
             self.logger.info(f"Project {db_project.id} updated successfully")
             
-            # Отправляем уведомление, если есть изменения
             if changes and self.notification_trigger:
                 await self.notification_trigger.on_project_updated(db_project, current_user, changes)
             
@@ -316,7 +302,6 @@ class ProjectService:
             raise ProjectUpdateError(f"Не удалось обновить проект: {str(e)}")
     
     async def add_groups_to_project(self, project_id: int, data: AddGroupsToProject, current_user: User) -> ProjectReadWithRelations:
-        """Добавление групп в проект"""
         self.logger.info(f"Adding groups to project {project_id} by user {current_user.id}")
         
         try:
@@ -328,7 +313,6 @@ class ProjectService:
                 self.logger.warning(f"Project {project_id} not found")
                 raise ProjectNotFoundError(project_id)
 
-            # Проверяем существование групп
             groups_stmt = select(Group).where(Group.id.in_(data.group_ids))
             result_groups = await self.session.execute(groups_stmt)
             groups = result_groups.scalars().all()
@@ -341,7 +325,6 @@ class ProjectService:
 
             added_groups = []
             
-            # Проверяем права на добавляемые группы
             for group in groups:
                 await ensure_user_is_admin(self.session, current_user.id, group.id)
                 if group not in project.groups:
@@ -351,7 +334,6 @@ class ProjectService:
             await self.session.commit()
             self.logger.info(f"Groups added to project {project_id} successfully")
             
-            # Отправляем уведомления
             if self.notification_trigger:
                 for group in added_groups:
                     await self.notification_trigger.on_group_added_to_project(
@@ -368,7 +350,6 @@ class ProjectService:
             raise ProjectUpdateError(f"Не удалось добавить группы в проект: {str(e)}")
     
     async def remove_groups_from_project(self, project_id: int, data: RemoveGroupsFromProject, current_user: User) -> ProjectReadWithRelations:
-        """Удаление групп из проекта"""
         self.logger.info(f"Removing groups from project {project_id} by user {current_user.id}")
         
         try:
@@ -391,7 +372,6 @@ class ProjectService:
 
             removed_groups = []
             
-            # Проверяем права на удаляемые группы
             for group in groups_to_remove:
                 await ensure_user_is_admin(self.session, current_user.id, group.id)
                 project.groups.remove(group)
@@ -400,7 +380,6 @@ class ProjectService:
             await self.session.commit()
             self.logger.info(f"Groups removed from project {project_id} successfully")
             
-            # Отправляем уведомления
             if self.notification_trigger:
                 for group in removed_groups:
                     await self.notification_trigger.on_group_removed_from_project(
@@ -417,7 +396,6 @@ class ProjectService:
             raise ProjectUpdateError(f"Не удалось удалить группы из проекта: {str(e)}")
     
     async def delete_project_auto(self, project_id: int) -> bool:
-        """Автоматическое удаление проекта"""
         self.logger.info(f"Auto-deleting project {project_id}")
         
         try:
@@ -429,7 +407,6 @@ class ProjectService:
                 self.logger.debug(f"Project {project_id} not found for auto-deletion")
                 return True
 
-            # Получаем ID задач
             tasks_stmt = select(Task.id).where(Task.project_id == project_id)
             tasks_result = await self.session.execute(tasks_stmt)
             task_ids = [row[0] for row in tasks_result]
@@ -482,17 +459,14 @@ class ProjectService:
                 )
                 await self.session.execute(delete_user_associations_stmt)
 
-            # Удаляем задачи
             delete_tasks_stmt = delete(Task).where(Task.project_id == project_id)
             await self.session.execute(delete_tasks_stmt)
 
-            # Удаляем связи с группами
             delete_project_links_stmt = delete(project_group_association).where(
                 project_group_association.c.project_id == project_id
             )
             await self.session.execute(delete_project_links_stmt)
 
-            # Удаляем проект
             delete_project_stmt = delete(Project).where(Project.id == project_id)
             await self.session.execute(delete_project_stmt)
 
@@ -506,7 +480,6 @@ class ProjectService:
             raise ProjectDeleteError(f"Не удалось автоматически удалить проект: {str(e)}")
     
     async def delete_project(self, project_id: int, current_user: User) -> bool:
-        """Удаление проекта"""
         self.logger.info(f"Deleting project {project_id} by user {current_user.id}")
         
         try:
@@ -521,17 +494,13 @@ class ProjectService:
                 self.logger.warning(f"Project {project_id} not found for deletion")
                 raise ProjectNotFoundError(project_id)
 
-            # Получаем группы проекта
             project_groups = list(db_project.groups)
             
-            # Проверяем права на все группы проекта
             for group in project_groups:
                 await ensure_user_is_admin(self.session, current_user.id, group.id)
 
-            # Удаляем проект со всеми связанными данными
             await self.delete_project_auto(project_id)
             
-            # Отправляем уведомления
             if self.notification_trigger:
                 await self.notification_trigger.on_project_deleted(db_project, current_user)
             
@@ -544,4 +513,3 @@ class ProjectService:
             await self.session.rollback()
             self.logger.error(f"Error deleting project {project_id}: {e}", exc_info=True)
             raise ProjectDeleteError(f"Не удалось удалить проект: {str(e)}")
-

@@ -6,7 +6,6 @@ from core.database.models import ConferenceRoomType
 
 
 class ConferenceRoomCreate(BaseModel):
-    """Запрос на создание комнаты."""
     title: str = Field(..., min_length=2, max_length=200)
     room_type: Literal["project", "group", "task", "instant"] = Field(...)
     project_id: Optional[int] = Field(None)
@@ -17,18 +16,15 @@ class ConferenceRoomCreate(BaseModel):
 
 
 class LeaveConferenceRequest(BaseModel):
-    """Параметры выхода пользователя из комнаты."""
     auto_end_if_last: bool = False
 
 
 class KickConferenceParticipantRequest(BaseModel):
-    """Параметры временного удаления участника из созвона."""
     duration_minutes: int = Field(default=15, ge=1, le=1440)
     reason: Optional[str] = Field(default=None, max_length=300)
 
 
 class KickConferenceParticipantResponse(BaseModel):
-    """Результат временного удаления участника из созвона."""
     room_id: int
     user_id: int
     kicked_until: datetime
@@ -37,7 +33,6 @@ class KickConferenceParticipantResponse(BaseModel):
 
 
 class LeaveConferenceImpactResponse(BaseModel):
-    """Информация о последствиях выхода пользователя из комнаты."""
     room_id: int
     is_active: bool
     current_user_is_active_participant: bool
@@ -46,7 +41,6 @@ class LeaveConferenceImpactResponse(BaseModel):
 
 
 class InvitableUserResponse(BaseModel):
-    """Пользователь, которого можно пригласить в мгновенный созвон."""
     id: int
     login: str
     email: str
@@ -56,7 +50,6 @@ class InvitableUserResponse(BaseModel):
 
 
 class CreatorInfo(BaseModel):
-    """Информация о создателе комнаты."""
     id: int
     login: str
     name: str
@@ -65,7 +58,6 @@ class CreatorInfo(BaseModel):
 
 
 class ConferenceRoomResponse(BaseModel):
-    """Ответ с данными комнаты."""
     id: int
     room_name: str
     title: str
@@ -84,7 +76,6 @@ class ConferenceRoomResponse(BaseModel):
 
 
 class ConferenceRoomWithDetails(ConferenceRoomResponse):
-    """Комната с дополнительными деталями."""
     creator: Optional[CreatorInfo] = None
     participants_count: int = 0
     is_moderator: bool = False
@@ -96,7 +87,6 @@ class ConferenceRoomWithDetails(ConferenceRoomResponse):
 
 
 class JoinConferenceResponse(BaseModel):
-    """Ответ с данными для подключения к созвону."""
     room: ConferenceRoomResponse
     token: str
     ws_url: str
@@ -104,7 +94,6 @@ class JoinConferenceResponse(BaseModel):
 
 
 class ConferenceParticipantResponse(BaseModel):
-    """Участник конференции."""
     id: int
     user_id: int
     user_name: str
@@ -117,7 +106,6 @@ class ConferenceParticipantResponse(BaseModel):
 
 
 class ConferenceStatsResponse(BaseModel):
-    """Статистика конференции."""
     room_id: int
     participant_count: Optional[int] = None
     peak_participants: Optional[int] = None
@@ -129,7 +117,6 @@ class ConferenceStatsResponse(BaseModel):
 
 
 class ConferenceMessageResponse(BaseModel):
-    """Сообщение чата."""
     id: int
     user_id: int
     user_name: str
@@ -140,6 +127,5 @@ class ConferenceMessageResponse(BaseModel):
 
 
 class ConferenceListResponse(BaseModel):
-    """Список конференций."""
     items: List[ConferenceRoomWithDetails]
     total: int

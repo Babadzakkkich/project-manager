@@ -20,9 +20,7 @@ if TYPE_CHECKING:
     from modules.notifications.service import NotificationTriggerService
 
 
-class GroupInvitationService:
-    """Сервис для управления приглашениями в группы"""
-    
+class GroupInvitationService:    
     def __init__(
         self,
         session: AsyncSession,
@@ -33,7 +31,6 @@ class GroupInvitationService:
         self.logger = logger
     
     def _generate_token(self) -> str:
-        """Генерация уникального токена для приглашения"""
         return secrets.token_urlsafe(48)
     
     async def create_invitation(
@@ -44,12 +41,8 @@ class GroupInvitationService:
         role: UserRole = UserRole.MEMBER,
         expires_days: int = 7
     ) -> GroupInvitation:
-        """
-        Создание приглашения в группу
-        """
         self.logger.info(f"Creating invitation for {invited_email} to group {group_id}")
         
-        # Проверяем существование группы
         group_stmt = select(Group).where(Group.id == group_id)
         group_result = await self.session.execute(group_stmt)
         group = group_result.scalar_one_or_none()
@@ -57,13 +50,11 @@ class GroupInvitationService:
         if not group:
             raise GroupNotFoundError(group_id=group_id)
         
-        # Проверяем, существует ли уже пользователь с таким email
         user_stmt = select(User).where(User.email == invited_email)
         user_result = await self.session.execute(user_stmt)
         existing_user = user_result.scalar_one_or_none()
         
         if existing_user:
-            # Проверяем, не состоит ли уже пользователь в группе
             member_stmt = select(GroupMember).where(
                 and_(
                     GroupMember.user_id == existing_user.id,
@@ -74,7 +65,6 @@ class GroupInvitationService:
             if member_result.scalar_one_or_none():
                 raise UserAlreadyInGroupError(invited_email, group_id)
         
-        # Проверяем, нет ли уже активного приглашения
         existing_invitation_stmt = select(GroupInvitation).where(
             and_(
                 GroupInvitation.group_id == group_id,
@@ -87,7 +77,6 @@ class GroupInvitationService:
         existing_invitation = existing_result.scalar_one_or_none()
         
         if existing_invitation:
-            # Обновляем существующее приглашение
             existing_invitation.role = role
             existing_invitation.expires_at = datetime.now(timezone.utc) + timedelta(days=expires_days)
             existing_invitation.updated_at = datetime.now(timezone.utc)
@@ -95,7 +84,6 @@ class GroupInvitationService:
             self.logger.info(f"Updated existing invitation for {invited_email}")
             return existing_invitation
         
-        # Создаем новое приглашение
         invitation = GroupInvitation(
             group_id=group_id,
             invited_email=invited_email,
@@ -114,33 +102,26 @@ class GroupInvitationService:
         return invitation
     
     async def get_invitation_by_token(self, token: str) -> Optional[GroupInvitation]:
-        """Получение приглашения по токену"""
         stmt = select(GroupInvitation).where(GroupInvitation.token == token)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
     
     async def accept_invitation(self, token: str, user_id: int) -> dict:
-        """
-        Принятие приглашения авторизованным пользователем
-        """
         invitation = await self.get_invitation_by_token(token)
         
         if not invitation:
             raise InvalidInvitationError("Приглашение не найдено")
         
-        # Проверяем срок действия
         if invitation.expires_at < datetime.now(timezone.utc):
             invitation.status = "expired"
             await self.session.commit()
             raise InvitationExpiredError("Срок действия приглашения истек")
         
-        # Проверяем статус
         if invitation.status != "pending":
             raise InvitationAlreadyProcessedError(
                 f"Приглашение уже {invitation.status}"
             )
         
-        # Получаем пользователя
         user_stmt = select(User).where(User.id == user_id)
         user_result = await self.session.execute(user_stmt)
         user = user_result.scalar_one_or_none()
@@ -148,17 +129,12 @@ class GroupInvitationService:
         if not user:
             raise UsersNotFoundError(user_id=user_id)
         
-        # Проверяем, что email совпадает
         if user.email != invitation.invited_email:
-            # Можно разрешить принять приглашение даже если email не совпадает
-            # но для безопасности лучше проверить
             self.logger.warning(
                 f"User {user.email} trying to accept invitation for {invitation.invited_email}"
             )
-            # Пока отклоняем
             raise InvalidInvitationError("Это приглашение предназначено для другого email адреса")
         
-        # Проверяем, не состоит ли уже пользователь в группе
         member_stmt = select(GroupMember).where(
             and_(
                 GroupMember.user_id == user_id,
@@ -177,7 +153,6 @@ class GroupInvitationService:
                 "group": invitation.group
             }
         
-        # Создаем членство в группе
         group_member = GroupMember(
             user_id=user_id,
             group_id=invitation.group_id,
@@ -185,16 +160,13 @@ class GroupInvitationService:
         )
         self.session.add(group_member)
         
-        # Получаем группу
         group_stmt = select(Group).where(Group.id == invitation.group_id)
         group_result = await self.session.execute(group_stmt)
         group = group_result.scalar_one()
         
-        # Обновляем статус приглашения
         invitation.status = "accepted"
         await self.session.commit()
         
-        # Отправляем уведомление пригласившему
         if self.notification_trigger:
             invited_by_stmt = select(User).where(User.id == invitation.invited_by_id)
             invited_by_result = await self.session.execute(invited_by_stmt)
@@ -216,9 +188,6 @@ class GroupInvitationService:
         }
     
     async def decline_invitation(self, token: str, user_id: Optional[int] = None) -> dict:
-        """
-        Отклонение приглашения
-        """
         invitation = await self.get_invitation_by_token(token)
         
         if not invitation:
@@ -232,7 +201,6 @@ class GroupInvitationService:
         invitation.status = "declined"
         await self.session.commit()
         
-        # Отправляем уведомление пригласившему
         if self.notification_trigger:
             invited_by_stmt = select(User).where(User.id == invitation.invited_by_id)
             invited_by_result = await self.session.execute(invited_by_stmt)
@@ -256,7 +224,6 @@ class GroupInvitationService:
         }
     
     async def get_pending_invitations_for_email(self, email: str) -> list[GroupInvitation]:
-        """Получение ожидающих приглашений для email"""
         stmt = select(GroupInvitation).options(
             selectinload(GroupInvitation.group),
             selectinload(GroupInvitation.invited_by)
@@ -272,7 +239,6 @@ class GroupInvitationService:
         return result.scalars().all()
     
     async def cleanup_expired_invitations(self) -> int:
-        """Очистка просроченных приглашений"""
         stmt = select(GroupInvitation).where(
             and_(
                 GroupInvitation.status == "pending",

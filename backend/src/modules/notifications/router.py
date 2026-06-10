@@ -20,16 +20,6 @@ async def websocket_endpoint(
     service_factory: ServiceFactory = Depends(get_service_factory),
     user: Optional[User] = Depends(get_current_user_ws)
 ):
-    """
-    WebSocket эндпоинт для получения уведомлений в реальном времени
-    
-    Уведомления доставляются через WebSocket напрямую из потребителя RabbitMQ.
-    Клиент может отправлять команды:
-    - mark_read: отметить уведомление как прочитанное
-    - mark_all_read: отметить все как прочитанные
-    - get_unread_count: получить количество непрочитанных
-    - ping: проверить соединение
-    """
     if not user:
         await websocket.close(code=1008, reason="Unauthorized")
         return
@@ -38,7 +28,6 @@ async def websocket_endpoint(
     await manager.connect(websocket, user.id, connection_id)
     
     try:
-        # Отправляем приветственное сообщение
         await websocket.send_json({
             "type": "connected",
             "message": "Connected to notifications service",
@@ -47,22 +36,18 @@ async def websocket_endpoint(
         
         logger.info(f"WebSocket connected for user {user.id}, connection {connection_id}")
         
-        # Получаем сервис уведомлений через фабрику
         notification_service = service_factory.get('notification')
         
-        # Отправляем текущее количество непрочитанных уведомлений
         unread_count = await notification_service.get_unread_count(user.id)
         await websocket.send_json({
             "type": "unread_count",
             "count": unread_count
         })
         
-        # Обрабатываем входящие сообщения от клиента
         while True:
             try:
                 data = await asyncio.wait_for(websocket.receive_json(), timeout=60.0)
             except asyncio.TimeoutError:
-                # Отправляем ping для проверки соединения
                 await websocket.send_json({"type": "ping"})
                 continue
             
@@ -96,8 +81,6 @@ async def websocket_endpoint(
                 await websocket.send_json({"type": "pong"})
             
             elif action == "subscribe_to_updates":
-                # Клиент может подписаться на обновления определенного типа
-                # (опционально, можно реализовать при необходимости)
                 await websocket.send_json({
                     "type": "subscribed",
                     "status": "ok"
@@ -115,6 +98,5 @@ async def websocket_endpoint(
     except Exception as e:
         logger.error(f"WebSocket error for user {user.id}: {e}", exc_info=True)
     finally:
-        # Отключаем соединение
         manager.disconnect(user.id, connection_id)
         logger.info(f"WebSocket cleaned up for user {user.id}, connection {connection_id}")

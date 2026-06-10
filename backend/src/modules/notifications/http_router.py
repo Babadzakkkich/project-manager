@@ -24,9 +24,6 @@ async def get_notifications(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Получение списка уведомлений пользователя
-    """
     notification_service = service_factory.get('notification')
     
     notifications = await notification_service.get_user_notifications(
@@ -53,9 +50,6 @@ async def get_unread_count(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Получение количества непрочитанных уведомлений
-    """
     notification_service = service_factory.get('notification')
     count = await notification_service.get_unread_count(current_user.id)
     
@@ -68,9 +62,6 @@ async def mark_notification_as_read(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Отметить уведомление как прочитанное
-    """
     notification_service = service_factory.get('notification')
     success = await notification_service.mark_as_read(notification_id, current_user.id)
     
@@ -88,9 +79,6 @@ async def mark_all_notifications_as_read(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Отметить все уведомления как прочитанные
-    """
     notification_service = service_factory.get('notification')
     count = await notification_service.mark_all_as_read(current_user.id)
     

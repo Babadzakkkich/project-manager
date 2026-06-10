@@ -13,7 +13,6 @@ from modules.notifications.consumer import NotificationConsumer
 from modules.notifications.publisher import NotificationPublisher
 from core.logger import logger
 
-# Импортируем роутеры
 from modules.auth.router import router as auth_router
 from modules.users.router import router as users_router
 from modules.groups.router import router as groups_router
@@ -24,7 +23,6 @@ from modules.notifications.http_router import router as notifications_http_route
 from modules.conferences.router import router as conferences_router
 from modules.admin.router import router as admin_router
 
-# Глобальные объекты
 rabbitmq_client = RabbitMQClient(settings.rabbitmq_url)
 notifications_messaging = MessagingModule(rabbitmq_client, "notifications")
 notification_publisher = NotificationPublisher(notifications_messaging)
@@ -35,21 +33,17 @@ notification_consumer = NotificationConsumer(notifications_messaging)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting application lifespan...")
     
-    # Создаем таблицы в БД
     async with db_session.engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables created/verified")
     
-    # Подключаемся к Redis
     await redis_client.connect()
     logger.info(f"Redis connected: {redis_client.is_connected}")
     
-    # Подключаемся к RabbitMQ
     connected = await rabbitmq_client.connect()
     logger.info(f"RabbitMQ connected: {connected}")
     
     if connected:
-        # Настраиваем модуль уведомлений
         await notifications_messaging.setup(
             exchange_name=settings.rabbitmq.notifications_exchange,
             queue_name=settings.rabbitmq.notifications_queue,
@@ -57,7 +51,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
         logger.info("Notifications messaging module set up")
         
-        # Запускаем потребителя уведомлений
         await notification_consumer.start()
         logger.info("Notification consumer started")
     else:
@@ -67,11 +60,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     
     logger.info("Shutting down application...")
     
-    # Останавливаем потребителя
     await notification_consumer.stop()
     logger.info("Notification consumer stopped")
     
-    # Закрываем соединения
     await rabbitmq_client.disconnect()
     await redis_client.disconnect()
     await db_session.dispose()

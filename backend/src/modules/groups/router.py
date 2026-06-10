@@ -46,7 +46,6 @@ async def get_all_groups(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Получить все группы (только для глобального администратора)"""
     logger.info(f"GET /groups requested by user {current_user.id}")
     group_service = service_factory.get('group')
     return await group_service.get_all_groups(current_user.id)
@@ -57,7 +56,6 @@ async def get_groups(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Получить группы текущего пользователя"""
     logger.info(f"GET /groups/my requested by user {current_user.id}")
     group_service = service_factory.get('group')
     return await group_service.get_user_groups(current_user.id)
@@ -70,12 +68,6 @@ async def get_group(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(db_session.session_getter)
 ):
-    """
-    Получить информацию о группе.
-
-    Обычный пользователь должен состоять в группе.
-    Глобальный администратор может просматривать любую группу без членства.
-    """
     logger.info(f"GET /groups/{group_id} requested by user {current_user.id}")
 
     if not is_global_admin_user(current_user):
@@ -106,14 +98,6 @@ async def get_my_role_in_group(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Получить свою роль в группе.
-
-    Важно:
-    - если пользователь реально состоит в группе, возвращается его групповая роль;
-    - global_admin возвращается только если пользователь не состоит в группе,
-      но имеет системный read-only доступ.
-    """
     logger.info(f"GET /groups/{group_id}/my_role requested by user {current_user.id}")
 
     group_service = service_factory.get('group')
@@ -145,7 +129,6 @@ async def create_new_group(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Создать новую группу"""
     logger.info(f"POST /groups - creating new group '{group_data.name}' by user {current_user.id}")
     group_service = service_factory.get('group')
     
@@ -173,21 +156,14 @@ async def invite_user_to_group(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(db_session.session_getter)
 ):
-    """
-    Отправить приглашение пользователю в группу по email.
-    Пользователь получит уведомление с кнопками "Принять" и "Отклонить".
-    """
     logger.info(f"POST /groups/{group_id}/invite by user {current_user.id} for {invite_data.email}")
     
     try:
-        # Проверяем права администратора
         await ensure_user_is_admin(session, current_user.id, group_id)
         
-        # Получаем группу для уведомления
         group_service = service_factory.get('group')
         group = await group_service.get_group_by_id(group_id)
         
-        # Создаем приглашение
         invitation_service = GroupInvitationService(
             session,
             notification_trigger=service_factory.get('notification_trigger')
@@ -200,7 +176,6 @@ async def invite_user_to_group(
             role=invite_data.role
         )
         
-        # Отправляем уведомление
         notification_trigger = service_factory.get('notification_trigger')
         await notification_trigger.on_invitation_sent(
             group=group,
@@ -245,9 +220,6 @@ async def get_pending_invitations(
     session: AsyncSession = Depends(db_session.session_getter),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Получить ожидающие приглашения для текущего пользователя
-    """
     logger.info(f"GET /groups/invitations/pending by user {current_user.id}")
     
     invitation_service = GroupInvitationService(session)
@@ -275,9 +247,6 @@ async def accept_invitation(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory)
 ):
-    """
-    Принять приглашение в группу
-    """
     logger.info(f"POST /groups/invitations/{token}/accept by user {current_user.id}")
     
     invitation_service = GroupInvitationService(
@@ -315,9 +284,6 @@ async def decline_invitation(
     current_user: Optional[User] = Depends(get_optional_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory)
 ):
-    """
-    Отклонить приглашение в группу
-    """
     user_id = current_user.id if current_user else None
     logger.info(f"POST /groups/invitations/{token}/decline by user {user_id}")
     
@@ -355,7 +321,6 @@ async def update_group_by_id(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(db_session.session_getter)
 ):
-    """Обновить информацию о группе (только для администраторов группы)"""
     logger.info(f"PUT /groups/{group_id} by user {current_user.id}")
     group_service = service_factory.get('group')
     
@@ -396,7 +361,6 @@ async def change_user_role_in_group(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(db_session.session_getter)
 ):
-    """Изменить роль пользователя в группе (только для администраторов группы)"""
     logger.info(f"PUT /groups/{group_id}/change_role by user {current_user.id}")
     
     user_email = request.get("user_email")
@@ -408,7 +372,6 @@ async def change_user_role_in_group(
             detail="Не указан email пользователя или новая роль"
         )
     
-    # Преобразуем строку в enum
     from core.database.models import UserRole
     try:
         role_enum = UserRole(new_role)
@@ -461,7 +424,6 @@ async def remove_users_from_group(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Удалить пользователей из группы (только для администраторов группы)"""
     logger.info(f"DELETE /groups/{group_id}/remove_users by user {current_user.id}")
     group_service = service_factory.get('group')
     
@@ -500,7 +462,6 @@ async def delete_group_by_id(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Удалить группу (только для администраторов группы)"""
     logger.info(f"DELETE /groups/{group_id} by user {current_user.id}")
     group_service = service_factory.get('group')
     

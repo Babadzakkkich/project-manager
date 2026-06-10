@@ -62,7 +62,6 @@ async def get_admin_stats(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Сводная статистика системы для глобального администратора."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.get_stats(current_user)
@@ -78,7 +77,6 @@ async def get_admin_users(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Список пользователей системы."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.get_users(
@@ -98,7 +96,6 @@ async def block_admin_user(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Блокировка пользователя. Физического удаления пользователей нет."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.block_user(current_user, user_id, data.reason)
@@ -112,7 +109,6 @@ async def unblock_admin_user(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Разблокировка пользователя."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.unblock_user(current_user, user_id)
@@ -126,10 +122,6 @@ async def make_user_global_admin(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Назначение пользователя глобальным администратором.
-
-    Обратного endpoint для снятия global_admin намеренно нет.
-    """
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.make_global_admin(current_user, user_id)
@@ -143,7 +135,6 @@ async def get_admin_groups(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Просмотр всех групп системы."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.get_groups(current_user, q=q)
@@ -157,7 +148,6 @@ async def get_admin_group_detail(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Read-only просмотр группы через административный контур."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.get_group_detail(current_user, group_id)
@@ -171,7 +161,6 @@ async def emergency_delete_group(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Аварийное удаление группы глобальным администратором."""
     try:
         admin_service = _get_admin_service(service_factory)
         await admin_service.emergency_delete_group(current_user, group_id)
@@ -187,7 +176,6 @@ async def get_admin_projects(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Просмотр всех проектов системы."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.get_projects(current_user, q=q, status=project_status)
@@ -201,7 +189,6 @@ async def get_admin_project_detail(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Read-only просмотр проекта через административный контур."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.get_project_detail(current_user, project_id)
@@ -215,7 +202,6 @@ async def emergency_delete_project(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Аварийное удаление проекта глобальным администратором."""
     try:
         admin_service = _get_admin_service(service_factory)
         await admin_service.emergency_delete_project(current_user, project_id)
@@ -233,7 +219,6 @@ async def get_admin_tasks(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Просмотр всех задач системы."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.get_tasks(
@@ -253,7 +238,6 @@ async def get_admin_task_detail(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Read-only просмотр задачи через административный контур."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.get_task_detail(current_user, task_id)
@@ -267,7 +251,6 @@ async def get_admin_task_history(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Read-only просмотр истории задачи через административный контур."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.get_task_history(current_user, task_id)
@@ -281,7 +264,6 @@ async def emergency_delete_task(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Аварийное удаление задачи глобальным администратором."""
     try:
         admin_service = _get_admin_service(service_factory)
         await admin_service.emergency_delete_task(current_user, task_id)
@@ -298,7 +280,6 @@ async def get_admin_conferences(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Просмотр всех созвонов системы."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.get_conferences(
@@ -317,7 +298,6 @@ async def get_admin_conference_detail(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Read-only просмотр созвона через административный контур."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.get_conference_detail(current_user, room_id)
@@ -331,7 +311,6 @@ async def force_end_admin_conference(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Принудительное завершение активного созвона глобальным администратором."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.force_end_conference(current_user, room_id)
@@ -348,7 +327,6 @@ async def get_admin_audit(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory),
 ):
-    """Журнал действий глобальных администраторов."""
     try:
         admin_service = _get_admin_service(service_factory)
         return await admin_service.get_audit_logs(

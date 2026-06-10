@@ -41,8 +41,6 @@ if TYPE_CHECKING:
 
 
 class TaskService:
-    """Сервис для работы с задачами"""
-    
     def __init__(self, session: AsyncSession, service_factory: Optional['ServiceFactory'] = None):
         self.session = session
         self.logger = logger
@@ -52,7 +50,6 @@ class TaskService:
     
     @property
     def group_service(self) -> Optional['GroupService']:
-        """Ленивая загрузка GroupService через фабрику"""
         if self._group_service is None and self.service_factory:
             from modules.groups.service import GroupService
             self._group_service = self.service_factory.get_or_create('group', GroupService)
@@ -60,13 +57,11 @@ class TaskService:
     
     @property
     def notification_trigger(self) -> Optional['NotificationTriggerService']:
-        """Ленивая загрузка NotificationTriggerService через фабрику"""
         if self._notification_trigger is None and self.service_factory:
             self._notification_trigger = self.service_factory.get('notification_trigger')
         return self._notification_trigger
     
     async def _ensure_task_view_access(self, task_id: int, current_user: User) -> Task:
-        """Проверить право просмотра задачи и вернуть задачу с основными связями."""
         task = await self.get_task_by_id(task_id)
 
         if is_global_admin_user(current_user):
@@ -78,7 +73,6 @@ class TaskService:
         return task
 
     async def _ensure_comment_manage_access(self, comment: TaskComment, current_user: User) -> Task:
-        """Проверить право изменения или удаления комментария."""
         task = await self._ensure_task_view_access(comment.task_id, current_user)
 
         if comment.author_id == current_user.id:
@@ -94,14 +88,12 @@ class TaskService:
             raise TaskAccessDeniedError("Можно изменять только свои комментарии")
 
     def _extract_mention_logins(self, content: str) -> set[str]:
-        """Извлечь логины из упоминаний вида @login."""
         return {
             item
             for item in re.findall(r"@([A-Za-z0-9_]{3,50})", content or "")
         }
 
     async def _get_mentioned_users(self, content: str, group_id: Optional[int]) -> List[User]:
-        """Найти упомянутых пользователей среди участников группы задачи."""
         mention_logins = self._extract_mention_logins(content)
         if not mention_logins or not group_id:
             return []
@@ -137,7 +129,6 @@ class TaskService:
         comments: List[TaskComment],
         current_user: User,
     ) -> List[TaskComment]:
-        """Добавить к комментариям флаги прочтения для текущего пользователя."""
         if not comments:
             return comments
 
@@ -162,7 +153,6 @@ class TaskService:
         return comments
 
     async def _mark_comment_read_row(self, comment_id: int, user_id: int) -> bool:
-        """Создать запись о прочтении, если её ещё нет."""
         existing_stmt = (
             select(task_comment_reads.c.comment_id)
             .where(task_comment_reads.c.comment_id == comment_id)
@@ -181,7 +171,6 @@ class TaskService:
         return True
 
     async def _reset_comment_read_state_for_others(self, comment_id: int, author_id: int) -> None:
-        """После редактирования комментарий снова считается непрочитанным для остальных."""
         await self.session.execute(
             delete(task_comment_reads)
             .where(task_comment_reads.c.comment_id == comment_id)
@@ -211,7 +200,6 @@ class TaskService:
         ))
 
     async def get_all_tasks(self, current_user_id: int) -> List[TaskRead]:
-        """Получение всех задач (только для глобального администратора)"""
         self.logger.info(f"Fetching all tasks by global admin {current_user_id}")
         await ensure_global_admin_by_id(self.session, current_user_id)
         stmt = select(Task).order_by(Task.id)
@@ -221,7 +209,6 @@ class TaskService:
         return tasks
     
     async def get_user_tasks(self, user_id: int) -> List[TaskReadWithRelations]:
-        """Получение задач пользователя"""
         self.logger.debug(f"Fetching tasks for user {user_id}")
         stmt = (
             select(Task)
@@ -250,10 +237,8 @@ class TaskService:
         return tasks
     
     async def get_team_tasks(self, user_id: int) -> List[TaskReadWithRelations]:
-        """Получение задач команд, где пользователь состоит в группе"""
         self.logger.debug(f"Fetching team tasks for user {user_id}")
         
-        # Используем GroupService через фабрику
         if not self.group_service:
             self.logger.warning("GroupService not available")
             return []
@@ -292,7 +277,6 @@ class TaskService:
         return tasks
     
     async def get_task_by_id(self, task_id: int) -> TaskReadWithRelations:
-        """Получение задачи по ID"""
         self.logger.debug(f"Fetching task by ID: {task_id}")
         stmt = select(Task).options(
             selectinload(Task.project),
@@ -317,11 +301,9 @@ class TaskService:
         return task
     
     async def create_task(self, task_data: TaskCreate, current_user: User) -> TaskReadWithRelations:
-        """Создание новой задачи"""
         self.logger.info(f"Creating new task '{task_data.title}' by user {current_user.id}")
         
         try:
-            # Проверяем проект
             stmt_project = select(Project).options(selectinload(Project.groups)).where(Project.id == task_data.project_id)
             result_project = await self.session.execute(stmt_project)
             project = result_project.scalar_one_or_none()
@@ -330,7 +312,6 @@ class TaskService:
                 self.logger.warning(f"Project {task_data.project_id} not found")
                 raise ProjectNotFoundError(task_data.project_id)
 
-            # Проверяем группу
             stmt_group = select(Group).where(Group.id == task_data.group_id)
             result_group = await self.session.execute(stmt_group)
             group = result_group.scalar_one_or_none()
@@ -339,12 +320,10 @@ class TaskService:
                 self.logger.warning(f"Group {task_data.group_id} not found")
                 raise GroupNotFoundError(task_data.group_id)
 
-            # Проверяем, что группа привязана к проекту
             if group not in project.groups:
                 self.logger.warning(f"Group {task_data.group_id} not in project {task_data.project_id}")
                 raise GroupNotInProjectError(task_data.group_id, task_data.project_id)
 
-            # Проверяем, что пользователь состоит в группе
             if not await check_user_in_group(self.session, current_user.id, task_data.group_id):
                 self.logger.warning(f"User {current_user.id} not in group {task_data.group_id}")
                 raise TaskAccessDeniedError("Вы не состоите в указанной группе")
@@ -376,7 +355,6 @@ class TaskService:
             
             self.logger.info(f"Task created successfully with ID: {new_task.id}")
             
-            # Отправляем уведомления
             if self.notification_trigger:
                 await self.notification_trigger.on_task_created(
                     task=new_task,
@@ -394,11 +372,9 @@ class TaskService:
             raise TaskCreationError(f"Не удалось создать задачу: {str(e)}")
     
     async def create_task_for_users(self, task_data: TaskCreate, assignee_ids: List[int], current_user: User) -> TaskReadWithRelations:
-        """Создание задачи для указанных пользователей"""
         self.logger.info(f"Creating task for users {assignee_ids} by user {current_user.id}")
         
         try:
-            # Проверяем проект
             stmt_project = select(Project).options(selectinload(Project.groups)).where(Project.id == task_data.project_id)
             result_project = await self.session.execute(stmt_project)
             project = result_project.scalar_one_or_none()
@@ -407,7 +383,6 @@ class TaskService:
                 self.logger.warning(f"Project {task_data.project_id} not found")
                 raise ProjectNotFoundError(task_data.project_id)
 
-            # Проверяем группу
             stmt_group = select(Group).where(Group.id == task_data.group_id)
             result_group = await self.session.execute(stmt_group)
             group = result_group.scalar_one_or_none()
@@ -416,12 +391,10 @@ class TaskService:
                 self.logger.warning(f"Group {task_data.group_id} not found")
                 raise GroupNotFoundError(task_data.group_id)
 
-            # Проверяем, что группа привязана к проекту
             if group not in project.groups:
                 self.logger.warning(f"Group {task_data.group_id} not in project {task_data.project_id}")
                 raise GroupNotInProjectError(task_data.group_id, task_data.project_id)
 
-            # Проверяем права
             is_admin = False
             try:
                 await ensure_user_is_admin(self.session, current_user.id, task_data.group_id)
@@ -431,7 +404,6 @@ class TaskService:
                     self.logger.warning(f"User {current_user.id} not admin, can't create task for others")
                     raise TaskAccessDeniedError("Только администраторы могут создавать задачи для других пользователей")
 
-            # Проверяем, что все указанные пользователи состоят в группе
             if assignee_ids:
                 valid_users_query = (
                     select(User.id)
@@ -485,7 +457,6 @@ class TaskService:
             
             self.logger.info(f"Task for users created successfully with ID: {new_task.id}")
             
-            # Отправляем уведомления
             if self.notification_trigger:
                 await self.notification_trigger.on_task_created(
                     task=new_task,
@@ -504,18 +475,15 @@ class TaskService:
             raise TaskCreationError(f"Не удалось создать задачу: {str(e)}")
     
     async def add_users_to_task(self, task_id: int, data: AddRemoveUsersToTask, current_user: User) -> TaskReadWithRelations:
-        """Добавление пользователей в задачу"""
         self.logger.info(f"Adding users to task {task_id} by user {current_user.id}")
         
         try:
             task = await self.get_task_by_id(task_id)
 
-            # Проверяем права (админ или исполнитель)
             is_assignee = any(u.id == current_user.id for u in task.assignees)
             if not is_assignee:
                 await ensure_user_is_admin(self.session, current_user.id, task.group_id)
 
-            # Проверяем, что все пользователи состоят в группе
             valid_users_query = (
                 select(User.id)
                 .join(GroupMember)
@@ -552,7 +520,6 @@ class TaskService:
             await self.session.commit()
             self.logger.info(f"Users added to task {task_id} successfully")
             
-            # Отправляем уведомления
             if self.notification_trigger and added_users:
                 await self.notification_trigger.on_users_assigned_to_task(
                     task=task,
@@ -570,11 +537,9 @@ class TaskService:
             raise TaskUpdateError(f"Не удалось добавить пользователей в задачу: {str(e)}")
     
     async def update_task(self, db_task: Task, task_update: TaskUpdate, current_user: User) -> TaskRead:
-        """Обновление задачи"""
         self.logger.info(f"Updating task {db_task.id} by user {current_user.id}")
         
         try:
-            # Проверяем права (админ или исполнитель)
             is_assignee = any(u.id == current_user.id for u in db_task.assignees)
             
             if not is_assignee:
@@ -620,7 +585,6 @@ class TaskService:
             
             self.logger.info(f"Task {db_task.id} updated successfully")
             
-            # Отправляем уведомления, если есть изменения
             if changes and self.notification_trigger:
                 await self.notification_trigger.on_task_updated(db_task, current_user, changes)
             
@@ -634,7 +598,6 @@ class TaskService:
             raise TaskUpdateError(f"Не удалось обновить задачу: {str(e)}")
     
     async def remove_users_from_task(self, task_id: int, data: AddRemoveUsersToTask, current_user: User) -> dict:
-        """Удаление пользователей из задачи"""
         self.logger.info(f"Removing users from task {task_id} by user {current_user.id}")
         
         try:
@@ -644,7 +607,6 @@ class TaskService:
                 self.logger.warning(f"Task {task_id} has no group")
                 raise TaskNoGroupError()
 
-            # Только администраторы могут удалять пользователей из задачи
             await ensure_user_is_admin(self.session, current_user.id, task.group.id)
 
             users_to_remove = [u for u in task.assignees if u.id in data.user_ids]
@@ -664,7 +626,6 @@ class TaskService:
                     details={"user_ids": [user.id for user in users_to_remove]},
                 )
 
-            # Если не осталось исполнителей, удаляем задачу
             if not task.assignees:
                 delete_history_stmt = delete(TaskHistory).where(TaskHistory.task_id == task_id)
                 await self.session.execute(delete_history_stmt)
@@ -673,7 +634,6 @@ class TaskService:
                 await self.session.commit()
                 self.logger.info(f"Task {task_id} deleted as it has no assignees")
                 
-                # Отправляем уведомления о удалении задачи
                 if self.notification_trigger:
                     await self.notification_trigger.on_task_deleted(task, current_user)
                 
@@ -682,7 +642,6 @@ class TaskService:
             await self.session.commit()
             self.logger.info(f"Users removed from task {task_id} successfully")
             
-            # Отправляем уведомления
             if self.notification_trigger:
                 await self.notification_trigger.on_users_unassigned_from_task(
                     task=task,
@@ -700,7 +659,6 @@ class TaskService:
             raise TaskUpdateError(f"Не удалось удалить пользователей из задачи: {str(e)}")
     
     async def delete_task(self, task_id: int, current_user: User) -> bool:
-        """Удаление задачи"""
         self.logger.info(f"Deleting task {task_id} by user {current_user.id}")
         
         try:
@@ -710,12 +668,10 @@ class TaskService:
                 self.logger.warning(f"Task {task_id} has no group")
                 raise TaskNoGroupError()
 
-            # Проверяем права (админ или исполнитель)
             is_assignee = any(u.id == current_user.id for u in db_task.assignees)
             if not is_assignee:
                 await ensure_user_is_admin(self.session, current_user.id, db_task.group_id)
 
-            # Удаляем историю задачи
             stmt_history = select(TaskHistory).where(TaskHistory.task_id == task_id)
             result_history = await self.session.execute(stmt_history)
             history_entries = result_history.scalars().all()
@@ -728,7 +684,6 @@ class TaskService:
             
             self.logger.info(f"Task {task_id} deleted successfully")
             
-            # Отправляем уведомления
             if self.notification_trigger:
                 await self.notification_trigger.on_task_deleted(db_task, current_user)
             
@@ -742,13 +697,11 @@ class TaskService:
             raise TaskDeleteError(f"Не удалось удалить задачу: {str(e)}")
     
     async def update_task_status(self, task_id: int, new_status: TaskStatus, current_user: User) -> TaskRead:
-        """Обновление статуса задачи"""
         self.logger.info(f"Updating status of task {task_id} to {new_status.value}")
         
         try:
             task = await self.get_task_by_id(task_id)
 
-            # Проверяем права (админ или исполнитель)
             is_assignee = any(u.id == current_user.id for u in task.assignees)
             if not is_assignee:
                 await ensure_user_is_admin(self.session, current_user.id, task.group_id)
@@ -756,7 +709,6 @@ class TaskService:
             old_status = task.status
             task.status = new_status
 
-            # Создаем запись в истории
             self._add_history(
                 task_id=task_id,
                 user_id=current_user.id,
@@ -770,7 +722,6 @@ class TaskService:
             
             self.logger.info(f"Task {task_id} status updated from {old_status.value} to {new_status.value}")
             
-            # Отправляем уведомления
             if self.notification_trigger:
                 await self.notification_trigger.on_task_status_changed(
                     task=task,
@@ -789,13 +740,11 @@ class TaskService:
             raise TaskUpdateError(f"Не удалось обновить статус задачи: {str(e)}")
     
     async def update_task_priority(self, task_id: int, new_priority: TaskPriority, current_user: User) -> TaskRead:
-        """Обновление приоритета задачи"""
         self.logger.info(f"Updating priority of task {task_id} to {new_priority.value}")
         
         try:
             task = await self.get_task_by_id(task_id)
 
-            # Проверяем права (админ или исполнитель)
             is_assignee = any(u.id == current_user.id for u in task.assignees)
             if not is_assignee:
                 await ensure_user_is_admin(self.session, current_user.id, task.group_id)
@@ -803,7 +752,6 @@ class TaskService:
             old_priority = task.priority
             task.priority = new_priority
 
-            # Создаем запись в истории
             self._add_history(
                 task_id=task_id,
                 user_id=current_user.id,
@@ -817,7 +765,6 @@ class TaskService:
             
             self.logger.info(f"Task {task_id} priority updated from {old_priority.value} to {new_priority.value}")
             
-            # Отправляем уведомления
             if self.notification_trigger:
                 await self.notification_trigger.on_task_priority_changed(
                     task=task,
@@ -836,13 +783,11 @@ class TaskService:
             raise TaskUpdateError(f"Не удалось обновить приоритет задачи: {str(e)}")
     
     async def update_task_position(self, task_id: int, new_position: int, current_user: User) -> TaskRead:
-        """Обновление позиции задачи"""
         self.logger.info(f"Updating position of task {task_id} to {new_position}")
         
         try:
             task = await self.get_task_by_id(task_id)
 
-            # Проверяем права (админ или исполнитель)
             is_assignee = any(u.id == current_user.id for u in task.assignees)
             if not is_assignee:
                 await ensure_user_is_admin(self.session, current_user.id, task.group_id)
@@ -863,7 +808,6 @@ class TaskService:
             raise TaskUpdateError(f"Не удалось обновить позицию задачи: {str(e)}")
     
     async def bulk_update_tasks(self, updates: List[TaskBulkUpdate], current_user: User) -> List[TaskRead]:
-        """Массовое обновление задач (для drag & drop)"""
         self.logger.info(f"Bulk updating {len(updates)} tasks")
         
         try:
@@ -872,7 +816,6 @@ class TaskService:
             for update in updates:
                 task = await self.get_task_by_id(update.task_id)
 
-                # Проверяем права (админ или исполнитель)
                 is_assignee = any(u.id == current_user.id for u in task.assignees)
                 if not is_assignee:
                     await ensure_user_is_admin(self.session, current_user.id, task.group_id)
@@ -889,7 +832,6 @@ class TaskService:
                         new_value=update.status.value,
                     )
                     
-                    # Отправляем уведомление
                     if self.notification_trigger:
                         await self.notification_trigger.on_task_status_changed(
                             task=task,
@@ -913,7 +855,6 @@ class TaskService:
                         new_value=update.priority.value,
                     )
                     
-                    # Отправляем уведомление
                     if self.notification_trigger:
                         await self.notification_trigger.on_task_priority_changed(
                             task=task,
@@ -940,11 +881,9 @@ class TaskService:
             raise TaskUpdateError(f"Не удалось выполнить массовое обновление: {str(e)}")
     
     async def get_project_board_tasks(self, project_id: int, group_id: int, view_mode: str, current_user: User) -> List[TaskReadWithRelations]:
-        """Получение задач для Kanban доски проекта"""
         self.logger.info(f"Fetching board tasks for project {project_id}, group {group_id}, mode {view_mode}")
         
         try:
-            # Проверяем проект
             stmt_project = select(Project).options(selectinload(Project.groups)).where(Project.id == project_id)
             result_project = await self.session.execute(stmt_project)
             project = result_project.scalar_one_or_none()
@@ -953,7 +892,6 @@ class TaskService:
                 self.logger.warning(f"Project {project_id} not found")
                 raise ProjectNotFoundError(project_id)
 
-            # Проверяем группу
             stmt_group = select(Group).where(Group.id == group_id)
             result_group = await self.session.execute(stmt_group)
             group = result_group.scalar_one_or_none()
@@ -962,20 +900,14 @@ class TaskService:
                 self.logger.warning(f"Group {group_id} not found")
                 raise GroupNotFoundError(group_id)
 
-            # Проверяем, что группа привязана к проекту
             if group not in project.groups:
                 self.logger.warning(f"Group {group_id} not in project {project_id}")
                 raise GroupNotInProjectError(group_id, project_id)
-
-            # Проверяем доступ к просмотру доски.
-            # Обычный пользователь должен состоять в группе.
-            # Глобальный администратор может смотреть доску без членства.
             if not is_global_admin_user(current_user):
                 if not await check_user_in_group(self.session, current_user.id, group_id):
                     self.logger.warning(f"User {current_user.id} not in group {group_id}")
                     raise TaskAccessDeniedError("Вы не состоите в указанной группе")
 
-            # Формируем запрос для задач
             stmt = (
                 select(Task)
                 .where(
@@ -1017,7 +949,6 @@ class TaskService:
             raise TaskUpdateError(f"Не удалось загрузить доску проекта: {str(e)}")
     
     async def quick_create_task(self, task_data: TaskCreate, current_user: User) -> TaskReadWithRelations:
-        """Быстрое создание задачи"""
         self.logger.info(f"Quick creating task '{task_data.title}' by user {current_user.id}")
         
         try:
@@ -1033,7 +964,6 @@ class TaskService:
             raise TaskCreationError(f"Не удалось быстро создать задачу: {str(e)}")
     
     async def get_task_comments(self, task_id: int, current_user: User) -> List[TaskComment]:
-        """Получить комментарии задачи."""
         await self._ensure_task_view_access(task_id, current_user)
 
         stmt = (
@@ -1055,7 +985,6 @@ class TaskService:
         comment_data: TaskCommentCreate,
         current_user: User,
     ) -> TaskComment:
-        """Создать комментарий или ответ к комментарию."""
         task = await self._ensure_task_view_access(task_id, current_user)
         content = comment_data.content.strip()
 
@@ -1118,7 +1047,6 @@ class TaskService:
         comment_data: TaskCommentUpdate,
         current_user: User,
     ) -> TaskComment:
-        """Обновить комментарий."""
         comment = await self._get_task_comment(task_id, comment_id)
         task = await self._ensure_comment_manage_access(comment, current_user)
 
@@ -1171,7 +1099,6 @@ class TaskService:
         return await self._get_task_comment(task_id, comment_id)
 
     async def delete_task_comment(self, task_id: int, comment_id: int, current_user: User) -> dict:
-        """Мягко удалить комментарий."""
         comment = await self._get_task_comment(task_id, comment_id)
         await self._ensure_comment_manage_access(comment, current_user)
 
@@ -1200,7 +1127,6 @@ class TaskService:
         comment_id: int,
         current_user: User,
     ) -> dict:
-        """Отметить один комментарий как прочитанный."""
         await self._ensure_task_view_access(task_id, current_user)
         comment = await self._get_task_comment(task_id, comment_id)
 
@@ -1217,7 +1143,6 @@ class TaskService:
         }
 
     async def mark_task_comments_read(self, task_id: int, current_user: User) -> dict:
-        """Отметить все доступные комментарии задачи как прочитанные."""
         await self._ensure_task_view_access(task_id, current_user)
 
         stmt = (
@@ -1243,7 +1168,6 @@ class TaskService:
         }
 
     async def get_task_timeline(self, task_id: int, current_user: User) -> List[Dict[str, Any]]:
-        """Получить единую ленту комментариев и системной истории задачи."""
         await self._ensure_task_view_access(task_id, current_user)
 
         comments_stmt = (
@@ -1278,8 +1202,6 @@ class TaskService:
             })
 
         for item in history_result.scalars().unique().all():
-            # Комментарии уже отображаются отдельными элементами ленты.
-            # Техническую историю комментариев сохраняем в БД, но не дублируем в интерфейсе.
             if item.action in {"comment_added", "comment_replied", "comment_updated", "comment_deleted"}:
                 continue
 
@@ -1298,7 +1220,6 @@ class TaskService:
         return timeline
 
     async def get_task_history(self, task_id: int) -> List[TaskHistory]:
-        """Получение истории изменений задачи"""
         self.logger.debug(f"Fetching history for task {task_id}")
         stmt = (
             select(TaskHistory)

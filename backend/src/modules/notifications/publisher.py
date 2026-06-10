@@ -4,20 +4,14 @@ from shared.messaging.module import MessagingModule
 
 
 class NotificationPublisher(BasePublisher):
-    """
-    Издатель сообщений для уведомлений.
-    """
-    
     def __init__(self, messaging_module: MessagingModule):
         super().__init__(messaging_module)
-        # Сохраняем routing_key для использования
         self._routing_key = None
     
     def get_message_type(self) -> str:
         return "notification"
     
     async def _ensure_routing_key(self):
-        """Убедиться, что routing_key доступен"""
         if not self._routing_key:
             if not self.messaging.queue_name:
                 raise RuntimeError("Messaging module not set up properly: queue_name is None")
@@ -34,12 +28,8 @@ class NotificationPublisher(BasePublisher):
         data: Optional[Dict[str, Any]] = None,
         correlation_id: Optional[str] = None
     ) -> bool:
-        """
-        Отправить уведомление пользователю (сохраняется в БД)
-        """
         routing_key = await self._ensure_routing_key()
         
-        # Добавляем notification_type в data, чтобы consumer мог его использовать
         message_data = data or {}
         message_data["notification_type"] = notification_type
         
@@ -67,15 +57,11 @@ class NotificationPublisher(BasePublisher):
         priority: MessagePriority = MessagePriority.MEDIUM,
         data: Optional[Dict[str, Any]] = None
     ) -> bool:
-        """
-        Разослать уведомление нескольким пользователям
-        """
         if not user_ids:
             return True
         
         routing_key = await self._ensure_routing_key()
         
-        # Добавляем notification_type в data
         message_data = data or {}
         message_data["notification_type"] = notification_type
         
@@ -99,10 +85,6 @@ class NotificationPublisher(BasePublisher):
         user_id: int,
         message_data: Dict[str, Any]
     ) -> bool:
-        """
-        Отправить произвольное сообщение пользователю через WebSocket
-        (без сохранения в БД)
-        """
         routing_key = await self._ensure_routing_key()
         
         message = WebSocketMessage(

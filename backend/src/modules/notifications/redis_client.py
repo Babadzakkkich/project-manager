@@ -6,15 +6,12 @@ from core.config import settings
 from core.logger import logger
 
 
-class RedisClient:
-    """Клиент для работы с Redis (кэширование и идемпотентность)"""
-    
+class RedisClient:    
     def __init__(self):
         self.client: Optional[redis.Redis] = None
         self._connected = False
     
     async def connect(self):
-        """Установка соединения с Redis"""
         try:
             logger.info(f"Connecting to Redis at {settings.redis.host}:{settings.redis.port}")
             
@@ -36,7 +33,6 @@ class RedisClient:
             self._connected = False
     
     async def disconnect(self):
-        """Закрытие соединения"""
         if self.client:
             try:
                 await self.client.close()
@@ -45,7 +41,6 @@ class RedisClient:
         logger.info("Disconnected from Redis")
     
     async def get(self, key: str) -> Optional[str]:
-        """Получить значение по ключу"""
         if not self._connected:
             return None
         try:
@@ -60,7 +55,6 @@ class RedisClient:
         value: str,
         ttl: Optional[int] = None
     ) -> bool:
-        """Установить значение"""
         if not self._connected:
             return False
         try:
@@ -74,11 +68,9 @@ class RedisClient:
             return False
     
     async def setex(self, key: str, ttl: int, value: str) -> bool:
-        """Установить значение с TTL (аналог redis.setex)"""
         return await self.set(key, value, ttl)
     
     async def set_if_not_exists(self, key: str, value: str, ttl: Optional[int] = None) -> bool:
-        """Установить значение только если ключ не существует"""
         if not self._connected:
             return False
         try:
@@ -92,7 +84,6 @@ class RedisClient:
             return False
     
     async def delete(self, key: str) -> bool:
-        """Удалить ключ"""
         if not self._connected:
             return False
         try:
@@ -103,7 +94,6 @@ class RedisClient:
             return False
     
     async def exists(self, key: str) -> bool:
-        """Проверить существование ключа"""
         if not self._connected:
             return False
         try:
@@ -113,7 +103,6 @@ class RedisClient:
             return False
     
     async def expire(self, key: str, ttl: int) -> bool:
-        """Установить TTL для ключа"""
         if not self._connected:
             return False
         try:
@@ -123,7 +112,6 @@ class RedisClient:
             return False
     
     async def incr(self, key: str) -> Optional[int]:
-        """Инкрементировать счетчик"""
         if not self._connected:
             return None
         try:
@@ -133,7 +121,6 @@ class RedisClient:
             return None
     
     async def decr(self, key: str) -> Optional[int]:
-        """Декрементировать счетчик"""
         if not self._connected:
             return None
         try:
@@ -143,7 +130,6 @@ class RedisClient:
             return None
     
     async def get_json(self, key: str) -> Optional[Dict]:
-        """Получить JSON значение"""
         value = await self.get(key)
         if value:
             try:
@@ -158,7 +144,6 @@ class RedisClient:
         value: Dict,
         ttl: Optional[int] = None
     ) -> bool:
-        """Установить JSON значение"""
         try:
             return await self.set(key, json.dumps(value, default=str), ttl)
         except Exception as e:
@@ -166,7 +151,6 @@ class RedisClient:
             return False
     
     async def invalidate_unread_count(self, user_id: int):
-        """Инвалидирует кэш количества непрочитанных уведомлений"""
         if not self._connected:
             return
         try:
@@ -176,12 +160,10 @@ class RedisClient:
             logger.error(f"Failed to invalidate unread count cache: {e}")
     
     async def mark_message_processed(self, message_id: str, ttl: int = 3600) -> bool:
-        """Отметить сообщение как обработанное (идемпотентность)"""
         key = f"processed:{message_id}"
         return await self.set_if_not_exists(key, "1", ttl)
     
     async def is_message_processed(self, message_id: str) -> bool:
-        """Проверить, обработано ли сообщение"""
         return await self.exists(f"processed:{message_id}")
     
     @property

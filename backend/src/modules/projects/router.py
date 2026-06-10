@@ -54,12 +54,6 @@ async def get_project(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(db_session.session_getter)
 ):
-    """
-    Получить информацию о проекте.
-
-    Обычный пользователь должен состоять хотя бы в одной группе проекта.
-    Глобальный администратор может просматривать любой проект без членства.
-    """
     logger.info(f"GET /projects/{project_id} requested by user {current_user.id}")
 
     if not is_global_admin_user(current_user):

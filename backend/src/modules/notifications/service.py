@@ -238,9 +238,7 @@ class NotificationService:
         return count
 
 
-class NotificationTriggerService:
-    """Сервис для автоматического создания уведомлений при событиях"""
-    
+class NotificationTriggerService:    
     def __init__(
         self, 
         session: AsyncSession, 
@@ -253,7 +251,6 @@ class NotificationTriggerService:
         self.logger = logger
     
     async def _get_group_member_ids(self, group_id: int, exclude_user_id: Optional[int] = None) -> Set[int]:
-        """Получить ID всех участников группы"""
         stmt = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
         result = await self.session.execute(stmt)
         user_ids = {row[0] for row in result}
@@ -264,7 +261,6 @@ class NotificationTriggerService:
         return user_ids
     
     async def _get_project_member_ids(self, project_id: int, exclude_user_id: Optional[int] = None) -> Set[int]:
-        """Получить ID всех участников проекта (через группы)"""
         stmt = select(GroupMember.user_id).join(
             GroupMember.group
         ).join(
@@ -281,7 +277,6 @@ class NotificationTriggerService:
         return user_ids
     
     async def _get_task_participant_ids(self, task_id: int, exclude_user_id: Optional[int] = None) -> Set[int]:
-        """Получить ID всех участников задачи (исполнители + группа)"""
         stmt = select(Task).options(selectinload(Task.assignees)).where(Task.id == task_id)
         result = await self.session.execute(stmt)
         task = result.scalar_one_or_none()
@@ -309,7 +304,6 @@ class NotificationTriggerService:
         priority: NotificationPriority = NotificationPriority.MEDIUM,
         data: Optional[Dict[str, Any]] = None
     ):
-        """Разослать уведомление группе пользователей"""
         if not user_ids:
             return
         
@@ -317,7 +311,6 @@ class NotificationTriggerService:
             self.logger.warning("Notification publisher not available")
             return
         
-        # Преобразуем NotificationPriority в MessagePriority
         from shared.messaging import MessagePriority
         message_priority = MessagePriority(priority.value)
         
@@ -329,11 +322,8 @@ class NotificationTriggerService:
             priority=message_priority,
             data=data
         )
-    
-    # ==================== ГРУППОВЫЕ УВЕДОМЛЕНИЯ ====================
-    
+        
     async def on_group_updated(self, group: Group, updated_by: User, changes: Dict[str, Any]):
-        """Группа обновлена"""
         user_ids = await self._get_group_member_ids(group.id, exclude_user_id=updated_by.id)
         
         await self._broadcast_notification(
@@ -346,7 +336,6 @@ class NotificationTriggerService:
         )
     
     async def on_group_deleted(self, group: Group, deleted_by: User):
-        """Группа удалена"""
         user_ids = await self._get_group_member_ids(group.id, exclude_user_id=deleted_by.id)
         
         await self._broadcast_notification(
@@ -365,8 +354,6 @@ class NotificationTriggerService:
         added_by: User,
         role: str
     ):
-        """Пользователь добавлен в группу (через приглашение)"""
-        # Уведомляем добавленного пользователя
         if added_user.id != added_by.id:
             await self.notification_service.send(
                 user_id=added_user.id,
@@ -377,7 +364,6 @@ class NotificationTriggerService:
                 data={"group_id": group.id, "group_name": group.name, "role": role}
             )
         
-        # Уведомляем остальных участников группы
         other_users = await self._get_group_member_ids(group.id, exclude_user_id=added_by.id)
         other_users.discard(added_user.id)
         
@@ -396,8 +382,6 @@ class NotificationTriggerService:
         removed_user: User, 
         removed_by: User
     ):
-        """Пользователь удален из группы"""
-        # Уведомляем удаленного пользователя
         if removed_user.id != removed_by.id:
             await self.notification_service.send(
                 user_id=removed_user.id,
@@ -408,7 +392,6 @@ class NotificationTriggerService:
                 data={"group_id": group.id, "group_name": group.name}
             )
         
-        # Уведомляем остальных участников группы
         other_users = await self._get_group_member_ids(group.id, exclude_user_id=removed_by.id)
         other_users.discard(removed_user.id)
         
@@ -429,8 +412,6 @@ class NotificationTriggerService:
         old_role: str,
         new_role: str
     ):
-        """Роль пользователя в группе изменена"""
-        # Уведомляем пользователя, чью роль изменили
         if target_user.id != changed_by.id:
             await self.notification_service.send(
                 user_id=target_user.id,
@@ -441,7 +422,6 @@ class NotificationTriggerService:
                 data={"group_id": group.id, "group_name": group.name, "old_role": old_role, "new_role": new_role}
             )
         
-        # Уведомляем остальных участников группы
         other_users = await self._get_group_member_ids(group.id, exclude_user_id=changed_by.id)
         other_users.discard(target_user.id)
         
@@ -453,9 +433,7 @@ class NotificationTriggerService:
             priority=NotificationPriority.MEDIUM,
             data={"group_id": group.id, "group_name": group.name, "user_id": target_user.id, "new_role": new_role}
         )
-    
-    # ==================== ПРИГЛАШЕНИЯ ====================
-    
+        
     async def on_invitation_sent(
         self,
         group: Group,
@@ -464,16 +442,11 @@ class NotificationTriggerService:
         role: str,
         invitation_token: str
     ):
-        """
-        Отправка приглашения пользователю
-        """
-        # Проверяем, существует ли пользователь с таким email
         user_stmt = select(User).where(User.email == invited_email)
         user_result = await self.session.execute(user_stmt)
         existing_user = user_result.scalar_one_or_none()
         
         if existing_user:
-            # Если пользователь существует, отправляем уведомление ему
             await self.notification_service.send(
                 user_id=existing_user.id,
                 notification_type=NotificationType.GROUP_INVITATION,
@@ -492,8 +465,6 @@ class NotificationTriggerService:
                 }
             )
         else:
-            # Если пользователь не зарегистрирован, можно отправить email
-            # или сохранить приглашение и показать при регистрации
             self.logger.info(f"Invitation sent to non-existent user {invited_email}")
     
     async def on_user_accepted_invitation(
@@ -502,9 +473,6 @@ class NotificationTriggerService:
         new_user: User,
         invited_by: User
     ):
-        """
-        Уведомление пригласившему о принятии приглашения
-        """
         await self.notification_service.send(
             user_id=invited_by.id,
             notification_type=NotificationType.GROUP_INVITATION_ACCEPTED,
@@ -527,9 +495,6 @@ class NotificationTriggerService:
         invited_email: str,
         invited_by: User
     ):
-        """
-        Уведомление пригласившему об отклонении приглашения
-        """
         await self.notification_service.send(
             user_id=invited_by.id,
             notification_type=NotificationType.GROUP_INVITATION_DECLINED,
@@ -547,7 +512,6 @@ class NotificationTriggerService:
     # ==================== ПРОЕКТНЫЕ УВЕДОМЛЕНИЯ ====================
     
     async def on_project_created(self, project: Project, created_by: User, group_ids: List[int]):
-        """Проект создан"""
         for group_id in group_ids:
             user_ids = await self._get_group_member_ids(group_id, exclude_user_id=created_by.id)
             
@@ -561,7 +525,6 @@ class NotificationTriggerService:
             )
     
     async def on_project_updated(self, project: Project, updated_by: User, changes: Dict[str, Any]):
-        """Проект обновлен"""
         user_ids = await self._get_project_member_ids(project.id, exclude_user_id=updated_by.id)
         
         await self._broadcast_notification(
@@ -574,7 +537,6 @@ class NotificationTriggerService:
         )
     
     async def on_project_deleted(self, project: Project, deleted_by: User):
-        """Проект удален"""
         user_ids = await self._get_project_member_ids(project.id, exclude_user_id=deleted_by.id)
         
         await self._broadcast_notification(
@@ -592,7 +554,6 @@ class NotificationTriggerService:
         group: Group,
         added_by: User
     ):
-        """Группа добавлена в проект"""
         user_ids = await self._get_group_member_ids(group.id, exclude_user_id=added_by.id)
         
         await self._broadcast_notification(
@@ -610,7 +571,6 @@ class NotificationTriggerService:
         group: Group,
         removed_by: User
     ):
-        """Группа удалена из проекта"""
         user_ids = await self._get_group_member_ids(group.id, exclude_user_id=removed_by.id)
         
         await self._broadcast_notification(
@@ -621,11 +581,8 @@ class NotificationTriggerService:
             priority=NotificationPriority.MEDIUM,
             data={"project_id": project.id, "project_title": project.title, "group_id": group.id, "group_name": group.name}
         )
-    
-    # ==================== ЗАДАЧНЫЕ УВЕДОМЛЕНИЯ ====================
-    
+        
     async def on_task_created(self, task: Task, created_by: User, assignee_ids: List[int]):
-        """Задача создана"""
         group_members = await self._get_group_member_ids(task.group_id, exclude_user_id=created_by.id)
         
         for user_id in group_members:
@@ -651,7 +608,6 @@ class NotificationTriggerService:
                 )
     
     async def on_task_updated(self, task: Task, updated_by: User, changes: Dict[str, Any]):
-        """Задача обновлена"""
         user_ids = await self._get_task_participant_ids(task.id, exclude_user_id=updated_by.id)
         
         await self._broadcast_notification(
@@ -664,7 +620,6 @@ class NotificationTriggerService:
         )
     
     async def on_task_deleted(self, task: Task, deleted_by: User):
-        """Задача удалена"""
         user_ids = await self._get_task_participant_ids(task.id, exclude_user_id=deleted_by.id)
         
         await self._broadcast_notification(
@@ -683,7 +638,6 @@ class NotificationTriggerService:
         old_status: str, 
         new_status: str
     ):
-        """Статус задачи изменен"""
         user_ids = await self._get_task_participant_ids(task.id, exclude_user_id=changed_by.id)
         
         await self._broadcast_notification(
@@ -707,7 +661,6 @@ class NotificationTriggerService:
         old_priority: str,
         new_priority: str
     ):
-        """Приоритет задачи изменен"""
         user_ids = await self._get_task_participant_ids(task.id, exclude_user_id=changed_by.id)
         
         await self._broadcast_notification(
@@ -732,7 +685,6 @@ class NotificationTriggerService:
         comment_author: User,
         mentioned_user_ids: Optional[Set[int]] = None,
     ):
-        """Новый комментарий к задаче."""
         mentioned_user_ids = mentioned_user_ids or set()
         user_ids = await self._get_task_participant_ids(task.id, exclude_user_id=comment_author.id)
         user_ids.difference_update(mentioned_user_ids)
@@ -756,7 +708,6 @@ class NotificationTriggerService:
         comment_author: User,
         mentioned_user_ids: Set[int],
     ):
-        """Пользователи упомянуты в комментарии к задаче."""
         mentioned_user_ids = set(mentioned_user_ids or [])
         mentioned_user_ids.discard(comment_author.id)
 
@@ -780,7 +731,6 @@ class NotificationTriggerService:
         assigned_by: User
     ):
         """Пользователи назначены на задачу"""
-        # Уведомляем назначенных пользователей
         for user in assigned_users:
             if user.id != assigned_by.id:
                 await self.notification_service.send(
@@ -792,7 +742,6 @@ class NotificationTriggerService:
                     data={"task_id": task.id, "task_title": task.title, "project_id": task.project_id}
                 )
         
-        # Уведомляем остальных участников задачи
         other_users = await self._get_task_participant_ids(task.id, exclude_user_id=assigned_by.id)
         assigned_ids = {u.id for u in assigned_users}
         other_users.difference_update(assigned_ids)
@@ -820,8 +769,6 @@ class NotificationTriggerService:
         unassigned_users: List[User],
         unassigned_by: User
     ):
-        """Пользователи удалены из задачи"""
-        # Уведомляем удаленных пользователей
         for user in unassigned_users:
             if user.id != unassigned_by.id:
                 await self.notification_service.send(
@@ -833,7 +780,6 @@ class NotificationTriggerService:
                     data={"task_id": task.id, "task_title": task.title}
                 )
         
-        # Уведомляем остальных участников
         other_users = await self._get_task_participant_ids(task.id, exclude_user_id=unassigned_by.id)
         
         if len(unassigned_users) == 1:

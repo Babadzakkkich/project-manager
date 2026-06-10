@@ -29,9 +29,7 @@ if TYPE_CHECKING:
     from modules.notifications.service import NotificationTriggerService
 
 
-class GroupService:
-    """Сервис для работы с группами"""
-    
+class GroupService:    
     def __init__(self, session: AsyncSession, service_factory: Optional['ServiceFactory'] = None):
         self.session = session
         self.logger = logger
@@ -41,7 +39,6 @@ class GroupService:
     
     @property
     def project_service(self) -> Optional['ProjectService']:
-        """Ленивая загрузка ProjectService через фабрику"""
         if self._project_service is None and self.service_factory:
             from modules.projects.service import ProjectService
             self._project_service = self.service_factory.get_or_create('project', ProjectService)
@@ -49,13 +46,11 @@ class GroupService:
     
     @property
     def notification_trigger(self) -> Optional['NotificationTriggerService']:
-        """Ленивая загрузка NotificationTriggerService через фабрику"""
         if self._notification_trigger is None and self.service_factory:
             self._notification_trigger = self.service_factory.get('notification_trigger')
         return self._notification_trigger
     
     async def get_all_groups(self, current_user_id: int) -> List[Group]:
-        """Получение всех групп (только для глобального администратора)"""
         self.logger.info(f"Fetching all groups by global admin {current_user_id}")
         await ensure_global_admin_by_id(self.session, current_user_id)
         stmt = select(Group).order_by(Group.id)
@@ -65,7 +60,6 @@ class GroupService:
         return groups
     
     async def get_group_by_id(self, group_id: int) -> GroupReadWithRelations:
-        """Получение группы по ID"""
         self.logger.debug(f"Fetching group by ID: {group_id}")
         stmt = select(Group).options(
             selectinload(Group.group_members).selectinload(GroupMember.user),
@@ -80,7 +74,6 @@ class GroupService:
             self.logger.warning(f"Group with ID {group_id} not found")
             raise GroupNotFoundError(group_id=group_id)
         
-        # Добавляем пользователей с ролями
         group.users = []
         for group_member in group.group_members:
             user_with_role = group_member.user
@@ -91,7 +84,6 @@ class GroupService:
         return group
     
     async def get_user_groups(self, user_id: int) -> List[GroupReadWithRelations]:
-        """Получение групп пользователя"""
         self.logger.debug(f"Fetching groups for user {user_id}")
         stmt = select(Group).options(
             selectinload(Group.group_members).selectinload(GroupMember.user),
@@ -113,16 +105,6 @@ class GroupService:
         return groups
     
     async def get_role_for_user_in_group(self, user_id: int, group_id: int) -> GetUserRoleResponse:
-        """
-        Получение роли пользователя в группе.
-
-        Приоритет:
-        1. Если пользователь реально состоит в группе, возвращается его групповая роль:
-        admin/member.
-        2. Если пользователь не состоит в группе, но является глобальным администратором,
-        возвращается виртуальная роль global_admin только для read-only просмотра.
-        3. Если доступа нет, выбрасывается UserNotInGroupError.
-        """
         self.logger.debug(f"Getting role for user {user_id} in group {group_id}")
 
         role = await get_user_group_role(self.session, user_id, group_id)
@@ -139,11 +121,9 @@ class GroupService:
         raise UserNotInGroupError(user_id=user_id, group_id=group_id)
     
     async def create_group(self, group_create: GroupCreate, current_user: User) -> GroupReadWithRelations:
-        """Создание новой группы"""
         self.logger.info(f"Creating new group '{group_create.name}' by user {current_user.id}")
         
         try:
-            # Проверяем существование группы с таким именем
             existing_group_stmt = select(Group).where(Group.name == group_create.name)
             existing_group_result = await self.session.execute(existing_group_stmt)
             existing_group = existing_group_result.scalar_one_or_none()
@@ -157,7 +137,6 @@ class GroupService:
             
             await self.session.flush()
             
-            # Добавляем создателя как администратора
             group_member = GroupMember(
                 user_id=current_user.id,
                 group_id=new_group.id,
@@ -178,7 +157,6 @@ class GroupService:
             raise GroupCreationError(f"Не удалось создать группу: {str(e)}")
     
     async def change_user_role(self, current_user_id: int, group_id: int, user_email: str, new_role: UserRole):
-        """Изменение роли пользователя в группе"""
         self.logger.info(f"Changing role for user {user_email} in group {group_id} to {new_role.value}")
         
         try:
@@ -206,7 +184,6 @@ class GroupService:
             old_role = group_member.role.value
             group_member.role = new_role
             
-            # Получаем группу для уведомления
             group_stmt = select(Group).where(Group.id == group_id)
             group_result = await self.session.execute(group_stmt)
             group = group_result.scalar_one()
@@ -215,7 +192,6 @@ class GroupService:
             
             self.logger.info(f"Role for user {user_email} changed from {old_role} to {new_role.value}")
             
-            # Отправляем уведомление
             if self.notification_trigger:
                 await self.notification_trigger.on_user_role_changed(
                     group=group,
@@ -233,7 +209,6 @@ class GroupService:
             raise GroupUpdateError(f"Не удалось изменить роль пользователя: {str(e)}")
     
     async def update_group(self, db_group: Group, group_update: GroupUpdate, current_user: User) -> GroupReadWithRelations:
-        """Обновление информации о группе"""
         self.logger.info(f"Updating group {db_group.id} by user {current_user.id}")
         
         try:
@@ -263,7 +238,6 @@ class GroupService:
             await self.session.commit()
             self.logger.info(f"Group {db_group.id} updated successfully")
             
-            # Отправляем уведомление, если есть изменения
             if changes and self.notification_trigger:
                 await self.notification_trigger.on_group_updated(db_group, current_user, changes)
             
@@ -277,11 +251,9 @@ class GroupService:
             raise GroupUpdateError(f"Не удалось обновить группу: {str(e)}")
     
     async def remove_users_from_group(self, group_id: int, data: RemoveUsersFromGroup, current_user: User) -> GroupReadWithRelations:
-        """Удаление пользователей из группы"""
         self.logger.info(f"Removing users from group {group_id} by user {current_user.id}")
         
         try:
-            # Проверяем существование группы
             group_stmt = select(Group).where(Group.id == group_id)
             group_result = await self.session.execute(group_stmt)
             group = group_result.scalar_one_or_none()
@@ -292,7 +264,6 @@ class GroupService:
 
             await ensure_user_is_admin(self.session, current_user.id, group_id)
 
-            # Получаем пользователей для удаления
             users_stmt = select(User).where(User.id.in_(data.user_ids))
             users_result = await self.session.execute(users_stmt)
             users_to_remove = users_result.scalars().all()
@@ -301,14 +272,12 @@ class GroupService:
                 self.logger.warning(f"No users found to remove from group {group_id}")
                 raise UserNotFoundInGroupError()
 
-            # Получаем задачи группы
             tasks_stmt = select(Task).options(selectinload(Task.assignees)).where(Task.group_id == group_id)
             tasks_result = await self.session.execute(tasks_stmt)
             tasks = tasks_result.scalars().all()
 
             task_ids = [task.id for task in tasks]
 
-            # Удаляем историю задач для удаляемых пользователей
             if task_ids and data.user_ids:
                 from core.database.models import TaskHistory
                 delete_user_history_stmt = delete(TaskHistory).where(
@@ -317,7 +286,6 @@ class GroupService:
                 )
                 await self.session.execute(delete_user_history_stmt)
 
-            # Удаляем пользователей из задач
             for task in tasks:
                 current_assignees = list(task.assignees)
                 users_to_remove_from_task = [user for user in current_assignees if user.id in data.user_ids]
@@ -333,7 +301,6 @@ class GroupService:
                     await self.session.execute(delete_task_history_stmt)
                     await self.session.delete(task)
 
-            # Удаляем из группы
             delete_members_stmt = delete(GroupMember).where(
                 GroupMember.group_id == group_id,
                 GroupMember.user_id.in_(data.user_ids)
@@ -344,7 +311,6 @@ class GroupService:
                 self.logger.warning(f"No users removed from group {group_id}")
                 raise UserNotFoundInGroupError()
 
-            # Проверяем, остались ли участники в группе
             remaining_members_stmt = select(GroupMember).where(GroupMember.group_id == group_id)
             remaining_members_result = await self.session.execute(remaining_members_stmt)
             remaining_members = remaining_members_result.scalars().all()
@@ -358,7 +324,6 @@ class GroupService:
             await self.session.commit()
             self.logger.info(f"Users removed from group {group_id} successfully")
             
-            # Отправляем уведомления
             if self.notification_trigger and not group_deleted:
                 for user in users_to_remove:
                     await self.notification_trigger.on_user_removed_from_group(
@@ -368,7 +333,6 @@ class GroupService:
                     )
             
             if group_deleted:
-                # Если группа удалена, уведомляем всех бывших участников
                 if self.notification_trigger:
                     for user in users_to_remove:
                         await self.notification_trigger.on_group_deleted(group, current_user)
@@ -383,7 +347,6 @@ class GroupService:
             raise GroupUpdateError(f"Не удалось удалить пользователей из группы: {str(e)}")
     
     async def delete_group_auto(self, group_id: int) -> bool:
-        """Автоматическое удаление группы"""
         self.logger.info(f"Auto-deleting group {group_id}")
         
         try:
@@ -419,27 +382,22 @@ class GroupService:
 
             project_ids = [project.id for project in group.projects]
 
-            # Удаляем связи с проектами
             delete_project_links_stmt = delete(project_group_association).where(
                 project_group_association.c.group_id == group_id
             )
             await self.session.execute(delete_project_links_stmt)
 
-            # Удаляем членов группы
             for membership in group.group_members:
                 await self.session.delete(membership)
 
-            # Удаляем приглашения
             from core.database.models import GroupInvitation
             delete_invitations_stmt = delete(GroupInvitation).where(
                 GroupInvitation.group_id == group_id
             )
             await self.session.execute(delete_invitations_stmt)
 
-            # Удаляем группу
             await self.session.delete(group)
 
-            # Проверяем проекты на пустоту через ProjectService
             if self.project_service:
                 for project_id in project_ids:
                     remaining_groups_stmt = select(project_group_association).where(
@@ -461,7 +419,6 @@ class GroupService:
             raise GroupDeleteError(f"Не удалось автоматически удалить группу: {str(e)}")
     
     async def delete_group(self, group_id: int, current_user: User) -> bool:
-        """Удаление группы"""
         self.logger.info(f"Deleting group {group_id} by user {current_user.id}")
         
         try:
@@ -477,12 +434,10 @@ class GroupService:
 
             await ensure_user_is_admin(self.session, current_user.id, group_id)
             
-            # Сохраняем участников для уведомлений
             members = [gm.user for gm in group.group_members]
 
             await self.delete_group_auto(group_id)
             
-            # Отправляем уведомления
             if self.notification_trigger:
                 for member in members:
                     if member.id != current_user.id:
@@ -499,7 +454,6 @@ class GroupService:
             raise GroupDeleteError(f"Не удалось удалить группу: {str(e)}")
     
     async def _get_user_by_id(self, user_id: int) -> Optional[User]:
-        """Вспомогательный метод для получения пользователя по ID"""
         stmt = select(User).where(User.id == user_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()

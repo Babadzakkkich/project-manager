@@ -23,17 +23,11 @@ async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     session: AsyncSession = Depends(db_session.session_getter),
 ):
-    """
-    Вход в систему.
-    Устанавливает оба токена в httpOnly cookies.
-    """
     logger.info(f"Login attempt for user: {form_data.username}")
     auth_service = AuthService(session)
     
-    # Аутентифицируем пользователя и получаем токены
     tokens = await auth_service.login_user(form_data.username, form_data.password)
     
-    # Устанавливаем оба токена в httpOnly cookies
     set_auth_cookies(response, tokens["access_token"], tokens["refresh_token"])
     
     logger.info(f"User logged in successfully, tokens set in cookies")
@@ -47,13 +41,8 @@ async def refresh_access_token(
     request: Request,
     session: AsyncSession = Depends(db_session.session_getter),
 ):
-    """
-    Обновление токенов.
-    Использует refresh token из cookie для генерации новой пары токенов.
-    """
     logger.info("Token refresh attempt")
     
-    # Получаем refresh token из cookie
     refresh_token = request.cookies.get("refresh_token")
     
     if not refresh_token:
@@ -61,10 +50,8 @@ async def refresh_access_token(
         raise RefreshTokenError("Refresh token не найден")
     
     try:
-        # Проверяем refresh token и получаем payload
         token_payload = await verify_refresh_token(session, refresh_token)
         
-        # Получаем пользователя
         user_service = UserService(session)
         user = await user_service.get_user_by_id(token_payload.sub)
         if not user:
@@ -75,11 +62,9 @@ async def refresh_access_token(
             logger.warning(f"Blocked user {user.id} tried to refresh tokens")
             raise UserBlockedError()
         
-        # Создаем новую пару токенов
         new_access_token = create_access_token(token_payload)
         new_refresh_token = await create_refresh_token(session, user.id, user.login)
         
-        # Устанавливаем новые токены в cookies
         set_auth_cookies(response, new_access_token, new_refresh_token)
         
         logger.info(f"Token refreshed successfully for user {user.id}")
@@ -97,11 +82,6 @@ async def logout(
     request: Request,
     session: AsyncSession = Depends(db_session.session_getter)
 ):
-    """
-    Выход из системы.
-    Отзывает все refresh токены пользователя и очищает cookies.
-    """
-    # Пытаемся получить пользователя из токена
     try:
         token = request.cookies.get("access_token")
         if token:
@@ -118,7 +98,6 @@ async def logout(
     except Exception as e:
         logger.error(f"Error during logout: {e}")
     
-    # Очищаем cookies в любом случае
     clear_auth_cookies(response)
     
     logger.info("User logged out, tokens cleared")
@@ -130,10 +109,6 @@ async def check_auth(
     request: Request,
     session: AsyncSession = Depends(db_session.session_getter)
 ):
-    """
-    Проверка статуса аутентификации.
-    Возвращает информацию о текущем пользователе, если он аутентифицирован.
-    """
     token = request.cookies.get("access_token")
     
     if not token:
@@ -167,8 +142,6 @@ async def check_auth(
                 }
             }
     except jwt.ExpiredSignatureError:
-        # Токен истек, но пользователь может быть все еще аутентифицирован
-        # Проверяем наличие refresh token
         refresh_token = request.cookies.get("refresh_token")
         if refresh_token:
             try:
@@ -176,14 +149,12 @@ async def check_auth(
                 user_service = UserService(session)
                 user = await user_service.get_user_by_id(token_payload.sub)
                 if user and not user.is_blocked:
-                    # Создаем новый access token
                     token_payload = TokenPayload(
                         sub=user.id,
                         login=user.login,
                         type="access"
                     )
                     new_access_token = create_access_token(token_payload)
-                    # Обновляем cookie с access token
                     response = Response()
                     response.set_cookie(
                         key="access_token",

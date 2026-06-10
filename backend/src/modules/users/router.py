@@ -27,7 +27,6 @@ async def get_users(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Получение списка всех пользователей"""
     logger.info(f"GET /users requested by user {current_user.id}")
     await ensure_global_admin_by_id(service_factory.session, current_user.id)
     user_service = service_factory.get('user')
@@ -39,7 +38,6 @@ async def get_current_user_info(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Получение информации о текущем пользователе"""
     logger.info(f"GET /users/me requested by user {current_user.id}")
     user_service = service_factory.get('user')
     user_with_relations = await user_service.get_user_with_relations(current_user.id)
@@ -57,7 +55,6 @@ async def get_user(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Получение пользователя по ID"""
     logger.info(f"GET /users/{user_id} requested by user {current_user.id}")
     user_service = service_factory.get('user')
     
@@ -79,7 +76,6 @@ async def create_user(
     user_data: UserCreate,
     service_factory: ServiceFactory = Depends(get_service_factory)
 ):
-    """Создание нового пользователя"""
     logger.info(f"POST /users - creating new user with login: {user_data.login}")
     user_service = service_factory.get('user')
     
@@ -104,10 +100,6 @@ async def update_current_user(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory)
 ):
-    """
-    Обновление профиля текущего пользователя.
-    Позволяет пользователю изменять свои данные без указания ID.
-    """
     logger.info(f"PUT /users/me - updating profile for user {current_user.id}")
     user_service = service_factory.get('user')
     
@@ -150,7 +142,6 @@ async def update_user(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Обновление пользователя"""
     logger.info(f"PUT /users/{user_id} by user {current_user.id}")
     user_service = service_factory.get('user')
     
@@ -177,10 +168,6 @@ async def delete_current_user(
     current_user: User = Depends(get_current_user),
     service_factory: ServiceFactory = Depends(get_service_factory)
 ):
-    """
-    Удаление аккаунта текущего пользователя.
-    Полностью удаляет пользователя и все связанные данные.
-    """
     logger.info(f"DELETE /users/me - deleting account for user {current_user.id}")
     user_service = service_factory.get('user')
     
@@ -221,7 +208,6 @@ async def delete_user(
     service_factory: ServiceFactory = Depends(get_service_factory),
     current_user: User = Depends(get_current_user)
 ):
-    """Удаление пользователя"""
     logger.info(f"DELETE /users/{user_id} by user {current_user.id}")
     user_service = service_factory.get('user')
     

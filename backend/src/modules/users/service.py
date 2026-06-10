@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 
 
 class UserService:
-    """Сервис для работы с пользователями"""
     
     def __init__(self, session: AsyncSession, service_factory: Optional['ServiceFactory'] = None):
         self.session = session
@@ -34,14 +33,12 @@ class UserService:
     
     @property
     def group_service(self):
-        """Ленивая загрузка GroupService через фабрику"""
         if self._group_service is None and self.service_factory:
             from modules.groups.service import GroupService
             self._group_service = self.service_factory.get_or_create('group', GroupService)
         return self._group_service
     
     async def check_user_exists(self, login: str, email: str) -> tuple[bool, bool]:
-        """Проверка существования пользователя по логину и email"""
         stmt = select(User).where(
             (User.login == login) | (User.email == email)
         )
@@ -54,7 +51,6 @@ class UserService:
         return login_exists, email_exists
     
     async def get_all_users(self) -> List[User]:
-        """Получение всех пользователей"""
         self.logger.info("Fetching all users")
         stmt = select(User).order_by(User.id)
         result = await self.session.scalars(stmt)
@@ -63,7 +59,6 @@ class UserService:
         return users
     
     async def get_user_by_id(self, user_id: int) -> Optional[User]:
-        """Получение пользователя по ID (только модель SQLAlchemy)"""
         self.logger.debug(f"Fetching user by ID: {user_id}")
         stmt = select(User).options(
             selectinload(User.group_memberships).selectinload(GroupMember.group),
@@ -76,12 +71,10 @@ class UserService:
         return user
     
     async def get_user_with_relations(self, user_id: int) -> Optional[UserWithRelations]:
-        """Получение пользователя со связанными данными"""
         user = await self.get_user_by_id(user_id)
         if not user:
             return None
         
-        # Преобразуем группы в BaseGroupInfo
         groups = []
         for membership in user.group_memberships:
             groups.append(BaseGroupInfo(
@@ -91,7 +84,6 @@ class UserService:
                 created_at=membership.group.created_at
             ))
         
-        # Преобразуем задачи в BaseTaskInfo
         assigned_tasks = []
         for task in user.assigned_tasks:
             assigned_tasks.append(BaseTaskInfo(
@@ -102,7 +94,6 @@ class UserService:
                 deadline=task.deadline
             ))
         
-        # Создаем UserWithRelations
         return UserWithRelations(
             id=user.id,
             login=user.login,
@@ -117,7 +108,6 @@ class UserService:
         )
         
     async def get_user_by_login(self, login: str) -> Optional[User]:
-        """Получение пользователя по логину"""
         self.logger.debug(f"Fetching user by login: {login}")
         stmt = select(User).where(User.login == login)
         result = await self.session.execute(stmt)
@@ -125,7 +115,6 @@ class UserService:
         return user
     
     async def get_user_by_email(self, email: str) -> Optional[User]:
-        """Получение пользователя по email"""
         self.logger.debug(f"Fetching user by email: {email}")
         stmt = select(User).where(User.email == email)
         result = await self.session.execute(stmt)
@@ -133,7 +122,6 @@ class UserService:
         return user
     
     async def create_user(self, user_create: UserCreate) -> User:
-        """Создание нового пользователя"""
         self.logger.info(f"Creating new user with login: {user_create.login}")
         
         try:
@@ -182,7 +170,6 @@ class UserService:
             raise UserCreationError(f"Не удалось создать пользователя: {str(e)}")
     
     async def update_user(self, user_id: int, user_update: UserUpdate, current_user_id: Optional[int] = None) -> User:
-        """Обновление пользователя"""
         self.logger.info(f"Updating user with ID: {user_id}")
         
         try:
@@ -235,7 +222,6 @@ class UserService:
             raise UserUpdateError(f"Не удалось обновить пользователя: {str(e)}")
     
     async def block_user(self, user_id: int, reason: Optional[str] = None, current_user_id: Optional[int] = None) -> User:
-        """Блокировка пользователя глобальным администратором."""
         if current_user_id:
             await ensure_global_admin_by_id(self.session, current_user_id)
 
@@ -254,7 +240,6 @@ class UserService:
         return user
 
     async def unblock_user(self, user_id: int, current_user_id: Optional[int] = None) -> User:
-        """Разблокировка пользователя глобальным администратором."""
         if current_user_id:
             await ensure_global_admin_by_id(self.session, current_user_id)
 
@@ -270,7 +255,6 @@ class UserService:
         return user
 
     async def update_system_role(self, user_id: int, system_role: SystemRole, current_user_id: Optional[int] = None) -> User:
-        """Изменение системной роли пользователя глобальным администратором."""
         if current_user_id:
             await ensure_global_admin_by_id(self.session, current_user_id)
 
@@ -285,7 +269,6 @@ class UserService:
         return user
 
     async def delete_user(self, user_id: int, current_user_id: Optional[int] = None) -> bool:
-        """Удаление пользователя"""
         self.logger.info(f"Deleting user with ID: {user_id}")
         
         try:
@@ -351,7 +334,6 @@ class UserService:
                 members_count_result = await self.session.execute(members_count_stmt)
                 members_counts = dict(members_count_result.all())
                 
-                # Используем group_service через свойство
                 if self.group_service:
                     for group_id in group_ids:
                         if members_counts.get(group_id, 0) == 0:

@@ -1,5 +1,3 @@
-"""Pydantic схемы для сообщений"""
-
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, Dict, Any, List
@@ -8,7 +6,6 @@ import uuid
 
 
 class MessageType(str, Enum):
-    """Типы сообщений"""
     NOTIFICATION = "notification"
     BROADCAST = "broadcast"
     WEBSOCKET = "websocket"
@@ -17,7 +14,6 @@ class MessageType(str, Enum):
 
 
 class MessagePriority(str, Enum):
-    """Приоритет сообщений"""
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -25,7 +21,6 @@ class MessagePriority(str, Enum):
     
     @property
     def rabbitmq_priority(self) -> int:
-        """Преобразование в числовой приоритет RabbitMQ (0-10)"""
         mapping = {
             MessagePriority.LOW: 0,
             MessagePriority.MEDIUM: 5,
@@ -36,7 +31,6 @@ class MessagePriority(str, Enum):
 
 
 class BaseMessage(BaseModel):
-    """Базовое сообщение"""
     type: MessageType
     message_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -49,7 +43,6 @@ class BaseMessage(BaseModel):
 
 
 class NotificationMessage(BaseMessage):
-    """Сообщение для уведомления"""
     type: MessageType = MessageType.NOTIFICATION
     user_id: int
     title: str
@@ -59,7 +52,6 @@ class NotificationMessage(BaseMessage):
 
 
 class BroadcastMessage(BaseMessage):
-    """Широковещательное сообщение"""
     type: MessageType = MessageType.BROADCAST
     user_ids: List[int]
     notification_type: str
@@ -70,14 +62,12 @@ class BroadcastMessage(BaseMessage):
 
 
 class WebSocketMessage(BaseMessage):
-    """Сообщение для WebSocket"""
     type: MessageType = MessageType.WEBSOCKET
     user_id: int
     message: Dict[str, Any]
 
 
 class AuditMessage(BaseMessage):
-    """Сообщение для аудита"""
     type: MessageType = MessageType.AUDIT
     user_id: int
     action: str
@@ -90,7 +80,6 @@ class AuditMessage(BaseMessage):
 
 
 class AnalyticsMessage(BaseMessage):
-    """Сообщение для аналитики"""
     type: MessageType = MessageType.ANALYTICS
     event_type: str
     user_id: int

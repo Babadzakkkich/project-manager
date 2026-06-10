@@ -9,24 +9,14 @@ from core.database.models import GroupMember, Project, User, UserRole, SystemRol
 from core.services import ServiceFactory
 from modules.groups.exceptions import InsufficientPermissionsError, UserNotInGroupError
 
-if TYPE_CHECKING:
-    from modules.notifications.publisher import NotificationPublisher
-
 
 async def get_service_factory(
     session: AsyncSession = Depends(db_session.session_getter)
 ) -> AsyncGenerator[ServiceFactory, None]:
-    """
-    Получение фабрики сервисов.
-    Фабрика автоматически очищается после завершения запроса.
-    """
-    # Импортируем здесь чтобы избежать циклических импортов
-    from modules.notifications.publisher import NotificationPublisher
-    from main import notification_publisher  # Импортируем глобальный экземпляр
+    from main import notification_publisher
     
     factory = ServiceFactory(session)
     
-    # Регистрируем сервисы в фабрике
     from modules.groups.service import GroupService
     from modules.projects.service import ProjectService
     from modules.tasks.service import TaskService
@@ -53,7 +43,6 @@ async def get_service_factory(
 async def get_notification_service(
     session: AsyncSession = Depends(db_session.session_getter)
 ):
-    """Получение сервиса уведомлений напрямую"""
     from modules.notifications.service import NotificationService
     from main import notification_publisher
     return NotificationService(session, notification_publisher)
@@ -62,7 +51,6 @@ async def get_notification_service(
 async def get_notification_trigger_service(
     session: AsyncSession = Depends(db_session.session_getter)
 ):
-    """Получение сервиса триггеров уведомлений напрямую"""
     from modules.notifications.service import NotificationTriggerService
     from main import notification_publisher
     return NotificationTriggerService(session, notification_publisher)
