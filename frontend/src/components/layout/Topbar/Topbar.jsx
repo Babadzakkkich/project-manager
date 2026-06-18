@@ -203,7 +203,6 @@ export const Topbar = () => {
     <header className={styles.topbar}>
       <div className={styles.pageInfo}>
         <h1 className={styles.title}>{pageMeta.title}</h1>
-        <p className={styles.subtitle}>{pageMeta.subtitle}</p>
       </div>
 
       <div className={styles.actions}>

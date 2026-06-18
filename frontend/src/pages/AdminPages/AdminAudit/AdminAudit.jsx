@@ -124,8 +124,6 @@ export const AdminAudit = () => {
                       <th>Администратор</th>
                       <th>Действие</th>
                       <th>Объект</th>
-                      <th>ID</th>
-                      <th>Детали</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -145,10 +143,6 @@ export const AdminAudit = () => {
                         </td>
                         <td><span className={styles.actionBadge}>{getActionLabel(event.action)}</span></td>
                         <td>{getTargetLabel(event.target_type)}</td>
-                        <td>{event.target_id || '-'}</td>
-                        <td>
-                          <pre className={styles.details}>{JSON.stringify(event.details || {}, null, 2)}</pre>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
