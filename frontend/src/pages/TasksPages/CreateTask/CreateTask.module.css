@@ -477,11 +477,17 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-3);
-  align-items: end;
+  align-items: start;
 }
 
 .customTagInput {
+  min-width: 0;
   margin: 0;
+}
+
+.customTag > button {
+  min-height: 44px;
+  align-self: flex-start;
 }
 
 .selectedTags {
@@ -887,9 +893,6 @@
     grid-template-columns: 1fr;
   }
 
-  .customTag {
-    grid-template-columns: 1fr;
-  }
 
   .usersGrid {
     grid-template-columns: 1fr;

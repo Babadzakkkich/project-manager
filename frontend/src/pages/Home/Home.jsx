@@ -46,10 +46,6 @@ export const Home = () => {
             <img src={logo} alt="Syncro" className={styles.logo} />
           </div>
 
-          <div className={styles.eyebrow}>
-            Веб-сервис для автоматизации проектной деятельности
-          </div>
-
           <h1 className={styles.title}>
             Рабочее пространство для проектов, задач и команд
           </h1>

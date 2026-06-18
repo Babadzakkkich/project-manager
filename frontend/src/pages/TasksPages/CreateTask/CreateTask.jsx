@@ -58,6 +58,10 @@ const TITLE_LIMIT = FIELD_LIMITS.TASK_TITLE;
 const TAG_LIMIT = FIELD_LIMITS.TASK_TAG;
 const TAGS_LIMIT = FIELD_LIMITS.TASK_TAGS;
 
+const CREATE_TASK_STATUS_OPTIONS = TASK_STATUS_OPTIONS.filter(
+  (option) => option.value !== TASK_STATUSES.DONE
+);
+
 const ASSIGNEE_FORMS = RUSSIAN_CASE_FORMS.ASSIGNEE.NOMINATIVE;
 const USER_GENITIVE_FORMS = RUSSIAN_CASE_FORMS.USER.GENITIVE;
 
@@ -781,7 +785,7 @@ export const CreateTask = () => {
                     className={styles.select}
                     disabled={loading}
                   >
-                    {TASK_STATUS_OPTIONS.map((option) => (
+                    {CREATE_TASK_STATUS_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>

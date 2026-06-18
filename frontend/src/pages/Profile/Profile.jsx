@@ -41,7 +41,6 @@ const getUserInitial = (user) => {
 
 export const Profile = () => {
   const navigate = useNavigate();
-
   const { logout } = useAuthContext();
 
   const {
@@ -63,6 +62,15 @@ export const Profile = () => {
   });
 
   const [errors, setErrors] = useState({});
+
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [passwordErrors, setPasswordErrors] = useState({});
+  const [changingPassword, setChangingPassword] = useState(false);
+
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -227,6 +235,87 @@ export const Profile = () => {
     });
   };
 
+  const clearPasswordError = (fieldName) => {
+    if (!passwordErrors[fieldName] && !passwordErrors.submit) return;
+
+    setPasswordErrors((prev) => {
+      const next = { ...prev };
+      delete next[fieldName];
+      delete next.submit;
+      return next;
+    });
+  };
+
+  const handlePasswordFormChange = (fieldName, value) => {
+    setPasswordForm((prev) => ({
+      ...prev,
+      [fieldName]: value,
+    }));
+
+    clearPasswordError(fieldName);
+  };
+
+  const validatePasswordForm = () => {
+    const nextErrors = {};
+    const currentPassword = passwordForm.currentPassword;
+    const newPassword = passwordForm.newPassword;
+    const confirmPassword = passwordForm.confirmPassword;
+
+    if (!currentPassword.trim()) {
+      nextErrors.currentPassword = 'Введите текущий пароль';
+    }
+
+    if (!newPassword.trim()) {
+      nextErrors.newPassword = 'Введите новый пароль';
+    } else if (newPassword.length < 6) {
+      nextErrors.newPassword = 'Пароль должен содержать минимум 6 символов';
+    } else if (newPassword.length > 128) {
+      nextErrors.newPassword = 'Пароль не должен быть длиннее 128 символов';
+    } else if (currentPassword && newPassword === currentPassword) {
+      nextErrors.newPassword = 'Новый пароль должен отличаться от текущего';
+    }
+
+    if (!confirmPassword.trim()) {
+      nextErrors.confirmPassword = 'Повторите новый пароль';
+    } else if (newPassword !== confirmPassword) {
+      nextErrors.confirmPassword = 'Пароли не совпадают';
+    }
+
+    setPasswordErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+
+    if (!validatePasswordForm()) return;
+
+    try {
+      setChangingPassword(true);
+
+      await usersAPI.changePassword({
+        current_password: passwordForm.currentPassword,
+        new_password: passwordForm.newPassword,
+      });
+
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setPasswordErrors({});
+
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+      navigate('/login?reason=password_changed', { replace: true });
+    } catch (err) {
+      console.error('Error changing password:', err);
+
+      setPasswordErrors({ submit: handleApiError(err) });
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className={styles.loadingContainer}>
@@ -353,7 +442,8 @@ export const Profile = () => {
       )}
 
       <div className={styles.content}>
-        <section className={styles.section}>
+        <div className={styles.mainColumn}>
+          <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <div>
               <h2>Основная информация</h2>
@@ -478,7 +568,72 @@ export const Profile = () => {
               </article>
             </div>
           )}
-        </section>
+          </section>
+
+          <section className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <div>
+                <h2>Смена пароля</h2>
+                <p>После сохранения потребуется повторный вход в аккаунт.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleChangePassword} className={styles.editForm}>
+              <Input
+                label="Текущий пароль"
+                type="password"
+                value={passwordForm.currentPassword}
+                onChange={(e) => handlePasswordFormChange('currentPassword', e.target.value)}
+                error={passwordErrors.currentPassword}
+                placeholder="Введите текущий пароль"
+                disabled={changingPassword}
+                autoComplete="current-password"
+                required
+              />
+
+              <Input
+                label="Новый пароль"
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={(e) => handlePasswordFormChange('newPassword', e.target.value)}
+                error={passwordErrors.newPassword}
+                placeholder="Минимум 6 символов"
+                disabled={changingPassword}
+                autoComplete="new-password"
+                required
+              />
+
+              <Input
+                label="Повторите новый пароль"
+                type="password"
+                value={passwordForm.confirmPassword}
+                onChange={(e) => handlePasswordFormChange('confirmPassword', e.target.value)}
+                error={passwordErrors.confirmPassword}
+                placeholder="Введите новый пароль ещё раз"
+                disabled={changingPassword}
+                autoComplete="new-password"
+                required
+              />
+
+              {passwordErrors.submit && (
+                <div className={styles.submitError} role="alert">
+                  {passwordErrors.submit}
+                </div>
+              )}
+
+              <div className={styles.editActions}>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  loading={changingPassword}
+                  disabled={changingPassword}
+                >
+                  Сменить пароль
+                </Button>
+              </div>
+            </form>
+          </section>
+        </div>
 
         <aside className={`${styles.section} ${styles.dangerZone}`}>
           <div className={styles.sectionHeader}>

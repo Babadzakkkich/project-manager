@@ -4,32 +4,8 @@
   overflow: hidden;
   padding: var(--space-8);
   background:
-    radial-gradient(circle at 12% 18%, rgba(56, 176, 0, 0.16), transparent 30%),
-    radial-gradient(circle at 85% 72%, rgba(0, 107, 53, 0.18), transparent 34%),
-    linear-gradient(135deg, #07110c 0%, #0b1710 42%, #030805 100%);
+    linear-gradient(135deg, #07110c 0%, #0b1710 42%, #07110c 100%);
   color: var(--color-text-inverse);
-}
-
-.backgroundGlow {
-  position: absolute;
-  inset: auto -120px -180px auto;
-  width: 420px;
-  height: 420px;
-  border-radius: 50%;
-  background: rgba(56, 176, 0, 0.16);
-  filter: blur(70px);
-  pointer-events: none;
-}
-
-.backgroundGlowSecond {
-  position: absolute;
-  inset: 8% auto auto -160px;
-  width: 360px;
-  height: 360px;
-  border-radius: 50%;
-  background: rgba(158, 240, 26, 0.08);
-  filter: blur(80px);
-  pointer-events: none;
 }
 
 .hero {
@@ -115,19 +91,6 @@
   margin-top: var(--space-8);
 }
 
-.actions :global(.secondary) {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--color-text-inverse);
-  border-color: rgba(255, 255, 255, 0.16);
-  box-shadow: none;
-}
-
-.actions :global(.secondary:hover) {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--color-text-inverse);
-  border-color: rgba(255, 255, 255, 0.24);
-}
-
 .featuresPanel {
   width: 100%;
   min-width: 0;
@@ -146,23 +109,12 @@
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: var(--radius-2xl);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(56, 176, 0, 0.1), transparent 38%),
-    rgba(255, 255, 255, 0.055);
   backdrop-filter: blur(16px);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
   transition:
     transform var(--transition-base),
     border-color var(--transition-base),
     background var(--transition-base);
-}
-
-.feature:hover {
-  transform: translateY(-3px);
-  border-color: rgba(56, 176, 0, 0.26);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(56, 176, 0, 0.14), transparent 38%),
-    rgba(255, 255, 255, 0.075);
 }
 
 .featureIcon {

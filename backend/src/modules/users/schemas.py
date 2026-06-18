@@ -38,6 +38,17 @@ class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=100)
     password: Optional[str] = Field(None, min_length=6)
 
+class UserPasswordChange(BaseModel):
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=6, max_length=128)
+
+    @field_validator('current_password', 'new_password')
+    @classmethod
+    def validate_password_not_blank(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError('Пароль не может быть пустым')
+        return value
+
 class UserWithRole(UserRead):
     role: str
     

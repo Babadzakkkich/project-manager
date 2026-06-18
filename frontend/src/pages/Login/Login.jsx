@@ -16,6 +16,11 @@ export const Login = () => {
   const { isAuthenticated } = useAuthContext();
   const location = useLocation();
   const navigate = useNavigate();
+  const searchParams = new URLSearchParams(location.search);
+  const infoMessage = location.state?.infoMessage
+    || (searchParams.get('reason') === 'password_changed'
+      ? 'Пароль изменён. Войдите заново с новым паролем.'
+      : '');
 
   useEffect(() => {
     if (location.pathname === '/register') {
@@ -49,6 +54,12 @@ export const Login = () => {
             <ArrowLeft size={17} strokeWidth={2} aria-hidden="true" />
             На главную
           </Link>
+
+          {infoMessage && (
+            <div className={styles.infoMessage} role="status">
+              {infoMessage}
+            </div>
+          )}
 
           {isLogin ? (
             <LoginForm onSwitchToRegister={switchToRegister} />

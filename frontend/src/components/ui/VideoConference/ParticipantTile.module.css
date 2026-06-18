@@ -44,7 +44,6 @@
 
 .tile.videoOff {
   background:
-    radial-gradient(circle at 50% 24%, rgba(56, 176, 0, 0.16), transparent 34%),
     linear-gradient(135deg, rgba(7, 19, 13, 0.96), rgba(15, 23, 42, 0.96));
 }
 

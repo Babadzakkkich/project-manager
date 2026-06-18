@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
@@ -9,7 +9,8 @@ from modules.auth.dependencies import get_current_user
 from modules.auth.exceptions import TokenValidationError
 from shared.dependencies import get_service_factory, ensure_global_admin_by_id
 from core.logger import logger
-from .schemas import UserCreate, UserRead, UserUpdate, UserWithRelations
+from modules.auth.utils.cookie_management import clear_auth_cookies
+from .schemas import UserCreate, UserPasswordChange, UserRead, UserUpdate, UserWithRelations
 from .exceptions import (
     UserNotFoundError,
     UserAlreadyExistsError,
@@ -93,6 +94,33 @@ async def create_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=e.detail
         )
+
+@router.patch("/me/password", response_model=dict)
+async def change_current_user_password(
+    password_data: UserPasswordChange,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    service_factory: ServiceFactory = Depends(get_service_factory)
+):
+    logger.info(f"PATCH /users/me/password - changing password for user {current_user.id}")
+    user_service = service_factory.get('user')
+
+    try:
+        await user_service.change_password(current_user.id, password_data)
+        clear_auth_cookies(response)
+
+        return {"detail": "Пароль успешно изменён. Выполните вход заново"}
+    except UserNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=e.detail
+        )
+    except UserUpdateError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=e.detail
+        )
+
 
 @router.put("/me", response_model=UserRead)
 async def update_current_user(

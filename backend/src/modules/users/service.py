@@ -5,11 +5,11 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.schemas import BaseGroupInfo, BaseTaskInfo
-from core.utils.password_hasher import hash_password
+from core.utils.password_hasher import hash_password, verify_password
 from shared.dependencies import ensure_global_admin_by_id
 from core.database.models import RefreshToken, Task, TaskHistory, User, GroupMember, SystemRole
 from core.logger import logger
-from .schemas import UserCreate, UserUpdate, UserWithRelations
+from .schemas import UserCreate, UserPasswordChange, UserUpdate, UserWithRelations
 from modules.groups.service import GroupService
 from .exceptions import (
     UserNotFoundError,
@@ -169,6 +169,38 @@ class UserService:
             self.logger.error(f"Error creating user: {e}", exc_info=True)
             raise UserCreationError(f"Не удалось создать пользователя: {str(e)}")
     
+    async def change_password(self, user_id: int, password_data: UserPasswordChange) -> None:
+        self.logger.info(f"Changing password for user with ID: {user_id}")
+
+        try:
+            user = await self.get_user_by_id(user_id)
+            if not user:
+                self.logger.warning(f"User with ID {user_id} not found for password change")
+                raise UserNotFoundError(user_id=user_id)
+
+            if not verify_password(password_data.current_password, user.password_hash):
+                self.logger.warning(f"Invalid current password for user {user_id}")
+                raise UserUpdateError("Текущий пароль указан неверно")
+
+            if verify_password(password_data.new_password, user.password_hash):
+                raise UserUpdateError("Новый пароль должен отличаться от текущего")
+
+            user.password_hash = hash_password(password_data.new_password)
+
+            await self.session.execute(
+                delete(RefreshToken).where(RefreshToken.user_id == user_id)
+            )
+            await self.session.commit()
+
+            self.logger.info(f"Password changed successfully for user {user_id}")
+
+        except (UserNotFoundError, UserUpdateError):
+            raise
+        except Exception as e:
+            await self.session.rollback()
+            self.logger.error(f"Error changing password for user {user_id}: {e}", exc_info=True)
+            raise UserUpdateError(f"Не удалось изменить пароль: {str(e)}")
+
     async def update_user(self, user_id: int, user_update: UserUpdate, current_user_id: Optional[int] = None) -> User:
         self.logger.info(f"Updating user with ID: {user_id}")
         

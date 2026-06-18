@@ -61,6 +61,10 @@ class TaskService:
             self._notification_trigger = self.service_factory.get('notification_trigger')
         return self._notification_trigger
     
+    def _ensure_allowed_create_status(self, status: TaskStatus) -> None:
+        if status == TaskStatus.DONE:
+            raise TaskCreationError('При создании задачи нельзя сразу выбрать статус «Выполнена»')
+
     async def _ensure_task_view_access(self, task_id: int, current_user: User) -> Task:
         task = await self.get_task_by_id(task_id)
 
@@ -302,6 +306,7 @@ class TaskService:
     
     async def create_task(self, task_data: TaskCreate, current_user: User) -> TaskReadWithRelations:
         self.logger.info(f"Creating new task '{task_data.title}' by user {current_user.id}")
+        self._ensure_allowed_create_status(task_data.status)
         
         try:
             stmt_project = select(Project).options(selectinload(Project.groups)).where(Project.id == task_data.project_id)
@@ -364,7 +369,7 @@ class TaskService:
             
             return await self.get_task_by_id(new_task.id)
 
-        except (ProjectNotFoundError, GroupNotFoundError, GroupNotInProjectError, TaskAccessDeniedError):
+        except (ProjectNotFoundError, GroupNotFoundError, GroupNotInProjectError, TaskAccessDeniedError, TaskCreationError):
             raise
         except Exception as e:
             await self.session.rollback()
@@ -373,6 +378,7 @@ class TaskService:
     
     async def create_task_for_users(self, task_data: TaskCreate, assignee_ids: List[int], current_user: User) -> TaskReadWithRelations:
         self.logger.info(f"Creating task for users {assignee_ids} by user {current_user.id}")
+        self._ensure_allowed_create_status(task_data.status)
         
         try:
             stmt_project = select(Project).options(selectinload(Project.groups)).where(Project.id == task_data.project_id)
@@ -467,7 +473,7 @@ class TaskService:
             return await self.get_task_by_id(new_task.id)
 
         except (ProjectNotFoundError, GroupNotFoundError, GroupNotInProjectError, 
-                TaskAccessDeniedError, UsersNotInGroupError):
+                TaskAccessDeniedError, UsersNotInGroupError, TaskCreationError):
             raise
         except Exception as e:
             await self.session.rollback()

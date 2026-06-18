@@ -591,11 +591,6 @@ export const Conferences = () => {
 
         <div className={styles.toolbarActions}>
           <div className={styles.metaPill}>
-            <Video size={15} strokeWidth={2} aria-hidden="true" />
-            {formatRussianCount(counters.total, ROOM_FORMS)}
-          </div>
-
-          <div className={styles.metaPill}>
             <Users size={15} strokeWidth={2} aria-hidden="true" />
             {formatRussianCount(counters.participants, PARTICIPANT_FORMS)}
           </div>

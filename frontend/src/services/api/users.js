@@ -17,6 +17,11 @@ export const usersAPI = {
     return response.data;
   },
 
+  changePassword: async (passwordData) => {
+    const response = await apiClient.patch(`${API_ENDPOINTS.USERS}/me/password`, passwordData);
+    return response.data;
+  },
+
   deleteProfile: async () => {
     const response = await apiClient.delete(`${API_ENDPOINTS.USERS}/me`);
     return response.data;
